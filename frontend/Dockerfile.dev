@@ -1,5 +1,5 @@
 # Development Dockerfile for hot-reload
-FROM node:24-alpine
+FROM node:26-alpine
 
 # Host UID/GID so the container writes bind-mounted files (incl. the
 # regenerated src/api/generated client) as the host developer, not root.
