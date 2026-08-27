@@ -1,0 +1,92 @@
+name: Playwright Tests
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+jobs:
+  test:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    # NOTE: per workspace devops policy this should be self-hosted, but every
+    # mesa-tool workflow currently runs on ubuntu-latest. Auditing/migrating
+    # the lot is tracked separately; this PR matches existing convention to
+    # keep blast radius small.
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Bring up the backend via the dev compose stack. --wait blocks on the
+      # service's healthcheck (curl -fsS http://localhost:8000/api/health),
+      # so when this step returns the backend is confirmed serving traffic
+      # on host port 8025. The dev compose handles the data/ bind mounts
+      # (profiles, template, working, scenarios.json) and the dual mount for
+      # common/build.rs path resolution.
+      #
+      # Cold cargo build runs inside the container on first start; we accept
+      # the ~5-10min compile because no prebuilt backend image exists on
+      # DockerHub yet (registry rule: DockerHub only, so no fallback to
+      # other registries). The cargo-cache volume is ephemeral on GitHub
+      # runners (down -v wipes it), so every run starts cold.
+      - name: Start backend
+        run: docker compose -f docker-compose.dev.yml up -d --wait backend-dev
+
+      # Pre-build the reference binaries inside the running backend container
+      # before Playwright starts. Without this step, job_service::compile_cargo_package
+      # runs cargo build -p reference-outstation and -p reference-control-station
+      # on demand the moment the first test job starts. On a cold cargo cache
+      # (which is always the case on ephemeral runners since down -v drops the
+      # cargo-cache volume) that compile can take several minutes, consuming the
+      # entire RESULT_WAIT_TIMEOUT_MS window before any conformance results reach
+      # the UI. Moving the compile here makes it synchronous, observable, and
+      # completely outside the Playwright wait window, so the test only waits for
+      # the actual conformance run (a few seconds on a warm binary).
+      #
+      # The -T flag disables pseudo-TTY allocation (required in non-interactive CI).
+      # CARGO_TARGET_DIR is set in the container's ENV so cargo writes to the
+      # named volume at /app/target, the same target dir the web_server build used.
+      - name: Pre-build reference binaries
+        run: |
+          docker compose -f docker-compose.dev.yml exec -T backend-dev \
+            cargo build -p reference-outstation -p reference-control-station
+
+      # Use the playwright image to avoid timeouts from installing Playwright
+      # dependencies.
+
+      # Don't use it directly as a job container since Docker isn't installed
+      # in the playwright image and we need to run docker compose.
+      - name: Run Playwright tests
+        run: |
+          docker container run \
+            --rm \
+            --ipc=host \
+            --network=host \
+            --volume "$PWD:/app" \
+            --workdir /app/frontend \
+            --env BACKEND_HOST=localhost \
+            --env BACKEND_PORT=8025 \
+            --env CI=true \
+            mcr.microsoft.com/playwright:v1.58.2-noble \
+            sh -c "npm ci && npx playwright test"
+
+      - name: Dump backend logs
+        if: failure()
+        run: docker compose -f docker-compose.dev.yml logs backend-dev --tail=200
+
+      # Always tear down, even on test failure or cancellation, so the
+      # runner is left clean for the next job. `down -v` drops the
+      # cargo-cache / cargo-registry volumes too — on ephemeral GitHub
+      # runners they're throwaway anyway, and skipping --volumes here
+      # would leave dangling state if the runner is ever reused.
+      - name: Stop backend
+        if: always()
+        run: docker compose -f docker-compose.dev.yml down -v
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 30

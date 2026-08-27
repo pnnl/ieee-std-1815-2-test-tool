@@ -1,0 +1,55 @@
+[package]
+name = "web_server"
+version = "0.1.0"
+edition = { workspace = true }
+
+[lints]
+workspace = true
+
+[lib]
+name = "web_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "web_server"
+path = "src/main.rs"
+
+[dependencies]
+# Framework
+poem = { version = "3", features = ["sse", "static-files", "multipart"] }
+
+# Workspace crates
+common = { path = "../common", features = ["utoipa"] }
+pics-validator = { path = "../pics_validator" }
+scenario_generator = { path = "../scenario_generator", features = ["utoipa"] }
+# NOTE: reference-control-station and reference-outstation are spawned as child
+# processes rather than linked in-process. Their binaries must be available in
+# PATH or via REFERENCE_CONTROL_STATION_BIN / REFERENCE_OUTSTATION_BIN env vars.
+
+# Async runtime
+tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true, features = ["sync"] }
+tokio-util = { workspace = true, features = ["rt"] }
+futures-util = "0.3"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Enum iteration
+strum = { workspace = true }
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+anyhow = { workspace = true, features = ["backtrace"] }
+
+# OpenAPI: framework-agnostic spec generation. utoipa has no official Poem
+# adapter, so we hand-wire spec serving via a regular #[handler].
+utoipa = { workspace = true }
+
+[dev-dependencies]
+poem = { version = "3", features = ["test"] }
+tempfile = "3"
+tokio = { workspace = true, features = ["full", "test-util"] }

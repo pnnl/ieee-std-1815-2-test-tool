@@ -1,0 +1,33 @@
+name: Clippy
+
+on:
+  pull_request:
+    branches: ["develop"]
+    paths:
+      - "backend/**/*.rs"
+      - "backend/**/Cargo.toml"
+      - "data/**"
+      - ".cargo/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/clippy.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+          components: clippy
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings

@@ -1,0 +1,104 @@
+services:
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+      args:
+        # Host UID/GID baked into the image so the anonymous node_modules
+        # volume and /app are owned by the host developer. Supplied by the
+        # Makefile (id -u / id -g); defaults to 1000:1000 if run directly.
+        HOST_UID: ${HOST_UID:-1000}
+        HOST_GID: ${HOST_GID:-1000}
+    # Run as the host user so files written into the ./frontend bind mount
+    # (notably the regenerated src/api/generated client) are owned by the
+    # developer, not root. See #320 follow-up.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for hot reload
+      - ./frontend:/app
+      # Mount template directory (read-only)
+      - ./data/template:/data/template:ro
+      # Mount profiles directory (read-only seed profiles)
+      - ./data/profiles:/data/profiles:ro
+      # Don't override node_modules
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      # Single backend after #259 (Python retired from runtime images).
+      - BACKEND_HOST=mesa-backend-dev
+      - BACKEND_PORT=8000
+    command: sh -c "npm install --prefer-offline && npm run dev -- --host 0.0.0.0"
+    restart: unless-stopped
+    container_name: mesa-frontend-dev
+    networks:
+      - mesa-network-dev
+    # backend-dev now exposes /api/health (it is the Poem web_server), so
+    # frontend-dev can wait on its healthcheck directly. No more poem-dev
+    # service to depend on (#259).
+    depends_on:
+      backend-dev:
+        condition: service_healthy
+
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    command: sh -c "cargo build --workspace && cargo run -p web_server"
+    ports:
+      - "8025:8000"
+      - "20001:20001"
+    volumes:
+      # Mount backend source for hot reload
+      - ./backend:/app/backend
+      # Workspace Cargo manifest + lockfile (build context is ./backend, so
+      # these are mounted explicitly).
+      - ./Cargo.toml:/app/Cargo.toml:ro
+      - ./Cargo.lock:/app/Cargo.lock:ro
+      # Mount data directories.
+      # data/profiles: read-only seed profiles (full.json, demo.json,
+      # mandatory_*, minimal_*). data/working is rw because Poem owns user
+      # saves (#222).
+      - ./data/profiles:/data/profiles:ro
+      # build.rs in the common crate resolves full.json relative to
+      # CARGO_MANIFEST_DIR (/app/backend/src/common/../../../data/profiles/
+      # full.json → /app/data/profiles/full.json). Mount the same directory
+      # at the workspace-root-relative path so the build script finds it.
+      - ./data/profiles:/app/data/profiles:ro
+      - ./data/working:/data/working:rw
+      - ./data/template:/data/template:ro
+      - ./data/scenarios.json:/data/scenarios.json:ro
+      # Cache cargo builds
+      - cargo-cache:/app/target
+      - cargo-registry:/usr/local/cargo/registry
+    environment:
+      - DATA_DIR=/data
+      - RUST_LOG=info
+      - PORT=8000
+      - CARGO_TARGET_DIR=/app/target
+    healthcheck:
+      # start_period is generous because the first `cargo run` after a
+      # clean volume must compile the workspace.
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 300s
+    restart: unless-stopped
+    container_name: mesa-backend-dev
+    networks:
+      - mesa-network-dev
+
+networks:
+  mesa-network-dev:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24
+
+volumes:
+  cargo-cache:
+  cargo-registry:

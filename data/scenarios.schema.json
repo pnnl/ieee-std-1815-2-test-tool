@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scenarios.schema.json",
+  "title": "MESA Test Scenarios",
+  "description": "Defines the test scenarios for the MESA conformance test runner.",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "$ref": "#/$defs/Scenario"
+  },
+  "$defs": {
+    "Scenario": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique scenario identifier (snake_case)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable scenario name."
+        },
+        "description": {
+          "type": "string",
+          "description": "What the scenario tests."
+        },
+        "expected_tests": {
+          "type": "array",
+          "description": "Expected test outcomes for this scenario.",
+          "items": {
+            "$ref": "#/$defs/ExpectedTest"
+          }
+        }
+      },
+      "required": ["id", "name", "description", "expected_tests"],
+      "additionalProperties": false
+    },
+    "ExpectedTest": {
+      "type": "object",
+      "properties": {
+        "test_id": {
+          "type": "string",
+          "pattern": "^[A-Z]+[0-9]*_[0-9]+$",
+          "description": "Test identifier matching a TestName enum variant."
+        },
+        "should_pass": {
+          "type": "boolean",
+          "description": "Whether this test is expected to pass in the scenario."
+        }
+      },
+      "required": ["test_id", "should_pass"],
+      "additionalProperties": false
+    }
+  }
+}

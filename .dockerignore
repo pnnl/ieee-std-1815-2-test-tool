@@ -1,0 +1,17 @@
+.git
+.azure
+.bicep-tmp
+.azure-tmp
+.venv
+.pytest_cache
+.ruff_cache
+target
+frontend/node_modules
+frontend/dist
+frontend/playwright-report
+frontend/test-results
+node_modules
+**/.env
+.claude
+.vscode
+ignore

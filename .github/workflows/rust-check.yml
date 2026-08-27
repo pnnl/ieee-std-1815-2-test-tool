@@ -1,0 +1,38 @@
+name: Run static analysis
+
+on:
+  push:
+    branches: ["develop"]
+    paths:
+      - "backend/**/*.rs"
+      - "backend/**/Cargo.toml"
+      - "data/**"
+      - ".cargo/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/rust-check.yml"
+  pull_request:
+    branches: ["develop"]
+    paths:
+      - "backend/**/*.rs"
+      - "backend/**/Cargo.toml"
+      - "data/**"
+      - ".cargo/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/rust-check.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: cargo check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run cargo check
+        run: cargo check --workspace --all-targets

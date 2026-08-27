@@ -1,0 +1,24 @@
+[package]
+name = "pics-validator"
+version = "0.1.0"
+description = "Validates IEEE 1815.2 PICS spreadsheets against the standard"
+edition = {workspace = true}
+
+[lints]
+workspace = true
+
+[lib]
+name = "pics_validator"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pics-validator"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+calamine = "0.26"
+clap = { workspace = true }
+common = { path = "../common" }
+serde = { workspace = true }
+serde_json = { workspace = true }

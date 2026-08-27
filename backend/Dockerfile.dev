@@ -1,0 +1,34 @@
+# Development Dockerfile for MESA backend (Poem-only, #259).
+#
+# Carries the full Rust toolchain so `cargo run -p web_server` works against
+# source mounted from the host. The compose layer mounts ./backend onto
+# /app/backend and the workspace Cargo.{toml,lock} onto /app so the layout
+# inside the container matches the repo root.
+#
+# Python has been retired from the backend image. The test_runner crate
+# stays in the repo for pytest in CI (see workflows) but does NOT run inside
+# this container.
+
+FROM rust:1.97.1-bookworm
+
+WORKDIR /app
+
+# curl is used by the docker compose healthcheck on /api/health
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+EXPOSE 8000
+
+# Cargo cache lives on a named volume mounted at /app/target so successive
+# `cargo run` invocations stay warm.
+ENV CARGO_TARGET_DIR=/app/target \
+    RUST_LOG=info \
+    DATA_DIR=/data \
+    PORT=8000
+
+# The source tree is bind-mounted from the host at runtime, so the build
+# itself happens on container start. Workspace Cargo manifests live at /app
+# (mounted by docker-compose.dev.yml), web_server source at
+# /app/backend/src/web_server.
+CMD ["cargo", "run", "-p", "web_server"]

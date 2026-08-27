@@ -1,0 +1,458 @@
+.startStopButton {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+button.iconButton > span.iconContainer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.testRunnerTab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.testRunnerBody {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.testRunnerSidebar {
+  width: 450px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: #f7f9fc;
+  border: 1px solid #e1e6ee;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.testRunnerLogs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.statusList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.statusMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusLabel {
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.statusIndicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.statusIndicator.statusStopped {
+  background-color: #95a5a6;
+  animation: none;
+}
+
+.statusIndicator.statusUnknown {
+  background-color: #bdc3c7;
+  animation: none;
+}
+
+.statusIndicator.statusStarting {
+  background-color: #2980b9;
+}
+
+.statusIndicator.statusCompiling {
+  background-color: #e67e22;
+}
+
+.statusIndicator.statusStarted {
+  background-color: #3498db;
+}
+
+.statusIndicator.statusRunning {
+  background-color: #27ae60;
+}
+
+.statusIndicator.statusFinished {
+  background-color: #7f8c8d;
+  animation: none;
+}
+
+.statusIndicator.statusError {
+  background-color: #e74c3c;
+  animation: none;
+}
+
+.statusIndicator.statusPaused {
+  background-color: #f39c12;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.statusText {
+  font-weight: 500;
+  color: #34495e;
+}
+
+.testRunnerControls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.testRunnerSidebar .testRunnerControls {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btnPrimary {
+  background-color: #3498db;
+  color: white;
+}
+
+.btnPrimary:hover {
+  background-color: #2980b9;
+}
+
+.btnSuccess {
+  background-color: #27ae60;
+  color: white;
+}
+
+.btnSuccess:hover:not(:disabled) {
+  background-color: #229954;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnWarning {
+  background-color: #f39c12;
+  color: white;
+}
+
+.btnWarning:hover:not(:disabled) {
+  background-color: #e67e22;
+}
+
+.btnDanger {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btnDanger:hover:not(:disabled) {
+  background-color: #c0392b;
+}
+
+.btnSecondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btnSecondary:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+.jobInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background-color: #ecf0f1;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.testRunnerSidebar .jobInfo {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.dutSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dutLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c3e50;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.testResults {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.testResultsTitle {
+  margin: 0;
+  font-size: 16px;
+  color: #2c3e50;
+}
+
+.testResultsList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.testResultItem {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  background-color: #ffffff;
+  border: 1px solid #e4e9f2;
+  border-radius: 8px;
+  gap: 12px;
+}
+
+.testResultHeading {
+  display: flex;
+  justify-content: space-between;
+}
+
+.testResultName {
+  font-weight: 500;
+  color: #34495e;
+  flex: 1;
+}
+
+.testResultStatus {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.4px;
+}
+
+.testResultTimestamp {
+  font-size: 12px;
+  color: #7f8c8d;
+}
+
+.testResultStatus.statusPending {
+  background-color: #fdf2d3;
+  color: #b7791f;
+}
+
+.testResultStatus.statusNotImplemented {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.testResultStatus.statusPass {
+  background-color: #d7f5e8;
+  color: #1e8f5a;
+}
+
+.testResultStatus.statusFail {
+  background-color: #fde2e0;
+  color: #c0392b;
+}
+
+.logContainer {
+  flex: 1;
+  min-height: 400px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background-color: #1e1e1e;
+  border-radius: 8px;
+  padding: 16px;
+  font-family: Monaco, Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.logEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+  color: #7f8c8d;
+}
+
+.logEmpty p {
+  margin: 0;
+}
+
+.logEntry {
+  display: flex;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid #2d2d2d;
+}
+
+.logEntry:last-child {
+  border-bottom: none;
+}
+
+.logTimestamp {
+  color: #7f8c8d;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.logSource {
+  flex-shrink: 0;
+  min-width: 40px;
+  font-weight: 600;
+}
+
+.logSourceControlStation .logSource,
+.logSource.logSourceControlStation {
+  color: #3498db;
+}
+
+.logSourceOutstation .logSource,
+.logSource.logSourceOutstation {
+  color: #9b59b6;
+}
+
+.logSourceTestRunner .logSource,
+.logSource.logSourceTestRunner {
+  color: #e67e22;
+}
+
+.logSourceWebClient .logSource,
+.logSource.logSourceWebClient {
+  color: #27ae60;
+}
+
+.logMessage {
+  word-break: break-word;
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.logControls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  background-color: #f8f9fa;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.logFilterGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filterLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin-right: 4px;
+}
+
+.logFilterBtn {
+  background: white;
+  border: 1px solid #dcdcdc;
+  border-radius: 12px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.logFilterBtn:hover {
+  background: #f0f0f0;
+}
+
+.logFilterBtn.active {
+  background-color: #555;
+  color: white;
+  border-color: transparent;
+}
+
+.logFilterBtn.active.logSourceControlStation {
+  background-color: #3498db;
+}
+
+.logFilterBtn.active.logSourceOutstation {
+  background-color: #9b59b6;
+}
+
+.logFilterBtn.active.logSourceTestRunner {
+  background-color: #e67e22;
+}
+
+.logFilterBtn.active.logSourceWebClient {
+  background-color: #27ae60;
+}
+
+.logContainer::-webkit-scrollbar {
+  width: 8px;
+}
+
+.logContainer::-webkit-scrollbar-track {
+  background: #2d2d2d;
+  border-radius: 4px;
+}
+
+.logContainer::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.logContainer::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}

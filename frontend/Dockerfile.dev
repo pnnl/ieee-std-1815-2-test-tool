@@ -1,0 +1,26 @@
+# Development Dockerfile for hot-reload
+FROM node:24-alpine
+
+# Host UID/GID so the container writes bind-mounted files (incl. the
+# regenerated src/api/generated client) as the host developer, not root.
+# Defaults to 1000:1000; the Makefile overrides with the real host values.
+ARG HOST_UID=1000
+ARG HOST_GID=1000
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# Own /app and the baked node_modules with the host UID/GID. The anonymous
+# node_modules volume seeds from this directory on first mount, so it inherits
+# this ownership; the non-root runtime user (set via compose `user:`) can then
+# write node_modules, node_modules/.vite, and the bind-mounted source.
+RUN chown -R ${HOST_UID}:${HOST_GID} /app
+
+# Expose Vite dev server port
+EXPOSE 3000
+
+# Sync deps from mounted package.json before starting dev server
+CMD sh -c "npm install --prefer-offline && npm run dev -- --host 0.0.0.0"

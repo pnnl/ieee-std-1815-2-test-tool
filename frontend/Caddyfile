@@ -1,0 +1,112 @@
+{
+    # Storage path for certificates
+    storage file_system /caddy-data
+}
+
+# HTTP - redirect to HTTPS
+http://1815.2tests.local {
+    redir https://1815.2tests.local:8443{uri} permanent
+}
+
+# HTTPS - main site
+https://1815.2tests.local:443 {
+    # TLS configuration with self-signed cert
+    tls internal
+
+    # API routing after the Poem-only cutover (#259).
+    #
+    # The Poem web_server mounts ALL routes under /api natively (see
+    # backend/src/web_server/src/lib.rs:`.nest("/api", routes::api_routes())`
+    # → /api/health, /api/jobs, /api/profiles, /api/enums, /api/scenarios).
+    # Therefore Caddy MUST NOT strip the /api prefix for any route — the
+    # path the client sends is the path Poem expects. This is a behavioural
+    # change from the Python era, where /api/jobs and /api/scenarios were
+    # rewritten to /jobs and /scenarios before proxying.
+
+    # Proxy /api/health/test-connection to backend.
+    handle /api/health/test-connection* {
+        reverse_proxy backend:8000
+    }
+
+    # /api/profiles* served by Poem at the full /api/profiles path.
+    # No prefix strip.
+    handle /api/profiles* {
+        reverse_proxy backend:8000
+    }
+
+    # /api/jobs* served by Poem at the full /api/jobs path.
+    # No prefix strip (was strip_prefix /api in the Python era).
+    handle /api/jobs* {
+        reverse_proxy backend:8000
+    }
+
+    # /api/scenarios* served by Poem at the full /api/scenarios path.
+    # No prefix strip (was strip_prefix /api in the Python era).
+    handle /api/scenarios* {
+        reverse_proxy backend:8000
+    }
+
+    # /api/enums* served by Poem at the full /api/enums path.
+    # No prefix strip.
+    handle /api/enums* {
+        reverse_proxy backend:8000
+    }
+
+    # /api/health* served by Poem at the full /api/health path.
+    # No prefix strip.
+    handle /api/health* {
+        reverse_proxy backend:8000
+    }
+
+    # Serve data directory FIRST (before SPA catch-all)
+    handle /data/* {
+        root * /
+        file_server
+    }
+
+    # SPA catch-all. MUST be a `handle` block (not bare directives) so the
+    # /api/* handle blocks above remain mutually exclusive with it.
+    # Without wrapping, Caddy's directive ordering runs `try_files` before
+    # `handle`, which rewrites /api/* to /index.html before the proxy
+    # handlers ever match.
+    handle {
+        root * /usr/share/caddy
+        file_server
+        try_files {path} /index.html
+    }
+
+    # Compression
+    encode gzip zstd
+
+    # Security headers
+    header {
+        # Prevent clickjacking
+        X-Frame-Options "SAMEORIGIN"
+        # Prevent MIME sniffing
+        X-Content-Type-Options "nosniff"
+        # XSS Protection
+        X-XSS-Protection "1; mode=block"
+        # Remove Server header
+        -Server
+        # Add HSTS (optional, but recommended for HTTPS)
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+
+    # Cache static assets
+    @static {
+        path *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2 *.ttf *.eot
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    # Don't cache HTML
+    @html {
+        path *.html /
+    }
+    header @html Cache-Control "no-cache, no-store, must-revalidate"
+
+    # Access logs
+    log {
+        output stdout
+        format console
+    }
+}

@@ -1,0 +1,36 @@
+[workspace]
+members = [
+    "backend/src/common",
+    "backend/src/pics_validator",
+    "backend/src/scenario_generator",
+    "backend/src/web_server",
+    "backend/src/reference_control_station",
+    "backend/src/reference_outstation",
+    "backend/src/test_tool_macros",
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+
+[workspace.dependencies]
+chrono = "0.4.42"
+clap = { version = "4.5.31", features = ["derive"] }
+dnp3 = { version = "1.6.0", default-features = false }
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.96"
+strum = { version = "0.27.2", features = ["derive"] }
+strum_macros = "0.28.0"
+tokio = "1"
+tokio-serial = { version = "=5.4.3", default-features = false }
+tokio-stream = "0.1.1"
+tokio-util = { version = "0.7", features = ["codec"] }
+toml = "0.8"
+tracing = "0.1.41"
+tracing-subscriber = "0.3"
+utoipa = "5"
+anyhow = "1"
+
+[workspace.lints.clippy]
+collapsible_if = "allow"

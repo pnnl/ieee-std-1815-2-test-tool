@@ -1,0 +1,7 @@
+# Collapse in GitHub diffs
+**/mesa/models/registry/generated/**/** linguist-generated
+data/template/profile.json linguist-generated
+frontend/openapi.json linguist-generated
+
+**/generated/** linguist-generated
+**/profiles/*.json linguist-generated

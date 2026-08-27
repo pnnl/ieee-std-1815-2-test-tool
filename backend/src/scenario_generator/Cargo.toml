@@ -1,0 +1,29 @@
+[package]
+name = "scenario_generator"
+version = "0.1.0"
+edition = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+common = { path = "../common" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Optional OpenAPI schema derivation. Enabled by web_server only so the
+# Scenario/ExpectedTest types serialized by the /api/scenarios endpoint
+# can be referenced from utoipa's ApiDoc. Mirrors the same gate in
+# `common`. Other consumers of this crate pay no transitive cost.
+utoipa = { workspace = true, optional = true }
+strum.workspace = true
+
+[features]
+default = []
+utoipa = ["dep:utoipa"]
+
+[dev-dependencies]
+strum = { workspace = true }

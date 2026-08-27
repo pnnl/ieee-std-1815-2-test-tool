@@ -1,0 +1,38 @@
+name: Run tests
+
+on:
+  push:
+    branches: ["develop"]
+    paths:
+      - "backend/**/*.rs"
+      - "backend/**/Cargo.toml"
+      - "data/**"
+      - ".cargo/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/rust-test.yml"
+  pull_request:
+    branches: ["develop"]
+    paths:
+      - "backend/**/*.rs"
+      - "backend/**/Cargo.toml"
+      - "data/**"
+      - ".cargo/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/rust-test.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run cargo test
+        run: cargo test --workspace

@@ -1,0 +1,28 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = {workspace = true}
+
+[lints]
+workspace = true
+
+[build-dependencies]
+serde_json = { workspace = true }
+
+[dependencies]
+test_tool_macros = { path = "../test_tool_macros" }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Optional OpenAPI schema derivation. Enabled by web_server only.
+utoipa = { workspace = true, optional = true }
+
+[features]
+default = []
+utoipa = ["dep:utoipa"]
