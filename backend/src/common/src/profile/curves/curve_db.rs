@@ -6,8 +6,8 @@ use crate::profile::validation::{Validated, ValidationErrors};
 use crate::profile::values::TransmissionI32;
 use crate::uids::ai_uid::AiUid;
 
-use super::indexed_db::{AiValue, DatabaseEntry, IndexedEntryDatabase};
-use super::profile::{AiCurve, PicsProfile};
+use crate::profile::indexed_db::{AiValue, DatabaseEntry, IndexedEntryDatabase};
+use crate::profile::{AiCurve, PicsProfile};
 
 /// Current values and AI indices for a single curve.
 #[derive(Debug, Clone)]
@@ -242,9 +242,9 @@ impl CurveDatabase {
 mod tests {
     use super::*;
     use crate::profile::{
-        CurveType,
-        profile::{
-            AiPoint, AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs, EquipmentInfo,
+        AiPoint, CurveType,
+        pics_profile::{
+            AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs, EquipmentInfo,
             EquipmentPoints, EventClass, KeySheet, SectionInfo, SectionPoints,
         },
         validation::Validated,

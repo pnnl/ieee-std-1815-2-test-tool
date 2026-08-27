@@ -1,8 +1,7 @@
 use tracing::error;
 
 use crate::profile::{
-    CurveType,
-    profile::{AiCurve, AiPoint},
+    AiCurve, AiPoint, CurveType,
     scale_curve::{DependentVariableUnit, IndependentVariableUnit, ScalingEntry},
     validation::{ValidationError, ValidationErrors, is_whole_number_in_range},
 };

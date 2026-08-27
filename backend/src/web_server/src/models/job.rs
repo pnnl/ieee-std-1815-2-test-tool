@@ -36,7 +36,7 @@ pub struct CreateJobRequest {
     /// (preserves the permissive deserialize behavior the existing
     /// frontend relies on); the OpenAPI schema reports the stricter
     /// `PicsProfile` shape via `#[schema(value_type = PicsProfile)]`.
-    #[schema(value_type = common::profile::profile::PicsProfile)]
+    #[schema(value_type = common::profile::pics_profile::PicsProfile)]
     pub profile: serde_json::Value,
     #[serde(default)]
     pub scenario_ids: Vec<String>,

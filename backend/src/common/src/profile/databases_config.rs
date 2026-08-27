@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::profile::PicsProfile;
+use super::pics_profile::PicsProfile;
 
 pub const DEFAULT_MAX_DATABASE_ENTRIES: u16 = 100;
 

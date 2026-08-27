@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::profile::{validation::ValidationErrors, values::TransmissionI32};
 
-use super::profile::AiPoint;
+use super::AiPoint;
 
 /// A single AI point: its DNP3 index paired with its raw transmitted integer value.
 ///

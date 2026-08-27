@@ -10,7 +10,7 @@ use dnp3::app::measurement::{
 use dnp3::outstation::OutstationHandle;
 use dnp3::outstation::database::*;
 
-use common::profile::{DatabaseEntry, PicsProfile, profile::EventClass as ProfileEventClass};
+use common::profile::{DatabaseEntry, PicsProfile, pics_profile::EventClass as ProfileEventClass};
 
 /// Convert a PicsProfile EventClass to a DNP3 EventClass.
 fn to_dnp3_event_class(class: &ProfileEventClass) -> Option<EventClass> {

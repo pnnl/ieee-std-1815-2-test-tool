@@ -1,8 +1,8 @@
-pub use common::profile::profile::{
+pub use common::profile::{
     AiBattery, AiCurve, AiDer, AiInverter, AiMeter, AiPoint, AiSchedule, AiScheduleBC,
     AnalogInputs, AnalogOutputs, AoBattery, AoInverter, AoMeter, AoPoint, BiBattery, BiDer,
-    BiInverter, BiMeter, BiPoint, BinaryInputs, BinaryOutputs, BoPoint, CtrPoint, EquipmentInfo,
-    EquipmentPoints, EventClass, KeySheet, PicsProfile, SectionInfo, SectionPoints,
+    BiInverter, BiMeter, BinaryInputs, BinaryOutputs, CtrPoint, EquipmentInfo, EquipmentPoints,
+    EventClass, KeySheet, PicsProfile, SectionInfo, SectionPoints,
 };
 
 // ---------------------------------------------------------------------------

@@ -46,7 +46,7 @@ use crate::services::job_service::JobService;
         crate::routes::profiles::SaveProfileRequest,
         crate::routes::profiles::ProfileMutationAck,
         ValidationErrorsResponse,
-        common::profile::profile::PicsProfile,
+        common::profile::pics_profile::PicsProfile,
         crate::routes::enums::EnumEntry,
         crate::routes::enums::ModeTypeEntry,
         crate::routes::enums::EnumsResponse,

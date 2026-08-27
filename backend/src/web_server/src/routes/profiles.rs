@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use common::profile::profile::PicsProfile;
+use common::profile::pics_profile::PicsProfile;
 use common::profile::validation::Validate;
 use poem::web::{Data, Json, Multipart, Path as PoemPath};
 use poem::{IntoResponse, Route, get, handler, post};
