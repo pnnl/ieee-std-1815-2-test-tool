@@ -1,13 +1,43 @@
 use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
 
 use crate::profile::{
-    profile::{AiPoint, AiSchedule},
+    AiPoint,
     validation::{ValidationError, ValidationErrors},
 };
 
 fn days_and_millis_to_datetime(days: i64, millis: i64) -> Option<DateTime<Utc>> {
     let total_duration = Duration::days(days) + Duration::milliseconds(millis);
     DateTime::from_timestamp_millis(total_duration.num_milliseconds())
+}
+
+/// AI points belonging to an IEEE 1815.2 Schedule functional group.
+/// The header fields capture the single per-schedule metadata points.
+/// The Vec fields hold one entry per schedule slot, parallel-indexed.
+/// Note: the schedule edit selector is stored in the base AiPoints array, not here.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct AiSchedule {
+    pub identity: AiPoint,
+    pub priority: AiPoint,
+    /// The number of days since January 1, 1970, UTC.
+    pub start_date: AiPoint,
+    /// Delta time in milliseconds from the start date.
+    pub start_time: AiPoint,
+    /// The number of days since January 1, 1970, UTC.
+    pub stop_date: AiPoint,
+    /// Delta time in milliseconds from the start date.
+    pub stop_time: AiPoint,
+    pub repeat_interval: AiPoint,
+    pub repeat_interval_units: AiPoint,
+    pub validation_state: AiPoint,
+    pub status: AiPoint,
+    pub number_of_points: AiPoint,
+    /// Seconds since the start time.
+    pub time_offsets: Vec<AiPoint>,
+    pub action_types: Vec<AiPoint>,
+    pub action_indexes: Vec<AiPoint>,
+    pub values: Vec<AiPoint>,
 }
 
 impl AiSchedule {

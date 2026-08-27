@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 
-use common::profile::PicsProfile;
-use common::profile::profile::{AiPoint, AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs};
 use common::profile::validation::{Validated, ValidationError, ValidationErrors};
 use common::profile::values::{EngineeringF64, TransmissionI32};
+use common::profile::{
+    AiPoint, AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs, PicsProfile,
+};
 use common::uids::ai_uid::AiUid;
 use common::uids::ao_uid::AoUid;
 use rand::Rng;

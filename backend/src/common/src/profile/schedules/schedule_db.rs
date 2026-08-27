@@ -1,4 +1,4 @@
-//! In-memory backward-compatible schedule database built from PicsProfile schedule BC data.
+//! In-memory IEEE 1815.2 schedule database built from PicsProfile schedule data.
 
 use std::collections::{HashMap, HashSet};
 
@@ -6,57 +6,74 @@ use crate::profile::validation::{Validated, ValidationErrors};
 use crate::profile::values::TransmissionI32;
 use crate::uids::ai_uid::AiUid;
 
-use super::indexed_db::{AiValue, DatabaseEntry, IndexedEntryDatabase};
-use super::profile::{AiScheduleBC, PicsProfile};
+use crate::profile::indexed_db::{AiValue, DatabaseEntry, IndexedEntryDatabase};
+use crate::profile::{AiSchedule, PicsProfile};
 
-/// Current values and AI indices for a single backward-compatible schedule.
+/// Current values and AI indices for a single IEEE 1815.2 schedule.
 #[derive(Debug, Clone)]
-pub struct ScheduleBCEntry {
+pub struct ScheduleEntry {
     /// AI index and value for identity.
     pub identity: AiValue,
     /// AI index and value for priority.
     pub priority: AiValue,
-    /// AI index and value for schedule type.
-    pub schedule_type: AiValue,
     /// AI index and value for start date.
     pub start_date: AiValue,
     /// AI index and value for start time.
     pub start_time: AiValue,
+    /// AI index and value for stop date.
+    pub stop_date: AiValue,
+    /// AI index and value for stop time.
+    pub stop_time: AiValue,
     /// AI index and value for repeat interval.
     pub repeat_interval: AiValue,
     /// AI index and value for repeat interval units.
     pub repeat_interval_units: AiValue,
-    /// AI index and value for validation status.
-    pub validation_status: AiValue,
+    /// AI index and value for validation state.
+    pub validation_state: AiValue,
     /// AI index and value for status.
     pub status: AiValue,
     /// AI index and value for number-of-points.
     pub number_of_points: AiValue,
     /// AI index and value for time offset slots.
     pub time_offsets: Vec<AiValue>,
+    /// AI index and value for action type slots.
+    pub action_types: Vec<AiValue>,
+    /// AI index and value for action index slots.
+    pub action_indexes: Vec<AiValue>,
     /// AI index and value for value slots.
     pub values: Vec<AiValue>,
     /// AI indices that have been explicitly written via a control operation.
     written: HashSet<u16>,
 }
 
-impl TryFrom<&AiScheduleBC> for ScheduleBCEntry {
+impl TryFrom<AiSchedule> for ScheduleEntry {
     type Error = ValidationErrors;
 
-    fn try_from(schedule: &AiScheduleBC) -> Result<Self, Self::Error> {
+    fn try_from(schedule: AiSchedule) -> Result<Self, Self::Error> {
         Ok(Self {
             identity: AiValue::try_from(&schedule.identity)?,
             priority: AiValue::try_from(&schedule.priority)?,
-            schedule_type: AiValue::try_from(&schedule.schedule_type)?,
             start_date: AiValue::try_from(&schedule.start_date)?,
             start_time: AiValue::try_from(&schedule.start_time)?,
+            stop_date: AiValue::try_from(&schedule.stop_date)?,
+            stop_time: AiValue::try_from(&schedule.stop_time)?,
             repeat_interval: AiValue::try_from(&schedule.repeat_interval)?,
             repeat_interval_units: AiValue::try_from(&schedule.repeat_interval_units)?,
-            validation_status: AiValue::try_from(&schedule.validation_status)?,
+            validation_state: AiValue::try_from(&schedule.validation_state)?,
             status: AiValue::try_from(&schedule.status)?,
             number_of_points: AiValue::try_from(&schedule.number_of_points)?,
             time_offsets: schedule
                 .time_offsets
+                .iter()
+                .map(AiValue::try_from)
+                .collect::<Result<_, _>>()?,
+            action_types: schedule
+                .action_types
+                .iter()
+                .map(AiValue::try_from)
+                .collect::<Result<_, _>>()?,
+            action_indexes: schedule
+                .action_indexes
                 .iter()
                 .map(AiValue::try_from)
                 .collect::<Result<_, _>>()?,
@@ -70,21 +87,24 @@ impl TryFrom<&AiScheduleBC> for ScheduleBCEntry {
     }
 }
 
-impl DatabaseEntry for ScheduleBCEntry {
+impl DatabaseEntry for ScheduleEntry {
     fn all_values(&self) -> Vec<AiValue> {
         let mut out = vec![
             self.identity,
             self.priority,
-            self.schedule_type,
             self.start_date,
             self.start_time,
+            self.stop_date,
+            self.stop_time,
             self.repeat_interval,
             self.repeat_interval_units,
-            self.validation_status,
+            self.validation_state,
             self.status,
             self.number_of_points,
         ];
         out.extend_from_slice(&self.time_offsets);
+        out.extend_from_slice(&self.action_types);
+        out.extend_from_slice(&self.action_indexes);
         out.extend_from_slice(&self.values);
         out
     }
@@ -93,12 +113,13 @@ impl DatabaseEntry for ScheduleBCEntry {
         for field in [
             &mut self.identity,
             &mut self.priority,
-            &mut self.schedule_type,
             &mut self.start_date,
             &mut self.start_time,
+            &mut self.stop_date,
+            &mut self.stop_time,
             &mut self.repeat_interval,
             &mut self.repeat_interval_units,
-            &mut self.validation_status,
+            &mut self.validation_state,
             &mut self.status,
             &mut self.number_of_points,
         ] {
@@ -108,7 +129,13 @@ impl DatabaseEntry for ScheduleBCEntry {
                 return true;
             }
         }
-        for field in self.time_offsets.iter_mut().chain(self.values.iter_mut()) {
+        for field in self
+            .time_offsets
+            .iter_mut()
+            .chain(self.action_types.iter_mut())
+            .chain(self.action_indexes.iter_mut())
+            .chain(self.values.iter_mut())
+        {
             if field.index == ai_index {
                 field.value = new_value;
                 self.written.insert(ai_index);
@@ -122,16 +149,27 @@ impl DatabaseEntry for ScheduleBCEntry {
         Self {
             identity: AiValue::new(self.identity.index, 0),
             priority: AiValue::new(self.priority.index, 0),
-            schedule_type: AiValue::new(self.schedule_type.index, 0),
             start_date: AiValue::new(self.start_date.index, 0),
             start_time: AiValue::new(self.start_time.index, 0),
+            stop_date: AiValue::new(self.stop_date.index, 0),
+            stop_time: AiValue::new(self.stop_time.index, 0),
             repeat_interval: AiValue::new(self.repeat_interval.index, 0),
             repeat_interval_units: AiValue::new(self.repeat_interval_units.index, 0),
-            validation_status: AiValue::new(self.validation_status.index, 0),
+            validation_state: AiValue::new(self.validation_state.index, 0),
             status: AiValue::new(self.status.index, 0),
             number_of_points: AiValue::new(self.number_of_points.index, 0),
             time_offsets: self
                 .time_offsets
+                .iter()
+                .map(|v| AiValue::new(v.index, 0))
+                .collect(),
+            action_types: self
+                .action_types
+                .iter()
+                .map(|v| AiValue::new(v.index, 0))
+                .collect(),
+            action_indexes: self
+                .action_indexes
                 .iter()
                 .map(|v| AiValue::new(v.index, 0))
                 .collect(),
@@ -152,35 +190,39 @@ impl DatabaseEntry for ScheduleBCEntry {
     }
 }
 
-/// In-memory database of all backward-compatible schedule entries, keyed by 1-based schedule number.
-pub struct ScheduleBCDatabase {
-    inner_db: IndexedEntryDatabase<ScheduleBCEntry>,
+/// In-memory database of all IEEE 1815.2 schedule entries, keyed by 1-based schedule number.
+pub struct ScheduleDatabase {
+    inner_db: IndexedEntryDatabase<ScheduleEntry>,
     /// UID of the schedule-to-edit-selector readback point.
     selector_ai_uid: AiUid,
     /// Currently selected schedule number (1-based). Defaults to 1.
     current_entry: u16,
 }
 
-impl ScheduleBCDatabase {
-    /// Build a ScheduleBCDatabase from the backward-compatible schedules in a PicsProfile.
+impl ScheduleDatabase {
+    /// Build a ScheduleDatabase from the IEEE 1815.2 schedules in a PicsProfile.
     ///
     /// `max_schedules` sets the upper bound for selector validation; entries beyond those
     /// in the profile are created blank on demand when `set_active_entry` is called.
     ///
-    /// If the profile contains no schedules BC, the database is built empty: reads return
+    /// If the profile contains no schedules, the database is built empty: reads return
     /// `None`, `set_active_entry` returns `None` (no template to clone blanks from), and
-    /// `update_value` is a no-op. Profiles without schedule BC features are valid input.
+    /// `update_value` is a no-op. Profiles without schedule features are valid input.
     pub fn from_profile(
         profile: &Validated<PicsProfile>,
         max_schedules: u16,
         selector_ai_uid: AiUid,
     ) -> Self {
-        let mut db = IndexedEntryDatabase::<ScheduleBCEntry>::new(HashMap::new(), max_schedules);
+        let mut db = IndexedEntryDatabase::new(HashMap::new(), max_schedules);
 
-        for (idx, schedule) in profile.ai.schedules_bc.iter().enumerate() {
+        for (idx, schedule) in profile.ai.schedules.iter().enumerate() {
             let schedule_number = (idx as u16) + 1;
-            let entry = ScheduleBCEntry::try_from(schedule)
-                .unwrap_or_else(|_| panic!("invalid schedule BC data in profile at index {}", idx));
+            let entry = ScheduleEntry::try_from(schedule.clone()).unwrap_or_else(|e| {
+                panic!(
+                    "schedule {} does not have valid values. Error: {}",
+                    schedule_number, e
+                )
+            });
             db.insert(schedule_number, entry);
         }
         db.set_current_entry_points(1);
@@ -198,12 +240,12 @@ impl ScheduleBCDatabase {
     }
 
     /// Look up a schedule entry by 1-based schedule number.
-    pub fn get(&self, schedule_number: u16) -> Option<&ScheduleBCEntry> {
+    pub fn get(&self, schedule_number: u16) -> Option<&ScheduleEntry> {
         self.inner_db.get(schedule_number)
     }
 
     /// Look up a schedule entry mutably by 1-based schedule number.
-    pub fn get_mut(&mut self, schedule_number: u16) -> Option<&mut ScheduleBCEntry> {
+    pub fn get_mut(&mut self, schedule_number: u16) -> Option<&mut ScheduleEntry> {
         self.inner_db.get_mut(schedule_number)
     }
 
@@ -212,6 +254,10 @@ impl ScheduleBCDatabase {
     /// If the entry does not exist but is within `max_schedules`, a blank entry is created.
     /// Returns `None` if `entry_number` is out of range or no template entry exists.
     /// The returned values should be pushed into the DNP3 database.
+    ///
+    /// # TODO
+    /// When schedule execution is implemented, action_type values within the entry will
+    /// determine whether each action_index and value maps to an AI, BI, or other point type.
     pub fn set_active_entry(&mut self, entry_number: u16) -> Option<Vec<AiValue>> {
         let points = self
             .inner_db
@@ -235,7 +281,7 @@ impl ScheduleBCDatabase {
     }
 
     /// Return schedule 1, used as the template for creating blank entries with matching AI indices.
-    pub fn template_entry(&self) -> Option<&ScheduleBCEntry> {
+    pub fn template_entry(&self) -> Option<&ScheduleEntry> {
         self.inner_db.template_entry()
     }
 
@@ -249,7 +295,7 @@ impl ScheduleBCDatabase {
         self.inner_db.max_entries()
     }
 
-    /// Number of backward-compatible schedules in the database.
+    /// Number of schedules in the database.
     pub fn len(&self) -> usize {
         self.inner_db.len()
     }
@@ -270,14 +316,14 @@ impl ScheduleBCDatabase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::profile::{
-        profile::{
-            AiPoint, AiScheduleBC, AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs,
-            EquipmentInfo, EquipmentPoints, EventClass, KeySheet, SectionInfo, SectionPoints,
-        },
-        validation::Validated,
-        values::EngineeringF64,
+    use crate::profile::indexed_db::DatabaseEntry;
+    use crate::profile::pics_profile::{
+        AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs, EquipmentInfo, EquipmentPoints,
+        EventClass, KeySheet, SectionInfo, SectionPoints,
     };
+    use crate::profile::validation::Validated;
+    use crate::profile::values::EngineeringF64;
+    use crate::profile::{ActionType, AiPoint, AiSchedule};
 
     fn make_ai_point(index: u16, value: f64) -> AiPoint {
         AiPoint::new(
@@ -299,37 +345,43 @@ mod tests {
         .expect("test AiPoint must be valid")
     }
 
-    fn make_schedule_bc() -> AiScheduleBC {
-        AiScheduleBC {
-            identity: make_ai_point(2002, 1.0),
-            priority: make_ai_point(2003, 0.0),
-            schedule_type: make_ai_point(2004, 0.0),
-            start_date: make_ai_point(2005, 0.0),
-            start_time: make_ai_point(2006, 0.0),
-            repeat_interval: make_ai_point(2007, 0.0),
-            repeat_interval_units: make_ai_point(2008, 0.0),
-            validation_status: make_ai_point(2009, 0.0),
-            status: make_ai_point(2010, 0.0),
-            number_of_points: make_ai_point(2011, 0.0),
-            time_offsets: vec![make_ai_point(2012, 0.0), make_ai_point(2014, 0.0)],
-            values: vec![make_ai_point(2013, 0.0), make_ai_point(2015, 0.0)],
+    fn make_schedule() -> AiSchedule {
+        AiSchedule {
+            identity: make_ai_point(3001, 1.0),
+            priority: make_ai_point(3002, 0.0),
+            start_date: make_ai_point(3003, 0.0),
+            start_time: make_ai_point(3004, 0.0),
+            stop_date: make_ai_point(3005, 0.0),
+            stop_time: make_ai_point(3006, 0.0),
+            repeat_interval: make_ai_point(3007, 0.0),
+            repeat_interval_units: make_ai_point(3008, 0.0),
+            validation_state: make_ai_point(3009, 0.0),
+            status: make_ai_point(3010, 0.0),
+            number_of_points: make_ai_point(3011, 1.0),
+            time_offsets: vec![make_ai_point(3012, 0.0)],
+            action_types: vec![make_ai_point(3013, ActionType::Null as u8 as f64)],
+            action_indexes: vec![make_ai_point(3014, 0.0)],
+            values: vec![make_ai_point(3015, 5.0)],
         }
     }
 
-    fn make_schedule_bc_2() -> AiScheduleBC {
-        AiScheduleBC {
-            identity: make_ai_point(2002, 2.0),
-            priority: make_ai_point(2003, 1.0),
-            schedule_type: make_ai_point(2004, 3.0),
-            start_date: make_ai_point(2005, 0.0),
-            start_time: make_ai_point(2006, 0.0),
-            repeat_interval: make_ai_point(2007, 0.0),
-            repeat_interval_units: make_ai_point(2008, 0.0),
-            validation_status: make_ai_point(2009, 0.0),
-            status: make_ai_point(2010, 0.0),
-            number_of_points: make_ai_point(2011, 1.0),
-            time_offsets: vec![make_ai_point(2012, 60.0), make_ai_point(2014, 0.0)],
-            values: vec![make_ai_point(2013, 5.0), make_ai_point(2015, 0.0)],
+    fn make_schedule_2() -> AiSchedule {
+        AiSchedule {
+            identity: make_ai_point(3001, 2.0),
+            priority: make_ai_point(3002, 1.0),
+            start_date: make_ai_point(3003, 0.0),
+            start_time: make_ai_point(3004, 0.0),
+            stop_date: make_ai_point(3005, 1.0),
+            stop_time: make_ai_point(3006, 1.0),
+            repeat_interval: make_ai_point(3007, 1.0),
+            repeat_interval_units: make_ai_point(3008, 1.0),
+            validation_state: make_ai_point(3009, 1.0),
+            status: make_ai_point(3010, 1.0),
+            number_of_points: make_ai_point(3011, 1.0),
+            time_offsets: vec![make_ai_point(3012, 30.0)],
+            action_types: vec![make_ai_point(3013, ActionType::AO as u8 as f64)],
+            action_indexes: vec![make_ai_point(3014, 1.0)],
+            values: vec![make_ai_point(3015, 7.0)],
         }
     }
 
@@ -373,15 +425,15 @@ mod tests {
         }
     }
 
-    fn make_profile_with_schedule_bc() -> Validated<PicsProfile> {
-        make_profile_with_schedules_bc(vec![make_schedule_bc()])
+    fn make_profile_with_schedule() -> Validated<PicsProfile> {
+        make_profile_with_schedules(vec![make_schedule()])
     }
 
-    fn make_profile_with_two_schedules_bc() -> Validated<PicsProfile> {
-        make_profile_with_schedules_bc(vec![make_schedule_bc(), make_schedule_bc_2()])
+    fn make_profile_with_two_schedules() -> Validated<PicsProfile> {
+        make_profile_with_schedules(vec![make_schedule(), make_schedule_2()])
     }
 
-    fn make_profile_with_schedules_bc(schedules_bc: Vec<AiScheduleBC>) -> Validated<PicsProfile> {
+    fn make_profile_with_schedules(schedules: Vec<AiSchedule>) -> Validated<PicsProfile> {
         PicsProfile::new(
             KeySheet {
                 config: make_empty_section(),
@@ -408,8 +460,8 @@ mod tests {
             AnalogInputs {
                 points: vec![],
                 curves: vec![],
-                schedules_bc,
-                schedules: vec![],
+                schedules_bc: vec![],
+                schedules,
                 meters: vec![],
                 ders: vec![],
                 inverters: vec![],
@@ -422,100 +474,87 @@ mod tests {
 
     #[test]
     fn test_from_profile_creates_entry_1() {
-        let profile = make_profile_with_schedule_bc();
-        let db = ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         assert!(db.get(1).is_some());
-        assert_eq!(db.get(1).unwrap().identity.index, 2002);
+        assert_eq!(db.get(1).unwrap().identity.index, 3001);
     }
 
     #[test]
     fn test_from_profile_only_adds_profile_entries_initially() {
-        let profile = make_profile_with_schedule_bc();
-        let db = ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         assert_eq!(db.len(), 1);
-        assert_eq!(db.get(1).unwrap().identity.value, TransmissionI32(1));
+        assert_eq!(db.get(1).unwrap().values[0].value, TransmissionI32(5));
         assert!(db.get(2).is_none());
     }
 
     #[test]
     fn test_from_profile_with_two_schedules() {
-        let profile = make_profile_with_two_schedules_bc();
-        let db = ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_two_schedules();
+        let db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         assert_eq!(db.len(), 2);
-        assert_eq!(db.get(1).unwrap().time_offsets[0].value, TransmissionI32(0));
-        assert_eq!(
-            db.get(2).unwrap().time_offsets[0].value,
-            TransmissionI32(60)
-        );
+        assert_eq!(db.get(1).unwrap().values[0].value, TransmissionI32(5));
+        assert_eq!(db.get(2).unwrap().values[0].value, TransmissionI32(7));
         assert!(db.get(3).is_none());
     }
 
     #[test]
-    fn test_update_value_time_offset() {
-        let profile = make_profile_with_two_schedules_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+    fn test_update_value_data_point() {
+        let profile = make_profile_with_two_schedules();
+        let mut db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         db.set_active_entry(2);
-        db.update_value(2012, TransmissionI32(120));
-        assert_eq!(
-            db.get(2).unwrap().time_offsets[0].value,
-            TransmissionI32(120)
-        );
-        assert_eq!(db.get(1).unwrap().time_offsets[0].value, TransmissionI32(0));
+        db.update_value(3015, TransmissionI32(99));
+        assert_eq!(db.get(2).unwrap().values[0].value.0, 99);
+        assert_eq!(db.get(1).unwrap().values[0].value.0, 5);
     }
 
     #[test]
     fn test_update_value_header() {
-        let profile = make_profile_with_schedule_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 2, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let mut db = ScheduleDatabase::from_profile(&profile, 2, AiUid::Scheduling_FSCC_Schd);
         db.set_active_entry(1);
-        db.update_value(2003, TransmissionI32(5));
-        assert_eq!(db.get(1).unwrap().priority.value, TransmissionI32(5));
+        db.update_value(3002, TransmissionI32(3));
+        assert_eq!(db.get(1).unwrap().priority.value, TransmissionI32(3));
     }
 
     #[test]
     fn test_update_value_unknown_index_is_noop() {
-        let profile = make_profile_with_schedule_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 2, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let mut db = ScheduleDatabase::from_profile(&profile, 2, AiUid::Scheduling_FSCC_Schd);
         db.update_value(9999, TransmissionI32(99));
     }
 
     #[test]
     fn test_update_value_marks_written() {
-        let profile = make_profile_with_schedule_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 2, AiUid::BC_Scheduling_BC_FSCC_Schd);
-        db.update_value(2003, TransmissionI32(5));
+        let profile = make_profile_with_schedule();
+        let mut db = ScheduleDatabase::from_profile(&profile, 2, AiUid::Scheduling_FSCC_Schd);
+        db.update_value(3002, TransmissionI32(3));
         let written = db.written_values(1).unwrap();
-        assert!(written.iter().any(|v| v.index == 2003));
-        assert!(!written.iter().any(|v| v.index == 2002));
+        assert!(written.iter().any(|v| v.index == 3002));
+        assert!(!written.iter().any(|v| v.index == 3001));
     }
 
     #[test]
     fn test_set_active_entry_returns_points() {
-        let profile = make_profile_with_schedule_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let mut db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         let points = db.set_active_entry(1).expect("entry 1 should exist");
-        assert!(points.iter().any(|v| v.index == 2002));
+        assert!(points.iter().any(|v| v.index == 3001));
     }
 
     #[test]
     fn test_set_active_entry_out_of_range_returns_none() {
-        let profile = make_profile_with_schedule_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 2, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let mut db = ScheduleDatabase::from_profile(&profile, 2, AiUid::Scheduling_FSCC_Schd);
         assert!(db.set_active_entry(0).is_none());
         assert!(db.set_active_entry(3).is_none());
     }
 
     #[test]
     fn test_set_active_entry_creates_blank_entry() {
-        let profile = make_profile_with_schedule_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let mut db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         let points = db
             .set_active_entry(2)
             .expect("blank entry 2 should be created");
@@ -524,49 +563,56 @@ mod tests {
         assert!(
             points
                 .iter()
-                .any(|v| v.index == 2002 && v.value == TransmissionI32(0))
+                .any(|v| v.index == 3001 && v.value == TransmissionI32(0))
         );
         assert!(db.written_values(2).unwrap().is_empty());
     }
 
     #[test]
     fn test_set_active_entry_blank_then_update() {
-        let profile = make_profile_with_schedule_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let mut db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         db.set_active_entry(2);
-        db.update_value(2003, TransmissionI32(8));
-        assert_eq!(db.get(2).unwrap().priority.value, TransmissionI32(8));
+        db.update_value(3002, TransmissionI32(9));
+        assert_eq!(db.get(2).unwrap().priority.value, TransmissionI32(9));
         let written = db.written_values(2).unwrap();
         assert!(
             written
                 .iter()
-                .any(|v| v.index == 2003 && v.value == TransmissionI32(8))
+                .any(|v| v.index == 3002 && v.value == TransmissionI32(9))
         );
+        // Entry 1 unaffected
         assert_eq!(db.get(1).unwrap().priority.value, TransmissionI32(0));
     }
 
     #[test]
     fn test_current_entry_defaults_to_1() {
-        let profile = make_profile_with_schedule_bc();
-        let db = ScheduleBCDatabase::from_profile(&profile, 2, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let db = ScheduleDatabase::from_profile(&profile, 2, AiUid::Scheduling_FSCC_Schd);
         assert_eq!(db.current_entry(), 1);
     }
 
     #[test]
     fn test_max_schedules_capped() {
-        let profile = make_profile_with_schedule_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let mut db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         assert_eq!(db.max_schedules(), 4);
         assert!(db.set_active_entry(5).is_none());
     }
 
     #[test]
+    fn test_all_pairs_includes_all_field_types() {
+        let profile = make_profile_with_schedule();
+        let db = ScheduleDatabase::from_profile(&profile, 1, AiUid::Scheduling_FSCC_Schd);
+        let values = db.get(1).unwrap().all_values();
+        // 11 header fields + 1 time_offset + 1 action_type + 1 action_index + 1 value = 15
+        assert_eq!(values.len(), 15);
+    }
+
+    #[test]
     fn test_blank_entry_has_same_vector_structure() {
-        let profile = make_profile_with_schedule_bc();
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+        let profile = make_profile_with_schedule();
+        let mut db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         db.set_active_entry(2);
         assert_eq!(
             db.get(2).unwrap().all_values().len(),
@@ -582,9 +628,9 @@ mod tests {
     }
 
     #[test]
-    fn test_from_profile_with_empty_schedules_bc_does_not_panic() {
-        let profile = make_profile_with_schedules_bc(vec![]);
-        let db = ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
+    fn test_from_profile_with_empty_schedules_does_not_panic() {
+        let profile = make_profile_with_schedules(vec![]);
+        let db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         assert_eq!(db.len(), 0);
         assert!(db.is_empty());
         assert!(db.get(1).is_none());
@@ -595,21 +641,17 @@ mod tests {
 
     #[test]
     fn test_empty_db_set_active_entry_returns_none() {
-        let profile = make_profile_with_schedules_bc(vec![]);
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
-        // No template, so even in-range entries cannot be created.
+        let profile = make_profile_with_schedules(vec![]);
+        let mut db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         assert!(db.set_active_entry(1).is_none());
         assert!(db.set_active_entry(2).is_none());
     }
 
     #[test]
     fn test_empty_db_update_value_is_noop() {
-        let profile = make_profile_with_schedules_bc(vec![]);
-        let mut db =
-            ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
-        // Must not panic.
-        db.update_value(2003, TransmissionI32(5));
+        let profile = make_profile_with_schedules(vec![]);
+        let mut db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
+        db.update_value(3002, TransmissionI32(5));
         assert!(db.is_empty());
     }
 }

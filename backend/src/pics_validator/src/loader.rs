@@ -7,15 +7,14 @@ use calamine::{Data, Range, Reader, Xlsx, open_workbook};
 use common::profile::curve::float_to_curve_code;
 use common::profile::validation::{LoadError, Validated, ValidationError, ValidationErrors};
 use common::profile::values::{EngineeringF64, TransmissionI32};
-use common::profile::{ActionType, CurveType, ProfileIndex};
+use common::profile::{ActionType, BiPoint, BoPoint, CurveType, ProfileIndex};
 use common::uids::bo_uid::BoUid;
 
 use crate::models::{
     AiBattery, AiCurve, AiDer, AiInverter, AiMeter, AiPoint, AiSchedule, AiScheduleBC,
     AnalogInputs, AnalogOutputs, AoBattery, AoInverter, AoMeter, AoPoint, BiBattery, BiDer,
-    BiInverter, BiMeter, BiPoint, BinaryInputs, BinaryOutputs, BoPoint, CtrPoint, EquipmentInfo,
-    EquipmentPoints, EventClass, KeySheet, PicsProfile, SectionInfo, SectionPoints,
-    evaluate_conditional_mandatory,
+    BiInverter, BiMeter, BinaryInputs, BinaryOutputs, CtrPoint, EquipmentInfo, EquipmentPoints,
+    EventClass, KeySheet, PicsProfile, SectionInfo, SectionPoints, evaluate_conditional_mandatory,
 };
 use crate::schema::{self, AiCol, AoCol, BiCol, BoCol, CtrCol, Sheet};
 use common::profile::scale_curve::{DependentVariableUnit, IndependentVariableUnit};

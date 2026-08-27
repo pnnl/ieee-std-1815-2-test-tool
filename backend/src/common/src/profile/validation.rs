@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Debug, fmt::Display, ops::Deref};
 
-use crate::profile::profile::AiPoint;
+use crate::profile::AiPoint;
 use crate::profile::values::EngineeringF64;
 use serde::{Deserialize, Serialize};
 
