@@ -21,7 +21,7 @@
     "generate:api": "openapi-ts"
   },
   "dependencies": {
-    "@headless-tree/core": "^1.6.3",
+    "@headless-tree/core": "^1.7.0",
     "@headless-tree/react": "^1.6.3",
     "@radix-ui/themes": "^3.3.0",
     "@tailwindcss/vite": "^4.1.18",
