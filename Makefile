@@ -46,7 +46,7 @@ setup-hosts:
 	fi
 
 # Development targets
-dev: setup-hosts dev-build dev-up
+dev: dev-build dev-up
 
 dev-build:
 	docker compose -f docker-compose.dev.yml build
