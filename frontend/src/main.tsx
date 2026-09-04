@@ -5,12 +5,12 @@ import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'sonner'
 
 import App from './App'
-import './index.css'
 import '@radix-ui/themes/styles.css'
+import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <Theme>
+    <Theme accentColor="blue">
       <Toaster position="bottom-right" richColors />
       <BrowserRouter>
         <App />

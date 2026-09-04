@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { IconButton } from '@radix-ui/themes'
+import { Separator } from '@radix-ui/themes'
 import { GearIcon } from '@radix-ui/react-icons'
 
 interface HeaderProps {
@@ -119,14 +119,16 @@ function Header({
           >
             Copy
           </Button>
-          <IconButton
+          <Separator orientation="vertical"></Separator>
+          <Button
             variant="outline"
-            size="2"
+            color="gray"
+            size="sm"
             onClick={onOpenPreferences}
             title="Open preferences"
           >
-            <GearIcon></GearIcon>
-          </IconButton>
+            <GearIcon /> Settings
+          </Button>
           <input
             id="file-input"
             ref={fileInputRef}

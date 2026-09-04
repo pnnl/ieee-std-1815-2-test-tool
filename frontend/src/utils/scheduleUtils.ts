@@ -205,7 +205,7 @@ export function scheduleToEvents(schedule: Schedule): GanttEvent[] {
       startDateTime: schedule.startDateTime,
       stopDateTime: schedule.stopDateTime,
       id: schedule.index,
-      label: `Schedule ${schedule.index + 1}`,
+      label: `Schedule ${schedule.index}`,
       priority: schedule.priority,
       groupId: schedule.index,
     },
