@@ -11,14 +11,15 @@ The 1815.2 Test Tool is an [1815.2](https://standards.ieee.org/ieee/1815.2/7731/
 - Developer contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - [frontend/README.md](frontend/README.md) - Frontend documentation
 
-## Quick Start: Docker
+## Setup
+
+
+### Setup with Docker (recommended)
 
 Install:
 
 - Make: https://www.gnu.org/software/make/#download
 - Docker: https://docs.docker.com/get-started/get-docker/
-
-### Using Make (Recommended)
 
 The project includes a Makefile for common operations:
 
@@ -41,9 +42,20 @@ To stop:
 
 ```bash
 make dev-down
-# or
-docker compose -f docker-compose.dev.yml down
 ```
+
+## Setup with Linux (for Ubuntu 26.04)
+```bash
+apt update
+apt install make curl build-essential nodejs npm
+make install  # installs Rust, builds the project
+```
+
+Start the server:
+```bash
+~/.cargo/bin/cargo run -p web_server
+```
+
 
 ## License
 
