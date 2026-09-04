@@ -130,7 +130,7 @@ function TestRunnerTab({
       .catch((error) => {
         toast.error(
           'Failed to load scenarios: ' +
-            (error instanceof Error ? error.message : 'Unknown error'),
+          (error instanceof Error ? error.message : 'Unknown error'),
         )
       })
   }, [])
@@ -216,8 +216,19 @@ function TestRunnerTab({
 
       eventSource.onmessage = (event) => {
         try {
-          const eventData = JSON.parse(event.data)
+          const eventData: TestRunnerEvent = JSON.parse(event.data)
           handleEvent(eventData)
+
+          if (
+            eventData.event_type === 'status_update' &&
+            eventData.message.event_type === 'status_update' &&
+            eventData.message.process === 'test_runner' &&
+            eventData.message.status === 'finished'
+          ) {
+            eventSourceRef.current?.close()
+            eventSourceRef.current = null
+            addLog('web_client', 'All scenarios finished.')
+          }
         } catch (e) {
           console.error('Failed to parse event:', e)
         }
@@ -227,7 +238,16 @@ function TestRunnerTab({
         console.error('SSE error:', event)
         // Close immediately on error to prevent unwanted reconnection loops
         eventSource.close()
-        addLog('web_client', `Connection closed due to error: ${event.type}`)
+        const connectionState =
+          eventSource.readyState === EventSource.CONNECTING
+            ? 'reconnecting'
+            : eventSource.readyState === EventSource.CLOSED
+              ? 'closed'
+              : 'open'
+        addLog(
+          'web_client',
+          `Test-runner event stream failed (connection state: ${connectionState}; your internet connection: ${navigator.onLine}).`,
+        )
         setIsConnecting(false)
       }
     } catch (error) {
@@ -282,7 +302,7 @@ function TestRunnerTab({
       setProcessStatus('test_runner', 'error')
       toast.error(
         'Error stopping job: ' +
-          (error instanceof Error ? error.message : 'Unknown error'),
+        (error instanceof Error ? error.message : 'Unknown error'),
       )
     } finally {
       if (eventSourceRef.current) {
@@ -326,7 +346,7 @@ function TestRunnerTab({
       .catch((error) => {
         toast.error(
           'Failed to copy logs: ' +
-            (error instanceof Error ? error.message : 'Unknown error'),
+          (error instanceof Error ? error.message : 'Unknown error'),
         )
       })
   }
@@ -362,7 +382,7 @@ function TestRunnerTab({
     } catch (error) {
       toast.error(
         'Failed to download bundle: ' +
-          (error instanceof Error ? error.message : 'Unknown error'),
+        (error instanceof Error ? error.message : 'Unknown error'),
       )
     }
   }

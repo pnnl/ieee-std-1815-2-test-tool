@@ -1,5 +1,7 @@
 import { useRef } from 'react'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@radix-ui/themes'
+import { GearIcon } from '@radix-ui/react-icons'
 
 interface HeaderProps {
   onImportFile: (file: File) => void
@@ -117,14 +119,14 @@ function Header({
           >
             Copy
           </Button>
-          <Button
+          <IconButton
             variant="outline"
-            size="sm"
+            size="2"
             onClick={onOpenPreferences}
             title="Open preferences"
           >
-            Preferences
-          </Button>
+            <GearIcon></GearIcon>
+          </IconButton>
           <input
             id="file-input"
             ref={fileInputRef}
