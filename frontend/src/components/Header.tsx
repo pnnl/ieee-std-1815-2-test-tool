@@ -52,7 +52,7 @@ function Header({
   }
 
   return (
-    <header className="p-2 border-b border-border">
+    <header className="pb-2 border-b border-border">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">1815.2 Test Tool</h3>
