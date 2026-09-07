@@ -13,7 +13,6 @@ The 1815.2 Test Tool is an [1815.2](https://standards.ieee.org/ieee/1815.2/7731/
 
 ## Setup
 
-
 ### Setup with Docker (recommended)
 
 Install:
@@ -47,7 +46,7 @@ make dev-down
 ## Setup with Linux (for Ubuntu 26.04)
 ```bash
 apt update
-apt install make curl build-essential nodejs npm
+apt install -y make curl build-essential nodejs npm
 make install  # installs Rust, builds the project
 ```
 
