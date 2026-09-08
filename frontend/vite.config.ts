@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import openApiConfig from './openapi-ts.config'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -106,7 +107,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     dataServePlugin(),
-    heyApiPlugin(),
+    heyApiPlugin({ config: await openApiConfig }),
     restartOnOpenApiChange(),
   ],
   resolve: {
