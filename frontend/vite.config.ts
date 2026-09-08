@@ -1,10 +1,11 @@
-import { defineConfig, PluginOption, UserConfig } from 'vite'
+import { defineConfig, PluginOption } from 'vite'
 import react from '@vitejs/plugin-react'
 import { heyApiPlugin } from '@hey-api/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import openApiConfig from './openapi-ts.config'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -16,31 +17,6 @@ const __dirname = path.dirname(__filename)
 const BACKEND_HOST = process.env.BACKEND_HOST || 'localhost'
 const BACKEND_PORT = process.env.BACKEND_PORT || '8000'
 const BACKEND_TARGET = `http://${BACKEND_HOST}:${BACKEND_PORT}`
-const OPENAPI_URL = `${BACKEND_TARGET}/openapi.json`
-
-async function waitForBackend(url: string): Promise<void> {
-  const startedAt = Date.now()
-  let lastLog = 0
-  while (true) {
-    try {
-      const res = await fetch(url)
-      if (res.ok) {
-        console.log(
-          `[vite] backend ready at ${url} (${Date.now() - startedAt}ms)`,
-        )
-        return
-      }
-    } catch {
-      // backend not up yet
-    }
-    const now = Date.now()
-    if (now - lastLog > 5000) {
-      console.log(`[vite] waiting for backend at ${url}…`)
-      lastLog = now
-    }
-    await new Promise((r) => setTimeout(r, 500))
-  }
-}
 
 // Static-data middleware. Serves /data/* file requests in dev (template
 // profile, scenarios.json, etc.) — read-only, parent-dir-confined. The
@@ -101,55 +77,72 @@ const dataServePlugin = (): PluginOption => ({
   },
 })
 
-// https://vitejs.dev/config/
-export default defineConfig(async (): Promise<UserConfig> => {
-  await waitForBackend(OPENAPI_URL)
+const restartOnOpenApiChange = (): PluginOption => {
+  const openapiPath = path.resolve(__dirname, 'openapi.json')
+  let restarting = false
+
   return {
-    plugins: [
-      react(),
-      tailwindcss(),
-      dataServePlugin(),
-      heyApiPlugin({
-        config: {
-          input: OPENAPI_URL,
-          output: 'src/api/generated',
-        },
-      }),
-    ],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, './src'),
-      },
-    },
-    server: {
-      port: 3000,
-      host: true, // Listen on all addresses for Docker
-      watch: {
-        usePolling: true, // Enable polling for Docker volumes
-      },
-      fs: {
-        // Allow serving files from parent directory and Docker mounts
-        allow: ['..', '/data'],
-      },
-      proxy: {
-        // Catch-all: forward every /api/* request to the Poem backend.
-        // Same-origin is now the default (baseUrl:''), so every generated
-        // route — /api/profiles, /api/scenarios, /api/jobs, /api/enums,
-        // /api/health — must resolve through this proxy in dev.
-        '/api': {
-          target: BACKEND_TARGET,
-          changeOrigin: true,
-          // Set Accept: text/event-stream on SSE event-stream sub-routes
-          // (/api/jobs/*/events) so the backend keeps the connection open.
-          configure: (proxy) => {
-            proxy.on('proxyReq', (proxyReq, req) => {
-              if (req.url?.includes('/events')) {
-                proxyReq.setHeader('Accept', 'text/event-stream')
-              }
-            })
-          },
-        },
-      },
+    name: 'restart-on-openapi-change',
+    configureServer(server) {
+      server.watcher.add(openapiPath)
+
+      server.watcher.on('change', async (file) => {
+        if (file !== openapiPath || restarting) return
+
+        restarting = true
+        console.log('OpenAPI spec changed. Restarting Vite server...')
+        try {
+          await server.restart()
+        } finally {
+          restarting = false
+        }
+      })
     },
   }
+}
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    dataServePlugin(),
+    heyApiPlugin({ config: await openApiConfig }),
+    restartOnOpenApiChange(),
+  ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    port: 3000,
+    host: true, // Listen on all addresses for Docker
+    watch: {
+      usePolling: true, // Enable polling for Docker volumes
+    },
+    fs: {
+      // Allow serving files from parent directory and Docker mounts
+      allow: ['..', '/data'],
+    },
+    proxy: {
+      // Catch-all: forward every /api/* request to the Poem backend.
+      // Same-origin is now the default (baseUrl:''), so every generated
+      // route — /api/profiles, /api/scenarios, /api/jobs, /api/enums,
+      // /api/health — must resolve through this proxy in dev.
+      '/api': {
+        target: BACKEND_TARGET,
+        changeOrigin: true,
+        // Set Accept: text/event-stream on SSE event-stream sub-routes
+        // (/api/jobs/*/events) so the backend keeps the connection open.
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            if (req.url?.includes('/events')) {
+              proxyReq.setHeader('Accept', 'text/event-stream')
+            }
+          })
+        },
+      },
+    },
+  },
 })

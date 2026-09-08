@@ -34,19 +34,6 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    # `vite build` invokes @hey-api/openapi-ts which fetches /openapi.json
-    # from the backend, so the backend must be up before the build step.
-    # --wait blocks on the service's healthcheck so we know it's serving
-    # traffic on host port 8025 by the time this returns.
-    - name: Start backend
-      working-directory: .
-      run: docker compose -f docker-compose.dev.yml up -d --wait backend-dev
-
-    - name: Dump backend logs
-      if: failure()
-      working-directory: .
-      run: docker compose -f docker-compose.dev.yml logs backend-dev --tail=200
-
     - name: Build
       run: npm run build
 
@@ -55,8 +42,3 @@ jobs:
 
     - name: Type check
       run: npm run type-check
-
-    - name: Stop backend
-      if: always()
-      working-directory: .
-      run: docker compose -f docker-compose.dev.yml down -v

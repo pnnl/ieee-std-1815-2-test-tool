@@ -58,6 +58,8 @@ services:
       # these are mounted explicitly).
       - ./Cargo.toml:/app/Cargo.toml:ro
       - ./Cargo.lock:/app/Cargo.lock:ro
+      # Persist the OpenAPI document written during web server startup.
+      - ./frontend/openapi.json:/app/frontend/openapi.json
       # Mount data directories.
       # data/profiles: read-only seed profiles (full.json, demo.json,
       # mandatory_*, minimal_*). data/working is rw because Poem owns user
@@ -79,6 +81,7 @@ services:
       - RUST_LOG=info
       - PORT=8000
       - CARGO_TARGET_DIR=/app/target
+      - OPENAPI_OUTPUT_PATH=/app/frontend/openapi.json
     healthcheck:
       # start_period is generous because the first `cargo run` after a
       # clean volume must compile the workspace.
