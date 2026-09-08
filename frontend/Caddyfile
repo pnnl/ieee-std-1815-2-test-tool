@@ -33,13 +33,13 @@ https://1815.2tests.local:443 {
     }
 
     # /api/jobs* served by Poem at the full /api/jobs path.
-    # No prefix strip (was strip_prefix /api in the Python era).
+    # No prefix strip.
     handle /api/jobs* {
         reverse_proxy backend:8000
     }
 
     # /api/scenarios* served by Poem at the full /api/scenarios path.
-    # No prefix strip (was strip_prefix /api in the Python era).
+    # No prefix strip.
     handle /api/scenarios* {
         reverse_proxy backend:8000
     }

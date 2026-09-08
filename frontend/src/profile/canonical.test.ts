@@ -402,7 +402,6 @@ describe('setSchedulePoints point_index correctness', () => {
     expect(after.action_indexes.map((p) => p.point_index)).toEqual([3014, 3018])
     expect(after.values.map((p) => p.point_index)).toEqual([3015, 3019])
 
-    // And not the 0 sentinel that the old emptyAiPoint produced.
     for (const arr of [
       after.time_offsets,
       after.action_types,

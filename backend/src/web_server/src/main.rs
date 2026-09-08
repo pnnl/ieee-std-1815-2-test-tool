@@ -113,7 +113,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     let scenarios_for_app: Vec<Scenario> = scenarios_arc.as_ref().clone();
     let app = web_server::build_app(job_service, scenarios_for_app, frontend_dir);
 
-    tracing::info!("MESA web server starting on {bind_addr}");
+    tracing::info!("IEEE 1815.2 Test Tool web server starting on {bind_addr}");
 
     Server::new(TcpListener::bind(&bind_addr)).run(app).await?;
     Ok(())

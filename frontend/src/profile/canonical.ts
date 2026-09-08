@@ -1,7 +1,7 @@
 // Canonical profile helpers.
 //
 // The frontend now operates on `PicsProfile` (the canonical document shape
-// generated from `backend/src/common/src/profile/profile.rs`). This module
+// generated from `backend/src/common/src/profile/pics_profile.rs`). This module
 // centralises the read/write helpers components need so the canonical schema
 // surface lives in one place rather than being scattered across tabs.
 //
@@ -869,7 +869,7 @@ export function updatePoint(
     )
   }
   // `value` only exists on AiPoint; the canonical schema has no `value` on
-  // AO/BI/BO. Sub-option 3b: callers should not request `value` updates on
+  // AO/BI/BO. Callers should not request `value` updates on
   // non-AI points. We guard in case anything slips through.
   if (field === 'value' && locator.kind !== 'ai') {
     throw new Error(
@@ -1067,7 +1067,7 @@ export function setCurveCount(
     return next
   }
   if (next.AI.curves.length === 0) {
-    // No template to clone from — this is the same constraint as legacy:
+    // No template to clone from:
     // a profile must seed at least one curve before counts can grow. The
     // canonical seeds always ship with a curve.
     return next
@@ -1323,12 +1323,11 @@ function numberOf(value: number | null | undefined): number {
 // with a in {0=time_offsets, 1=action_types, 2=action_indexes, 3=values}.
 //
 // Note: this describes the index *numbering*, not the Rust iter order.
-// `AiSchedule::iter_points` (backend/src/common/src/profile/profile.rs)
-// yields the 11 headers then chains the four arrays end-to-end (all
-// time_offsets, then all action_types, etc.) — not interleaved.
+// `AiSchedule::iter_points` yields the 11 headers then chains the four arrays
+// end-to-end (all time_offsets, then all action_types, etc.) — not interleaved.
 //
 // We need the stride-4 numbering because `point_index` is the DNP3 AI
-// index used by the backend (see backend/src/common/src/profile/indexed_db.rs:31).
+// index used by the backend (see indexed_db.rs).
 // Synthesising points with `point_index = 0` or cloning across parallel
 // arrays (which have different bases) produces a semantically invalid
 // profile even if the UI no longer crashes.

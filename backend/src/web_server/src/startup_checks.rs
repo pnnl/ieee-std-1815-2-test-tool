@@ -18,10 +18,6 @@ use std::path::Path;
 ///
 /// `label` is surfaced in the error so operators can tell which configured
 /// directory tripped the check (e.g. `FRONTEND_DIR` vs `DATA_DIR`).
-///
-/// If `dir` itself does not exist this returns `Ok(())`: callers may invoke
-/// `web_server` before `make build` has produced `frontend/dist`, and the
-/// static-files endpoint already returns clean 404s in that case.
 pub fn assert_no_symlinks(label: &str, dir: &Path) -> io::Result<()> {
     // Inspect the root with `symlink_metadata` (does NOT follow symlinks) so a
     // symlinked root directory is itself rejected. `Path::exists()` follows
@@ -125,10 +121,6 @@ mod tests {
 
     #[test]
     fn test_scan_rejects_symlinked_root_dir() {
-        // If the configured directory is itself a symlink, the old `dir.exists()`
-        // check happily followed it and walked the target without flagging the
-        // root as a link. That defeats the sandboxing intent: an operator who
-        // points FRONTEND_DIR at a symlink could escape the static-files sandbox.
         let parent = tempfile::tempdir().expect("create parent temp dir");
         let real = tempfile::tempdir().expect("create real target dir");
         let link_dir = parent.path().join("link");

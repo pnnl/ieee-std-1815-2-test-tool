@@ -1,6 +1,5 @@
-// expectedTests.ts
 // Maintainers can mark expected tests as implemented or not by editing
-// the `implemented` boolean. IDs must exactly match the `test` field
+// the `implemented` boolean. IDs must exactly match the `test` field.
 
 import type { TestName } from '@/api/generated/types.gen'
 

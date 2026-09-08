@@ -259,7 +259,6 @@ function App() {
       }
 
       // Use the canonical `full` seed as the new-profile starting template.
-      // This replaces the legacy `data/template/profile.json` static fetch.
       const { data: defaultProfile, error: tplError } = await getProfile({
         baseUrl: '',
         throwOnError: false,

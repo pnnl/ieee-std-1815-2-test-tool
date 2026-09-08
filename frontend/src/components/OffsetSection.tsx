@@ -64,13 +64,10 @@ function OffsetSection({
   const [isExpanded, setIsExpanded] = useState(autoExpand || false)
   const [columnWidths, setColumnWidths] = useState<number[]>([])
   const isBinary = tabName.startsWith('binary')
-  // Sub-option 3b: only AI points carry a `value`. Show the column only on
-  // the AI tab.
+  // Only AI points carry a `value`. Show the column only on the AI tab.
   const showValueColumn = tabName === 'analog_inputs'
 
-  // Header layout - "Mandatory" column was the legacy editor's
-  // mandatory_1547 indicator and the IEEE 1815.2 column was mandatory_1815.
-  // Both render directly off the canonical fields now.
+  // Header layout
   const headers: string[] = [
     'Point',
     'Name / Description',

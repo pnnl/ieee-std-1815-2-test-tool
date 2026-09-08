@@ -247,8 +247,7 @@ fn spawn_binary(
 /// Returns the child process handle and task handles that stream stdout/stderr.
 ///
 /// `reference-outstation` is TCP-only and its CLI accepts `--local`,
-/// `--profile`, and `--log-level`. The legacy `outstation` binary used to
-/// take `--transport`; that flag is intentionally not forwarded here.
+/// `--profile`, and `--log-level`.
 pub fn spawn_outstation(
     job_id: &str,
     local_addr: &str,

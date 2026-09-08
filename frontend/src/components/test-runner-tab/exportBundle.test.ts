@@ -552,7 +552,7 @@ describe('buildZipBytes: zip round-trip', () => {
 })
 
 // ---------------------------------------------------------------------------
-// handleDownload enabled-scenario filter: Wren HIGH bug fix
+// handleDownload enabled-scenario filter
 //
 // handleDownload now passes only the enabled subset of scenarios to
 // triggerBundleDownload (matching the predicate handleStart sends as
@@ -561,7 +561,7 @@ describe('buildZipBytes: zip round-trip', () => {
 // do NOT appear in results.json.scenarios and their tests are NOT counted
 // in summary.total or summary.pending.
 //
-// RED proof: before the fix, `handleDownload` passed ALL scenarios, so
+// Before the fix, `handleDownload` passed ALL scenarios, so
 // disabled scenarios with no results inflated pending and total.
 // ---------------------------------------------------------------------------
 

@@ -38,45 +38,6 @@ function GanttVisualization({
     }
   }, [events])
 
-  // const controllingSegments = useMemo((): ControllingSegment[] => {
-  //   if (events.length === 0) return []
-
-  //   const segments: ControllingSegment[] = []
-  //   const { start, end } = timeRange
-  //   const totalMs = end.getTime() - start.getTime()
-  //   const intervalMs = totalMs / 200
-
-  //   let currentController: Schedule | null = null
-  //   let segmentStart = start.getTime()
-
-  //   for (let t = start.getTime(); t <= end.getTime(); t += intervalMs) {
-  //     const activeSchedules = events.filter(event =>
-  //       t >= event.startDateTime.getTime() && t <= event.stopDateTime.getTime()
-  //     )
-
-  //     const controller = activeSchedules.length > 0
-  //       ? activeSchedules.reduce((a, b) => a.priority < b.priority ? a : b)
-  //       : null
-
-  //     const controllerId = controller ? controller.index : null
-  //     const currentId = currentController ? currentController.index : null
-
-  //     if (controllerId !== currentId) {
-  //       if (currentController !== null) {
-  //         segments.push({ schedule: currentController, start: segmentStart, end: t })
-  //       }
-  //       currentController = controller
-  //       segmentStart = t
-  //     }
-  //   }
-
-  //   if (currentController !== null) {
-  //     segments.push({ schedule: currentController, start: segmentStart, end: end.getTime() })
-  //   }
-
-  //   return segments
-  // }, [validSchedules, timeRange])
-
   const timeToPercent = (time: number | Date): number => {
     const { start, end } = timeRange
     const totalMs = end.getTime() - start.getTime()

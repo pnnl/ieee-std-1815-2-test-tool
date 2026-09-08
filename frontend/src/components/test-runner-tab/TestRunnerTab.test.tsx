@@ -214,7 +214,7 @@ describe('TestRunnerTab log action buttons', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Empty-filteredLogs guard (MEDIUM #3)
+// Empty-filteredLogs guard
 // These tests verify that clicking the button while filteredLogs is logically
 // empty (even if React state flush is momentarily async) never calls the
 // download/clipboard path and never fires a success toast.
