@@ -32,9 +32,9 @@ const DEFAULT_DESCRIPTION = 'Enter a name for the profile.'
 /**
  * Save-as prompt used when the loaded profile cannot be saved in place —
  * either because nothing is loaded yet or because the loaded entry is a
- * read-only seed (Phase 3 of #222). Replaces the `prompt()` dialog the rest
- * of App.tsx uses for one-off names; that one is fine for transient flows
- * but the seed-branch case wants the explanatory banner.
+ * read-only seed. Replaces the `prompt()` dialog the rest of App.tsx uses
+ * for one-off names; that one is fine for transient flows but the seed-branch
+ * case wants the explanatory banner.
  */
 function SaveAsModal({
   isOpen,

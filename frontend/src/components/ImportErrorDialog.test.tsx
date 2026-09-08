@@ -28,7 +28,7 @@ describe('ImportErrorDialog', () => {
     expect(screen.getByText(/missing Key sheet/)).toBeInTheDocument()
   })
 
-  it('calls onClose exactly once when the Close button is clicked (Copilot review finding on #526: Dialog.Close and an explicit onClick both fired it)', async () => {
+  it('calls onClose exactly once when the Close button is clicked', async () => {
     const onClose = vi.fn()
     const user = userEvent.setup()
     renderWithTheme(

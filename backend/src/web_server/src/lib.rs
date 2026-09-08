@@ -38,8 +38,7 @@ use crate::services::job_service::JobService;
         crate::routes::jobs::create_job,
         crate::routes::jobs::delete_job,
         // NOTE: jobs::job_events is intentionally absent. The SSE handler
-        // streams JobEvent frames whose payload shape varies by event_type;
-        // schema work for that endpoint is tracked in #293.
+        // streams JobEvent frames whose payload shape varies by event_type.
     ),
     components(schemas(
         crate::routes::profiles::ProfileListItem,

@@ -259,7 +259,6 @@ function App() {
       }
 
       // Use the canonical `full` seed as the new-profile starting template.
-      // This replaces the legacy `data/template/profile.json` static fetch.
       const { data: defaultProfile, error: tplError } = await getProfile({
         baseUrl: '',
         throwOnError: false,
@@ -509,9 +508,7 @@ function App() {
     setActiveTab,
   ])
 
-  // JSON import only: xlsx import (unified multipart /validate +
-  // /parse-xlsx) is deferred until #524's unified /validate contract
-  // merges.
+  // JSON import only
   const handleImportFile = async (file: File) => {
     try {
       const fileExtension = file.name.split('.').pop()?.toLowerCase()

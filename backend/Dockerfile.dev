@@ -1,13 +1,9 @@
-# Development Dockerfile for MESA backend (Poem-only, #259).
+# Development Dockerfile for the backend.
 #
 # Carries the full Rust toolchain so `cargo run -p web_server` works against
 # source mounted from the host. The compose layer mounts ./backend onto
 # /app/backend and the workspace Cargo.{toml,lock} onto /app so the layout
 # inside the container matches the repo root.
-#
-# Python has been retired from the backend image. The test_runner crate
-# stays in the repo for pytest in CI (see workflows) but does NOT run inside
-# this container.
 
 FROM rust:1.97.1-bookworm
 

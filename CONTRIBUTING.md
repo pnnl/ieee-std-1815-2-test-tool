@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide covers development workflows for the MESA Tool project.
+This guide covers development workflows for the IEEE 1815.2 Test Tool project.
 
 ## Setup
 

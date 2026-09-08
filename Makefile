@@ -9,7 +9,7 @@ export HOST_GID := $(shell id -g)
 
 # Default target
 help:
-	@echo "MESA Tool - Docker Commands"
+	@echo "IEEE 1815.2 Test Tool - Docker Commands"
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
@@ -55,7 +55,7 @@ dev-up:
 	docker compose -f docker-compose.dev.yml up -d
 	@echo ""
 	@echo "=========================================================="
-	@echo "  MESA dev stack up (Poem-only after #259)"
+	@echo "  IEEE 1815.2 Test Tool dev stack up"
 	@echo ""
 	@echo "  Frontend:               http://localhost:3000"
 	@echo "  Frontend /api/* proxy:  Poem web_server (mesa-backend-dev:8000)"
@@ -78,7 +78,7 @@ build:
 run: build
 	@echo ""
 	@echo "=========================================================="
-	@echo "  MESA local stack (native, no Docker)"
+	@echo "  IEEE 1815.2 Test Tool local stack (native, no Docker)"
 	@echo ""
 	@echo "  Webserver:                      http://localhost:8000"
 	@echo "  Frontend (served by webserver): http://localhost:8000/"

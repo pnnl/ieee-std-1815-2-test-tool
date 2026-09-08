@@ -205,7 +205,6 @@ async fn write_curves_and_poll(state: &ControlStationState, association: &Associ
         (Arc::clone(&pi_guard), Arc::clone(&p_guard))
     };
 
-    // TODO: add doc comments for UIDs
     let selector_ao_index = AoUid::Curve_DGSMn_InCrv as u16;
     if !profile_index.ao_points.contains_key(&selector_ao_index) {
         tracing::debug!("No curve selector AO found in profile; skipping curve writes");

@@ -143,7 +143,7 @@ Sheet names are **case-insensitive**.
 3. Add offset definitions (or skip for defaults)
 4. Add point rows with required columns
 5. Save as `.xlsx` or `.xls`
-6. In MESA Profile Editor, click "New Profile"
+6. In the profile editor, click "New Profile"
 7. Select your Excel file
 8. Enter desired filename
 9. Profile is created and downloaded

@@ -13,13 +13,10 @@ Possible configurations:
 - 3rd party control station <-> reference outstation (for compliance testing)
 
 - monorepo
-- backend: Rust code for mesa tool
+- backend: Rust code for IEEE 1815.2 Test Tool
   - src/outstation: outstation implementation. The entry point is src/outstation/main.rs.
   - src/control_station: control station implementation
 - frontend: React/TypeScript code for mesa tool UI
-
-# Python
-- Use the virtual environment at .venv/bin/python
 
 # Rust
 - do not modify registry.rs; instead, modify generate_registry.py and run it to regenerate the file

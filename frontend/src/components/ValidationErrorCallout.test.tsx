@@ -83,11 +83,7 @@ describe('ValidationErrorCallout', () => {
     expect(container.querySelector('[data-slot="badge"]')).toBeNull()
   })
 
-  // Copilot review finding on #526: this component used to hand-roll the
-  // count badge instead of delegating to the shared ValidationErrorBadge
-  // (already used by Tabs.tsx and OffsetSection.tsx). Assert the rendered
-  // badge actually comes from that shared component, not a lookalike copy.
-  it('Copilot review finding on #526: the title-badge markup is the shared ValidationErrorBadge, not a re-implemented copy', () => {
+  it('The title-badge markup is the shared ValidationErrorBadge, not a re-implemented copy', () => {
     const { container } = renderWithTheme(
       <ValidationErrorCallout
         errors={[

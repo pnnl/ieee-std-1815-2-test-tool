@@ -104,7 +104,7 @@ function renderCurvesTab(
   )
 }
 
-describe('CurvesTab with a structurally invalid curve_type (#492)', () => {
+describe('CurvesTab with a structurally invalid curve_type', () => {
   it('renders invalid_general.json (curve 0 has curve_type 99) without throwing, and shows the invalid-type error', () => {
     const profile = invalidGeneralJson as unknown as PicsProfile
 
@@ -146,11 +146,6 @@ describe('CurvesTab with a structurally invalid curve_type (#492)', () => {
     ).toBeInTheDocument()
   })
 
-  // Copilot review finding on #526: the "Unrecognized code" placeholder
-  // carries value "", and it used to be reachable via the Type select's
-  // onChange, feeding '' into the typed CurveType handler and writing a
-  // bogus curve_type. Selecting it (the already-selected placeholder) must
-  // be a no-op: no write happens at all.
   it('selecting the "Unrecognized code" placeholder is a no-op: setProfileData is never called with it', () => {
     const profile = invalidGeneralJson as unknown as PicsProfile
     const setProfileData = vi.fn()
@@ -186,7 +181,7 @@ describe('CurvesTab with a structurally invalid curve_type (#492)', () => {
 // Bucketing (`validationBucketing.test.ts`) already proves the routing
 // rule; these assert the routed errors actually render inside this tab's
 // own panel, real message text and all.
-describe('CurvesTab renders its own routed validation errors (#492, Craig 2026-08-18)', () => {
+describe('CurvesTab renders its own routed validation errors', () => {
   // Real curve-structural errors from `invalid_ai.json` (see
   // App.test.tsx's `invalidAiErrors()` for the full capture): the four
   // that route to Curves.

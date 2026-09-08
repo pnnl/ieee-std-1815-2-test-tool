@@ -1,35 +1,3 @@
-// Regression tests for canonical schedule helpers.
-//
-// Issue #327 ("Screen Blanks"): clicking a SchedulingTab control after loading
-// the full profile crashed with:
-//
-//   TypeError: Cannot set properties of undefined (setting 'value')
-//     at setSchedulePoints (canonical.ts)
-//     at applySchedulesToProfile (scheduleUtils.ts)
-//
-// Root cause: when a canonical AiSchedule's parallel arrays (time_offsets,
-// action_types, action_indexes, values) are empty, the legacy `cloneClamp`
-// helper deliberately refused to grow (no template to clone from).
-// `setSchedulePoints` then indexed into those still-empty arrays and wrote
-// `.value` on undefined.
-//
-// The first cut of the fix synthesised/cloned AiPoints to grow the arrays
-// but produced wrong `point_index` values — the backend treats `point_index`
-// as the DNP3 AI index (see `backend/src/common/src/profile/indexed_db.rs:31`),
-// so the saved profile would have been semantically invalid.
-//
-// The canonical index scheme (mirroring the Rust `AiSchedule::iter_points`
-// order in `backend/src/common/src/profile/profile.rs`) is:
-//
-//   slot k of array a => point_index = number_of_points.point_index + 1 + a + 4*k
-//
-// where arrayOrdinal a is 0=time_offsets, 1=action_types, 2=action_indexes,
-// 3=values. For `full.json` schedule 0, number_of_points.point_index = 3011,
-// giving bases 3012/3013/3014/3015 and stride 4 — matches the on-disk data.
-//
-// These tests reproduce the crash AND guard correctness of the synthesised
-// `point_index` values.
-
 import { describe, it, expect } from 'vitest'
 import type { AiPoint, AiSchedule, PicsProfile } from '@/api/generated'
 import { setSchedulePoints } from './canonical'
@@ -269,12 +237,12 @@ describe('applySchedulesToProfile against full.json', () => {
   })
 })
 
-// --- point_index correctness on grow paths (Copilot review findings) ------
+// --- point_index correctness on grow paths ------
 //
-// These tests guard against the regression where the fix for #327 silently
-// produced an invalid profile by synthesising points with point_index = 0 or
-// by cloning across parallel arrays (e.g. growing time_offsets from an
-// action_types template, which carries the WRONG base index).
+// These tests guard against the regression which silently produced an invalid
+// profile by synthesising points with point_index = 0 or by cloning across
+// parallel arrays (e.g. growing time_offsets from an action_types template,
+// which carries the WRONG base index).
 
 describe('setSchedulePoints point_index correctness', () => {
   // Indices follow the canonical schedule layout: 11 header AiPoints
@@ -434,7 +402,6 @@ describe('setSchedulePoints point_index correctness', () => {
     expect(after.action_indexes.map((p) => p.point_index)).toEqual([3014, 3018])
     expect(after.values.map((p) => p.point_index)).toEqual([3015, 3019])
 
-    // And not the 0 sentinel that the old emptyAiPoint produced.
     for (const arr of [
       after.time_offsets,
       after.action_types,

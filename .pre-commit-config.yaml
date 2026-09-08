@@ -2,14 +2,6 @@
 default_install_hook_types: [pre-commit, pre-push]
 
 repos:
-  # Python formatting and linting
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.4
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-
   # Rust formatting and linting
   - repo: local
     hooks:

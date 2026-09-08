@@ -6,8 +6,7 @@ export const STORAGE_STATE_PATH = 'storage-state.json'
 setup('create test profile', async ({ page }) => {
   const apiContext = await request.newContext({ baseURL: PW_BASE_URL })
   try {
-    // Fetch the canonical `full` seed via the API (legacy template was
-    // removed in the canonical migration).
+    // Fetch the canonical `full` seed via the API.
     const seedResponse = await apiContext.get('/api/profiles/full')
     if (!seedResponse.ok()) {
       throw new Error(

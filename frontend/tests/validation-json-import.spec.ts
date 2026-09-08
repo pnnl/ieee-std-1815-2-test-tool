@@ -13,7 +13,7 @@ import { PW_BASE_URL } from './shared_config'
 const AI_ERROR_PROFILE = `e2e_492_ai_error_${Date.now()}`
 const CLEAN_IMPORT_PROFILE = `e2e_492_clean_import_${Date.now()}`
 
-test.describe('JSON import surfaces validation errors (#492)', () => {
+test.describe('JSON import surfaces validation errors', () => {
   // Both tests share the beforeAll-built fixtures; force serial execution
   // so afterAll's cleanup can't run while the other test is mid-flight.
   test.describe.configure({ mode: 'serial' })

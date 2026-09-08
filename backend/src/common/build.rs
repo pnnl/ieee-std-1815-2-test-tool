@@ -104,7 +104,7 @@ fn sanitize_doc_comment(s: &str) -> String {
         .collect()
 }
 
-/// Mirror the Python `uid_to_uid_enum_variant` logic: `"{purpose}_{uid}"` with special chars → `_`.
+/// `"{purpose}_{uid}"` with special chars → `_`.
 fn uid_to_enum_variant(uid: &str, purpose: &str) -> String {
     let combined = if purpose.is_empty() {
         uid.to_string()

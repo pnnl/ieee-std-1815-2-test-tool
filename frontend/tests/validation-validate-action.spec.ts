@@ -8,7 +8,7 @@ import { PW_BASE_URL } from './shared_config'
 
 const FIXTURE_PROFILE = `e2e_492_validate_action_${Date.now()}`
 
-test.describe('Validate action refreshes the panel against the current edit (#492)', () => {
+test.describe('Validate action refreshes the panel against the current edit', () => {
   test.beforeAll(async () => {
     const apiContext = await playwrightRequest.newContext({
       baseURL: PW_BASE_URL,

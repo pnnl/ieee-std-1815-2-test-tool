@@ -1,6 +1,6 @@
-# MESA Profile Editor - Frontend
+# IEEE 1815.2 Test Tool Profile Editor - Frontend
 
-A React-based web application for editing MESA DNP3 IEEE 1815.2 profile configuration files.
+A React-based web application for editing IEEE 1815.2 profile configuration files.
 
 ## Tech Stack
 
@@ -143,17 +143,6 @@ To stop the stack, run `make dev-down` or
 5. The modification indicator (*) will be cleared
 
 **Note:** Use "Copy" to save your current work as a new profile with a different name.
-
-### Title Bar Information
-
-The title bar displays:
-
-- **Profile name**: The current profile being edited
-- **Modification indicator** (*): Shows when changes have been made since last save
-- **Examples**:
-  - `MESA Profile Editor (new)` - No profile loaded yet
-  - `MESA Profile Editor (pics)` - Editing "pics" profile, no modifications
-  - `MESA Profile Editor (pics*)` - Editing "pics" profile with unsaved changes
 
 ## Project Structure
 

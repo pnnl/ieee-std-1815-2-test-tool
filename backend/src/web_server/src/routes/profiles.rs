@@ -901,7 +901,7 @@ mod tests {
         assert_eq!(points.len(), 1);
     }
 
-    // --- path traversal validation tests (Issue #157) ---
+    // --- path traversal validation tests ---
 
     #[tokio::test]
     async fn test_get_profile_rejects_path_traversal() {
@@ -971,7 +971,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_profile_by_name_template_resolves_special_case() {
-        // Verifies the f53b5eee special case: GET /template loads
+        // Verifies the special case: GET /template loads
         // template/profile.json even though the listing's name doesn't match
         // the file's stem. The existing test_get_profile_template uses
         // GET /profile (the legacy template/{name}.json fallback path).
