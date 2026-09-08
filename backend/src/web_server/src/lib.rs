@@ -94,17 +94,7 @@ pub fn build_app(
 
     Route::new()
         .nest("/api", routes::api_routes())
-        // OpenAPI spec for the profile routes (more routes to be added as
-        // they are migrated). No `/api` prefix by convention.
         .at("/openapi.json", get(openapi_json))
-        // Specific files referenced by path remain reachable; the HTML
-        // directory listing is intentionally not enabled to avoid exposing
-        // an index of the data directory's contents.
-        //
-        // The static mounts are wrapped with `SetHeader` so MIME-sniff,
-        // CSP, and Referrer-Policy hygiene applies to served files but NOT
-        // to `/api/*`, which has its own response shape and should not be
-        // constrained by `frame-ancestors 'none'`.
         .nest(
             "/data",
             StaticFilesEndpoint::new(&data_dir).with(static_security_headers()),

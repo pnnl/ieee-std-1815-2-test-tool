@@ -71,38 +71,9 @@ dev-down:
 dev-logs:
 	docker compose -f docker-compose.dev.yml logs -f
 
-# Local (non-Docker) targets
-# Frontend build (vite + @hey-api/vite-plugin) generates a TS client from the
-# live OpenAPI spec at config-load time, so it blocks until the backend is
-# reachable on http://localhost:8000/openapi.json. We spin up web_server in
-# the background, wait for /openapi.json, build the frontend, then kill the
-# backend on EXIT. Same trap-on-EXIT pattern as run-reference-stations above.
 build:
 	cargo build --workspace
-	@$(CURDIR)/target/debug/web_server > $(CURDIR)/target/build-backend.log 2>&1 & \
-	BACKEND_PID=$$!; \
-	trap "kill $$BACKEND_PID 2>/dev/null || true; wait $$BACKEND_PID 2>/dev/null || true" EXIT; \
-	trap "exit" INT TERM; \
-	echo "Waiting for backend openapi at http://localhost:8000/openapi.json (max 60s)..."; \
-	READY=0; \
-	for i in $$(seq 1 60); do \
-	  if curl -sf http://localhost:8000/openapi.json > /dev/null 2>&1; then \
-	    READY=1; \
-	    echo "Backend ready in $${i}s"; \
-	    break; \
-	  fi; \
-	  sleep 1; \
-	done; \
-	if [ "$$READY" != "1" ]; then \
-	  echo "ERROR: backend never responded on /openapi.json -- see $(CURDIR)/target/build-backend.log"; \
-	  exit 1; \
-	fi; \
-	cd frontend && \
-	  ( [ -d node_modules ] && [ -d node_modules/@hey-api/vite-plugin ] \
-	    && [ -f .package-lock.json.cached ] \
-	    && cmp -s package-lock.json .package-lock.json.cached \
-	    || (echo "(re)installing frontend dependencies..." && npm ci && cp package-lock.json .package-lock.json.cached) ) && \
-	  npm run build
+	cd frontend && npm install && npm run build
 
 run: build
 	@echo ""
