@@ -1,4 +1,4 @@
-import { test as setup, request } from '@playwright/test'
+import { test as setup, request, expect } from '@playwright/test'
 import { TEST_PROFILE_NAME, PW_BASE_URL } from './shared_config'
 
 export const STORAGE_STATE_PATH = 'storage-state.json'
@@ -28,6 +28,9 @@ setup('create test profile', async ({ page }) => {
     await page.evaluate((profileName) => {
       localStorage.setItem('mesa.lastLoadedProfile', profileName)
     }, TEST_PROFILE_NAME)
+
+    await page.reload()
+    await expect(page.getByText(TEST_PROFILE_NAME)).toBeVisible()
 
     await page.context().storageState({ path: STORAGE_STATE_PATH })
   } finally {

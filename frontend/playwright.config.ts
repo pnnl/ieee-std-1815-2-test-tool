@@ -3,12 +3,12 @@ import { defineConfig, devices } from '@playwright/test'
 /**
  * See https://playwright.dev/docs/test-configuration.
  *
- * PW_BASE_URL overrides the default http://localhost:3001 for local
- * environments where another service (e.g. Grafana) occupies port 3001.
+ * PW_BASE_URL overrides the default http://localhost:3000 for local
+ * environments where another service (e.g. Grafana) occupies port 3000.
  * Example: PW_BASE_URL=http://localhost:3002 npx playwright test ...
  */
 /** Local declaration; the test-layer SoT is `tests/shared_config.ts#PW_BASE_URL`. Keep these in sync. */
-const BASE_URL = process.env.PW_BASE_URL ?? 'http://localhost:3001'
+const BASE_URL = process.env.PW_BASE_URL ?? 'http://localhost:3000'
 const parsedBaseUrl = new URL(BASE_URL)
 
 if (!parsedBaseUrl.port) {
@@ -20,13 +20,13 @@ export default defineConfig({
   // Diagnostic specs use playwright.diag.config.ts; excluded here.
   testIgnore: /-diag\.spec\.ts$/,
   /* Run tests in files in parallel */
-  fullyParallel: !process.env.CI,
+  fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
 
   reporter:
     'list' /* Reporter to use. See https://playwright.dev/docs/test-reporters */,

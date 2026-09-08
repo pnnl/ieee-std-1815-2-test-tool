@@ -1,4 +1,5 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 import { PW_BASE_URL } from './shared_config'
 
 // Covers the JSON import path end to end against the real backend: a
@@ -23,37 +24,28 @@ test.describe('JSON import surfaces validation errors (#492)', () => {
   let aiPointIndex: number
 
   test.beforeAll(async () => {
-    const apiContext = await playwrightRequest.newContext({
-      baseURL: PW_BASE_URL,
-    })
-    try {
-      const seedResponse = await apiContext.get('/api/profiles/full')
-      if (!seedResponse.ok()) {
-        throw new Error(
-          `Failed to fetch canonical full seed: ${seedResponse.status()}`,
-        )
-      }
-      const seed = await seedResponse.json()
-      cleanProfileBody = seed
+    const fullProfileText = await readFile(
+      new URL('../../data/profiles/full.json', import.meta.url),
+      'utf8',
+    )
+    const seed = JSON.parse(fullProfileText)
+    cleanProfileBody = seed
 
-      if (!Array.isArray(seed.AI?.points) || seed.AI.points.length === 0) {
-        throw new Error(
-          'Canonical seed carries no AI points to build the fixture from.',
-        )
-      }
-
-      // Deep copy so mutating the fixture never touches cleanProfileBody.
-      const mutated = JSON.parse(JSON.stringify(seed))
-      const firstAiPoint = mutated.AI.points[0]
-      aiPointIndex = firstAiPoint.point_index
-
-      // Force the "minimum > maximum" check with a large, unambiguous
-      // offset, regardless of the seed's original values.
-      firstAiPoint.minimum = firstAiPoint.maximum + 100000
-      aiErrorProfileBody = mutated
-    } finally {
-      await apiContext.dispose()
+    if (!Array.isArray(seed.AI?.points) || seed.AI.points.length === 0) {
+      throw new Error(
+        'Canonical seed carries no AI points to build the fixture from.',
+      )
     }
+
+    // Deep copy so mutating the fixture never touches cleanProfileBody.
+    const mutated = JSON.parse(JSON.stringify(seed))
+    const firstAiPoint = mutated.AI.points[0]
+    aiPointIndex = firstAiPoint.point_index
+
+    // Force the "minimum > maximum" check with a large, unambiguous
+    // offset, regardless of the seed's original values.
+    firstAiPoint.minimum = firstAiPoint.maximum + 100000
+    aiErrorProfileBody = mutated
   })
 
   test.afterAll(async () => {
@@ -72,7 +64,7 @@ test.describe('JSON import surfaces validation errors (#492)', () => {
     }
   })
 
-  test('obligation 13: an AI semantic error routes to Analog Inputs, not General, and the profile loads', async ({
+  test('an AI semantic error routes to Analog Inputs, not General, and the profile loads', async ({
     page,
   }) => {
     // The file doesn't exist yet, so handleImportFile takes the prompt()
@@ -83,7 +75,9 @@ test.describe('JSON import surfaces validation errors (#492)', () => {
     })
 
     await page.goto('/')
-    await expect(page.getByText(/Current Profile:/i)).toBeVisible({
+    await expect(
+      page.getByText(/Current Profile: no profile loaded/i),
+    ).not.toBeVisible({
       timeout: 15000,
     })
 
@@ -116,7 +110,7 @@ test.describe('JSON import surfaces validation errors (#492)', () => {
     await expect(minimumError).toContainText(`AI${aiPointIndex}:`)
   })
 
-  test('obligation 14: a clean JSON import loads with no panel or callout', async ({
+  test('a clean JSON import loads with no panel or callout', async ({
     page,
   }) => {
     // Each test gets its own page, so the dialog handler from the other
@@ -127,7 +121,9 @@ test.describe('JSON import surfaces validation errors (#492)', () => {
     })
 
     await page.goto('/')
-    await expect(page.getByText(/Current Profile:/i)).toBeVisible({
+    await expect(
+      page.getByText(/Current Profile: no profile loaded/i),
+    ).not.toBeVisible({
       timeout: 15000,
     })
 

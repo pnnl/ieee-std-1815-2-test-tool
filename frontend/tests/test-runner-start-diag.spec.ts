@@ -9,7 +9,7 @@ import { test, expect, request as pwRequest } from '@playwright/test'
  *  - All SSE events received via CDP Network.eventSourceMessageReceived
  *  - DOM state of the log panel after 10 seconds of streaming
  *
- * NOTE: live dev stack is on port 3000 (not 3001 from playwright.config).
+ * NOTE: live dev stack is on port 3000.
  * We override baseURL inline and bypass the playwright.config webServer
  * by hitting the running dev server directly.
  */

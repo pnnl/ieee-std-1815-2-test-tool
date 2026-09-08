@@ -138,7 +138,7 @@ afterEach(() => {
 })
 
 describe('Validate action', () => {
-  it('obligation 5: a mocked 400 carrying three errors populates the panel with exactly those three', async () => {
+  it('a mocked 400 carrying three errors populates the panel with exactly those three', async () => {
     renderApp()
     await waitForBootstrapLoad()
 
@@ -156,7 +156,7 @@ describe('Validate action', () => {
     }
   })
 
-  it('obligation 6: a mocked 200 clears a previously populated panel', async () => {
+  it('a mocked 200 clears a previously populated panel', async () => {
     renderApp()
     await waitForBootstrapLoad()
 
@@ -177,7 +177,7 @@ describe('Validate action', () => {
     )
   })
 
-  it('obligation 7: a mocked transport failure does not clear the panel to a false-clean state', async () => {
+  it('a mocked transport failure does not clear the panel to a false-clean state', async () => {
     renderApp()
     await waitForBootstrapLoad()
 
@@ -400,7 +400,7 @@ describe('Tab error count badges (review finding 1)', () => {
 })
 
 describe('JSON import', () => {
-  it('obligation 8: a failing JSON import populates the panel AND loads the profile', async () => {
+  it('a failing JSON import populates the panel AND loads the profile', async () => {
     renderApp()
     await waitForBootstrapLoad()
 

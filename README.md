@@ -2,10 +2,6 @@
 
 The 1815.2 Test Tool is an [1815.2](https://standards.ieee.org/ieee/1815.2/7731/) profile editor with a reference control station and outstation. Control station and outstation developers can test their devices against the reference implementations in this repository.
 
-## Features
-- Connection via IP address to your outstation
-- 
-
 ## Resources
 - IEEE 1815.2: https://standards.ieee.org/ieee/1815.2/7731/
 - Developer contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -54,7 +50,6 @@ Start the server:
 ```bash
 ~/.cargo/bin/cargo run -p web_server
 ```
-
 
 ## License
 
