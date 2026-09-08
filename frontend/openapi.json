@@ -1,0 +1,2827 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "1815.2 Test Tool Web Server",
+    "description": "",
+    "license": {
+      "name": ""
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/enums": {
+      "get": {
+        "tags": [
+          "enums"
+        ],
+        "operationId": "get_enums",
+        "responses": {
+          "200": {
+            "description": "Enum lookup tables for the frontend",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnumsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "Service health and version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "operationId": "create_job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateJobResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile or job configuration"
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}": {
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "operationId": "delete_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Job identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found"
+          }
+        }
+      }
+    },
+    "/api/profiles": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "List all profiles visible to the API.",
+        "description": "Aggregates entries from three locations:\n  1. `<data_dir>/working/` — user saves, reported as `source: working`.\n  2. `<data_dir>/profiles/` — curated read-only seeds, reported as\n     `source: seed`. If a name appears in both `working/` and `profiles/`,\n     `working/` shadows `profiles/` (the user's save wins). This mirrors\n     `get_profile`'s resolution order so the listing matches what the\n     load endpoint will actually return.\n  3. `<data_dir>/template/profile.json` — the bundled template entry,\n     reported as `source: seed`.\n\nThe result is sorted by `last_modified` descending.",
+        "operationId": "list_profiles",
+        "responses": {
+          "200": {
+            "description": "List saved profiles plus the bundled template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileListItem"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to read profiles directory"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Save a profile under `<data_dir>/working/{name}.json`.",
+        "description": "Always writes to `working/`. Never touches `profiles/` (those are\ncurated read-only seeds). If a save name collides with a seed, the\nresulting working copy shadows the seed in `list_profiles` and\n`get_profile`. The frontend is responsible for warning the user\nbefore overwriting an existing working copy.",
+        "operationId": "save_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Profile saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileMutationAck"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile name (path traversal rejected)"
+          },
+          "500": {
+            "description": "Failed to write profile to disk or working dir not mounted"
+          }
+        }
+      }
+    },
+    "/api/profiles/parse-xlsx": {
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Import an xlsx workbook and return the parsed profile as JSON.",
+        "description": "Accepts a `multipart/form-data` request with a single file field named\n`file`. The file must be a valid `.xlsx` workbook. The parsed profile\nis returned directly without being saved to disk.\n\nThe upload is rejected with 400 when the file exceeds `MAX_XLSX_BYTES`.\nError messages are sanitized: no internal paths or stack traces are\nreturned to the caller.",
+        "operationId": "parse_xlsx",
+        "requestBody": {
+          "description": "The `.xlsx` file to parse (max 10 MB)",
+          "content": {
+            "multipart/form-data": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "parsed profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PicsProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file, size exceeded, or parse error"
+          }
+        }
+      }
+    },
+    "/api/profiles/validate": {
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "operationId": "validateProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PicsProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Profile is valid",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile JSON or validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profiles/{name}": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Resolve and return a profile by name.",
+        "description": "Resolution order: special `name == \"template\"` maps to\n`<data_dir>/template/profile.json`; otherwise look in `<data_dir>/working/`,\nthen `<data_dir>/profiles/`, then `<data_dir>/template/{name}.json` as a\nlegacy fallback. 404 if none match. Working shadows seed so a saved working\ncopy always wins over the same-named seed.",
+        "operationId": "get_profile",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Profile name (without .json extension)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile JSON document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PicsProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile name (path traversal rejected)"
+          },
+          "404": {
+            "description": "Profile not found"
+          },
+          "500": {
+            "description": "Failed to read or parse profile"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Delete a working profile.",
+        "description": "Only working-directory entries can be deleted. If the name resolves\nto `<data_dir>/working/{name}.json`, it is removed. If it would only\nresolve to a seed (`<data_dir>/profiles/{name}.json`), the request\nis rejected with 400 — seeds are immutable through the API. 404 if\nneither location holds the file.",
+        "operationId": "delete_profile",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Profile name (without .json extension)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileMutationAck"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile name or attempt to delete a seed"
+          },
+          "404": {
+            "description": "Profile not found"
+          },
+          "500": {
+            "description": "Failed to delete profile"
+          }
+        }
+      }
+    },
+    "/api/scenarios": {
+      "get": {
+        "tags": [
+          "scenarios"
+        ],
+        "operationId": "list_scenarios",
+        "responses": {
+          "200": {
+            "description": "Pre-loaded conformance test scenarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Scenario"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AiBattery": {
+        "type": "object",
+        "description": "AI points belonging to the Battery equipment group.",
+        "required": [
+          "type_of_storage",
+          "nameplate_actual_capacity",
+          "effective_capacity",
+          "minimum_reserve",
+          "maximum_reserve",
+          "battery_state",
+          "actual_state_of_charge",
+          "state_of_health",
+          "external_voltage",
+          "internal_voltage",
+          "current",
+          "power",
+          "min_cell_voltage",
+          "max_cell_voltage",
+          "min_temperature",
+          "max_temperature",
+          "external_ambient_temperature",
+          "internal_ambient_temperature",
+          "charge_current_limit",
+          "discharge_current_limit",
+          "min_voltage_limit",
+          "max_voltage_limit",
+          "connected_string_count",
+          "external_voltage_high_threshold",
+          "external_voltage_low_threshold",
+          "internal_voltage_high_threshold",
+          "internal_voltage_low_threshold",
+          "link_to_inverter"
+        ],
+        "properties": {
+          "actual_state_of_charge": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "battery_state": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "charge_current_limit": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "connected_string_count": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "current": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "discharge_current_limit": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "effective_capacity": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "external_ambient_temperature": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "external_voltage": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "external_voltage_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "external_voltage_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "internal_ambient_temperature": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "internal_voltage": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "internal_voltage_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "internal_voltage_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "link_to_inverter": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "max_cell_voltage": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "max_temperature": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "max_voltage_limit": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "maximum_reserve": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "min_cell_voltage": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "min_temperature": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "min_voltage_limit": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "minimum_reserve": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "nameplate_actual_capacity": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "state_of_health": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "type_of_storage": {
+            "$ref": "#/components/schemas/AiPoint"
+          }
+        }
+      },
+      "AiCurve": {
+        "type": "object",
+        "description": "AI points belonging to a Curve functional group.\nThe header fields capture the single per-curve metadata points.\nThe Vec fields hold one entry per curve point, parallel-indexed.\nNote: the curve edit selector is stored in the base AiPoints array, not here.",
+        "required": [
+          "curve_type",
+          "number_of_points",
+          "x_units",
+          "y_units",
+          "x_values",
+          "y_values"
+        ],
+        "properties": {
+          "curve_type": {
+            "$ref": "#/components/schemas/AiPoint",
+            "description": " Curve Type.  Enumeration:\n <0> Curve is not defined\n <1> Not applicable / Unknown\n <2> Volt-Var\n <3> Frequency-Watt\n <4> Watt-Var\n <5> Voltage-Watt\n <6> Remain Connected\n <7> Temperature mode\n <8> Pricing signal mode\nHigh Voltage ride-through curves\n <9> HVRT Must Trip\n <10> HVRT Momentary Cessation\nLow Voltage ride-through curves\n <11> LVRT Must Trip\n <12> LVRT Momentary Cessation\nHigh Frequency ride-through curves\n <13> HFRT Must Trip\n <14> HFRT Momentary Cessation\nLow Frequency ride-through curves\n <15> LFRT Must Trip\n <16> LFRT Momentary Cessation\""
+          },
+          "number_of_points": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "x_units": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "x_values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPoint"
+            }
+          },
+          "y_units": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "y_values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPoint"
+            }
+          }
+        }
+      },
+      "AiDer": {
+        "type": "object",
+        "description": "AI points belonging to the DER equipment group.",
+        "required": [
+          "unit_type",
+          "nameplate_energy_capacity",
+          "normal_operating_performance_category",
+          "abnormal_operating_performance_category",
+          "max_apparent_generation_power",
+          "max_apparent_charging_power",
+          "operational_time",
+          "connection_time",
+          "available_active_generation_power",
+          "available_active_charging_power",
+          "available_reactive_injection_power",
+          "available_reactive_absorption_power",
+          "non_impacting_injection_vars",
+          "non_impacting_absorption_vars",
+          "link_to_meter"
+        ],
+        "properties": {
+          "abnormal_operating_performance_category": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "available_active_charging_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "available_active_generation_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "available_reactive_absorption_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "available_reactive_injection_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "connection_time": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "link_to_meter": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "max_apparent_charging_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "max_apparent_generation_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "nameplate_energy_capacity": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "non_impacting_absorption_vars": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "non_impacting_injection_vars": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "normal_operating_performance_category": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "operational_time": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "unit_type": {
+            "$ref": "#/components/schemas/AiPoint"
+          }
+        }
+      },
+      "AiInverter": {
+        "type": "object",
+        "description": "AI points belonging to the Inverter equipment group.",
+        "required": [
+          "apparent_power_calc_method",
+          "active_power_target",
+          "reactive_power_target",
+          "active_power",
+          "reactive_power",
+          "power_factor",
+          "apparent_power",
+          "dc_input_power",
+          "dc_voltage",
+          "dc_current",
+          "avg_line_to_neutral_voltage",
+          "voltage_phase_a_to_b",
+          "voltage_phase_b_to_c",
+          "voltage_phase_c_to_a",
+          "ac_current",
+          "current_phase_a",
+          "current_phase_b",
+          "current_phase_c",
+          "internal_temperature",
+          "heat_sink_temperature",
+          "transformer_temperature",
+          "active_power_high_threshold",
+          "active_power_low_threshold",
+          "reactive_power_high_threshold",
+          "reactive_power_low_threshold",
+          "frequency_high_threshold",
+          "frequency_low_threshold",
+          "dc_input_power_high_threshold",
+          "dc_input_power_low_threshold",
+          "dc_current_high_threshold",
+          "dc_current_low_threshold",
+          "dc_voltage_high_threshold",
+          "dc_voltage_low_threshold",
+          "link_to_der_unit"
+        ],
+        "properties": {
+          "ac_current": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "active_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "active_power_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "active_power_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "active_power_target": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "apparent_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "apparent_power_calc_method": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "avg_line_to_neutral_voltage": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "current_phase_a": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "current_phase_b": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "current_phase_c": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "dc_current": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "dc_current_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "dc_current_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "dc_input_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "dc_input_power_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "dc_input_power_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "dc_voltage": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "dc_voltage_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "dc_voltage_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "frequency_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "frequency_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "heat_sink_temperature": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "internal_temperature": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "link_to_der_unit": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "power_factor": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power_target": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "transformer_temperature": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "voltage_phase_a_to_b": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "voltage_phase_b_to_c": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "voltage_phase_c_to_a": {
+            "$ref": "#/components/schemas/AiPoint"
+          }
+        }
+      },
+      "AiMeter": {
+        "type": "object",
+        "description": "AI points belonging to the Meter equipment group.",
+        "required": [
+          "type_of_connection_point",
+          "der_input_output_included",
+          "type_of_circuit_phases",
+          "apparent_power_calc_method",
+          "frequency",
+          "active_power",
+          "active_power_a",
+          "active_power_b",
+          "active_power_c",
+          "reactive_power",
+          "reactive_power_a",
+          "reactive_power_b",
+          "reactive_power_c",
+          "power_factor",
+          "apparent_power",
+          "phase_a_volts",
+          "phase_a_angle",
+          "phase_b_volts",
+          "phase_b_angle",
+          "phase_c_volts",
+          "phase_c_angle",
+          "avg_line_to_line_voltage",
+          "current_a",
+          "current_b",
+          "current_c",
+          "active_power_high_threshold",
+          "active_power_low_threshold",
+          "reactive_power_high_threshold",
+          "reactive_power_low_threshold",
+          "power_factor_high_threshold",
+          "power_factor_low_threshold",
+          "phase_a_volts_high_threshold",
+          "phase_a_volts_low_threshold",
+          "phase_b_volts_high_threshold",
+          "phase_b_volts_low_threshold",
+          "phase_c_volts_high_threshold",
+          "phase_c_volts_low_threshold"
+        ],
+        "properties": {
+          "active_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "active_power_a": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "active_power_b": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "active_power_c": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "active_power_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "active_power_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "apparent_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "apparent_power_calc_method": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "avg_line_to_line_voltage": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "current_a": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "current_b": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "current_c": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "der_input_output_included": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_a_angle": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_a_volts": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_a_volts_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_a_volts_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_b_angle": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_b_volts": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_b_volts_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_b_volts_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_c_angle": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_c_volts": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_c_volts_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "phase_c_volts_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "power_factor": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "power_factor_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "power_factor_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power_a": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power_b": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power_c": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power_high_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "reactive_power_low_threshold": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "type_of_circuit_phases": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "type_of_connection_point": {
+            "$ref": "#/components/schemas/AiPoint"
+          }
+        }
+      },
+      "AiPoint": {
+        "type": "object",
+        "description": "An analog input (AI) point defined in the PICS profile. Do not construct it directly; instead, use AiPoint::new.",
+        "required": [
+          "point_index",
+          "name",
+          "event_class",
+          "minimum",
+          "maximum",
+          "multiplier",
+          "offset",
+          "units",
+          "iec_61850_uid",
+          "value",
+          "purpose",
+          "mandatory_1815",
+          "mandatory_1547"
+        ],
+        "properties": {
+          "assoc_ao": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_class": {
+            "$ref": "#/components/schemas/EventClass"
+          },
+          "iec_61850_uid": {
+            "type": "string"
+          },
+          "mandatory_1547": {
+            "type": "boolean"
+          },
+          "mandatory_1815": {
+            "type": "boolean"
+          },
+          "maximum": {
+            "$ref": "#/components/schemas/TransmissionI32"
+          },
+          "minimum": {
+            "$ref": "#/components/schemas/TransmissionI32"
+          },
+          "multiplier": {
+            "type": "number",
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          },
+          "offset": {
+            "$ref": "#/components/schemas/EngineeringF64"
+          },
+          "point_index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "units": {
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/EngineeringF64",
+            "description": "The default value of the point, in engineering units."
+          }
+        }
+      },
+      "AiSchedule": {
+        "type": "object",
+        "description": "AI points belonging to an IEEE 1815.2 Schedule functional group.\nThe header fields capture the single per-schedule metadata points.\nThe Vec fields hold one entry per schedule slot, parallel-indexed.\nNote: the schedule edit selector is stored in the base AiPoints array, not here.",
+        "required": [
+          "identity",
+          "priority",
+          "start_date",
+          "start_time",
+          "stop_date",
+          "stop_time",
+          "repeat_interval",
+          "repeat_interval_units",
+          "validation_state",
+          "status",
+          "number_of_points",
+          "time_offsets",
+          "action_types",
+          "action_indexes",
+          "values"
+        ],
+        "properties": {
+          "action_indexes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPoint"
+            }
+          },
+          "action_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPoint"
+            }
+          },
+          "identity": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "number_of_points": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "repeat_interval": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "repeat_interval_units": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "start_date": {
+            "$ref": "#/components/schemas/AiPoint",
+            "description": "The number of days since January 1, 1970, UTC."
+          },
+          "start_time": {
+            "$ref": "#/components/schemas/AiPoint",
+            "description": "Delta time in milliseconds from the start date."
+          },
+          "status": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "stop_date": {
+            "$ref": "#/components/schemas/AiPoint",
+            "description": "The number of days since January 1, 1970, UTC."
+          },
+          "stop_time": {
+            "$ref": "#/components/schemas/AiPoint",
+            "description": "Delta time in milliseconds from the start date."
+          },
+          "time_offsets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPoint"
+            },
+            "description": "Seconds since the start time."
+          },
+          "validation_state": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPoint"
+            }
+          }
+        }
+      },
+      "AiScheduleBC": {
+        "type": "object",
+        "description": "AI points belonging to a Backward Compatible Schedule functional group.\nThe header fields capture the single per-schedule metadata points.\nThe Vec fields hold one entry per schedule slot, parallel-indexed.\nNote: the schedule edit selector is stored in the base AiPoints array, not here.",
+        "required": [
+          "identity",
+          "priority",
+          "schedule_type",
+          "start_date",
+          "start_time",
+          "repeat_interval",
+          "repeat_interval_units",
+          "validation_status",
+          "status",
+          "number_of_points",
+          "time_offsets",
+          "values"
+        ],
+        "properties": {
+          "identity": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "number_of_points": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "repeat_interval": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "repeat_interval_units": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "schedule_type": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "start_date": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "start_time": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "time_offsets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPoint"
+            }
+          },
+          "validation_status": {
+            "$ref": "#/components/schemas/AiPoint"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPoint"
+            }
+          }
+        }
+      },
+      "AnalogInputs": {
+        "type": "object",
+        "description": "All analog input points, grouped by base and functional/equipment type.",
+        "required": [
+          "points",
+          "curves",
+          "schedules_bc",
+          "schedules",
+          "meters",
+          "ders",
+          "inverters",
+          "batteries"
+        ],
+        "properties": {
+          "batteries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiBattery"
+            }
+          },
+          "curves": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiCurve"
+            }
+          },
+          "ders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiDer"
+            }
+          },
+          "inverters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiInverter"
+            }
+          },
+          "meters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiMeter"
+            }
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiPoint"
+            },
+            "description": "The BASE points; to access *all* points, use all_ai_points_full() or all_ai_points_full_mut()."
+          },
+          "schedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiSchedule"
+            }
+          },
+          "schedules_bc": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiScheduleBC"
+            }
+          }
+        }
+      },
+      "AnalogOutputs": {
+        "type": "object",
+        "description": "All analog output points, grouped by base and equipment type.",
+        "required": [
+          "points",
+          "meters",
+          "inverters",
+          "batteries"
+        ],
+        "properties": {
+          "batteries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AoBattery"
+            }
+          },
+          "inverters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AoInverter"
+            }
+          },
+          "meters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AoMeter"
+            }
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AoPoint"
+            }
+          }
+        }
+      },
+      "AoBattery": {
+        "type": "object",
+        "description": "AO points belonging to the Battery equipment group.",
+        "required": [
+          "external_voltage_high_threshold",
+          "external_voltage_low_threshold",
+          "internal_voltage_high_threshold",
+          "internal_voltage_low_threshold"
+        ],
+        "properties": {
+          "external_voltage_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "external_voltage_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "internal_voltage_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "internal_voltage_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          }
+        }
+      },
+      "AoInverter": {
+        "type": "object",
+        "description": "AO points belonging to the Inverter equipment group.",
+        "required": [
+          "active_power_high_threshold",
+          "active_power_low_threshold",
+          "reactive_power_high_threshold",
+          "reactive_power_low_threshold",
+          "frequency_high_threshold",
+          "frequency_low_threshold",
+          "dc_input_power_high_threshold",
+          "dc_input_power_low_threshold",
+          "dc_current_high_threshold",
+          "dc_current_low_threshold",
+          "dc_voltage_high_threshold",
+          "dc_voltage_low_threshold"
+        ],
+        "properties": {
+          "active_power_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "active_power_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "dc_current_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "dc_current_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "dc_input_power_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "dc_input_power_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "dc_voltage_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "dc_voltage_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "frequency_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "frequency_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "reactive_power_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "reactive_power_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          }
+        }
+      },
+      "AoMeter": {
+        "type": "object",
+        "description": "AO points belonging to the Meter equipment group.",
+        "required": [
+          "active_power_high_threshold",
+          "active_power_low_threshold",
+          "reactive_power_high_threshold",
+          "reactive_power_low_threshold",
+          "power_factor_high_threshold",
+          "power_factor_low_threshold",
+          "phase_a_volts_high_threshold",
+          "phase_a_volts_low_threshold",
+          "phase_b_volts_high_threshold",
+          "phase_b_volts_low_threshold",
+          "phase_c_volts_high_threshold",
+          "phase_c_volts_low_threshold"
+        ],
+        "properties": {
+          "active_power_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "active_power_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "phase_a_volts_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "phase_a_volts_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "phase_b_volts_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "phase_b_volts_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "phase_c_volts_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "phase_c_volts_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "power_factor_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "power_factor_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "reactive_power_high_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          },
+          "reactive_power_low_threshold": {
+            "$ref": "#/components/schemas/AoPoint"
+          }
+        }
+      },
+      "AoPoint": {
+        "type": "object",
+        "description": "An analog output (AO) point defined in the PICS profile. Do not construct it directly; instead, use AoPoint::new.",
+        "required": [
+          "point_index",
+          "name",
+          "minimum",
+          "maximum",
+          "multiplier",
+          "offset",
+          "units",
+          "iec_61850_uid",
+          "purpose",
+          "mandatory_1815",
+          "mandatory_1547"
+        ],
+        "properties": {
+          "assoc_ai": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "iec_61850_uid": {
+            "type": "string"
+          },
+          "mandatory_1547": {
+            "type": "boolean"
+          },
+          "mandatory_1815": {
+            "type": "boolean"
+          },
+          "maximum": {
+            "$ref": "#/components/schemas/TransmissionI32"
+          },
+          "minimum": {
+            "$ref": "#/components/schemas/TransmissionI32"
+          },
+          "multiplier": {
+            "type": "number",
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          },
+          "offset": {
+            "$ref": "#/components/schemas/EngineeringF64"
+          },
+          "point_index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "units": {
+            "type": "string"
+          }
+        }
+      },
+      "BiBattery": {
+        "type": "object",
+        "description": "BI points belonging to the Battery equipment group.",
+        "required": [
+          "status_of_storage",
+          "communication_error",
+          "local_control_mode",
+          "dc_contactor_closed",
+          "is_charging",
+          "is_discharging",
+          "external_voltage_too_high",
+          "external_voltage_too_low",
+          "internal_voltage_too_high",
+          "internal_voltage_too_low",
+          "over_temperature_alarm",
+          "under_temperature_alarm",
+          "temperature_imbalance_alarm",
+          "over_temperature_warning",
+          "under_temperature_warning",
+          "temperature_imbalance_warning",
+          "over_charge_current_alarm",
+          "over_discharge_current_alarm",
+          "over_charge_current_warning",
+          "over_discharge_current_warning",
+          "voltage_imbalance_warning",
+          "current_imbalance_warning",
+          "over_voltage_alarm",
+          "under_voltage_alarm",
+          "over_voltage_warning",
+          "under_voltage_warning",
+          "over_soc_max_alarm",
+          "under_soc_min_alarm",
+          "over_soc_max_warning",
+          "under_soc_min_warning",
+          "contactor_failure",
+          "fan_error",
+          "ground_fault",
+          "door_open_alarm",
+          "configuration_error",
+          "configuration_warning",
+          "other_alarm",
+          "other_warning",
+          "fire_alarm",
+          "fire_supervisory_warning",
+          "fire_trouble_warning",
+          "fire_power_fault_warning",
+          "chiller_alarm",
+          "chiller_warning",
+          "air_handler_alarm",
+          "air_handler_warning",
+          "fluid_alarm",
+          "fluid_warning",
+          "gas_alarm",
+          "gas_warning",
+          "electrolyte_alarm",
+          "electrolyte_warning",
+          "electrical_alarm",
+          "electrical_warning"
+        ],
+        "properties": {
+          "air_handler_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "air_handler_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "chiller_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "chiller_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "communication_error": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "configuration_error": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "configuration_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "contactor_failure": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "current_imbalance_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_contactor_closed": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "door_open_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "electrical_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "electrical_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "electrolyte_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "electrolyte_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "external_voltage_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "external_voltage_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "fan_error": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "fire_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "fire_power_fault_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "fire_supervisory_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "fire_trouble_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "fluid_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "fluid_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "gas_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "gas_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "ground_fault": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "internal_voltage_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "internal_voltage_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "is_charging": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "is_discharging": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "local_control_mode": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "other_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "other_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_charge_current_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_charge_current_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_discharge_current_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_discharge_current_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_soc_max_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_soc_max_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_temperature_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_temperature_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_voltage_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_voltage_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "status_of_storage": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "temperature_imbalance_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "temperature_imbalance_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "under_soc_min_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "under_soc_min_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "under_temperature_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "under_temperature_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "under_voltage_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "under_voltage_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "voltage_imbalance_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          }
+        }
+      },
+      "BiDer": {
+        "type": "object",
+        "description": "BI points belonging to the DER equipment group.",
+        "required": [
+          "maintenance_operational_state",
+          "has_p1_alarms",
+          "has_p2_alarms",
+          "has_p3_alarms"
+        ],
+        "properties": {
+          "has_p1_alarms": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "has_p2_alarms": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "has_p3_alarms": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "maintenance_operational_state": {
+            "$ref": "#/components/schemas/BiPoint"
+          }
+        }
+      },
+      "BiInverter": {
+        "type": "object",
+        "description": "BI points belonging to the Inverter equipment group.",
+        "required": [
+          "active_power_too_high",
+          "active_power_too_low",
+          "reactive_power_too_high",
+          "reactive_power_too_low",
+          "frequency_too_high",
+          "frequency_too_low",
+          "dc_input_power_too_high",
+          "dc_input_power_too_low",
+          "dc_current_too_high",
+          "dc_current_too_low",
+          "dc_voltage_too_high",
+          "dc_voltage_too_low",
+          "power_factor_excitation",
+          "communication_error",
+          "local_control_mode",
+          "dc_contactor_closed",
+          "ground_fault_alarm",
+          "dc_over_voltage_alarm",
+          "dc_under_voltage_alarm",
+          "ac_disconnect_warning",
+          "dc_disconnect_warning",
+          "grid_disconnect_warning",
+          "cabinet_open_warning",
+          "manual_shutdown_warning",
+          "over_temperature_alarm",
+          "under_temperature_alarm",
+          "over_frequency_alarm",
+          "under_frequency_alarm",
+          "ac_over_voltage_alarm",
+          "ac_under_voltage_alarm",
+          "blown_string_fuse_alarm",
+          "memory_loss_alarm",
+          "hardware_test_failure",
+          "other_alarm",
+          "other_warning"
+        ],
+        "properties": {
+          "ac_disconnect_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "ac_over_voltage_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "ac_under_voltage_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "active_power_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "active_power_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "blown_string_fuse_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "cabinet_open_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "communication_error": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_contactor_closed": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_current_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_current_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_disconnect_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_input_power_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_input_power_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_over_voltage_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_under_voltage_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_voltage_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "dc_voltage_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "frequency_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "frequency_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "grid_disconnect_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "ground_fault_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "hardware_test_failure": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "local_control_mode": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "manual_shutdown_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "memory_loss_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "other_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "other_warning": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_frequency_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "over_temperature_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "power_factor_excitation": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "reactive_power_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "reactive_power_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "under_frequency_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "under_temperature_alarm": {
+            "$ref": "#/components/schemas/BiPoint"
+          }
+        }
+      },
+      "BiMeter": {
+        "type": "object",
+        "description": "BI points belonging to the Meter equipment group.",
+        "required": [
+          "active_power_too_high",
+          "active_power_too_low",
+          "reactive_power_too_high",
+          "reactive_power_too_low",
+          "power_factor_too_high",
+          "power_factor_too_low",
+          "phase_a_voltage_too_high",
+          "phase_a_voltage_too_low",
+          "phase_b_voltage_too_high",
+          "phase_b_voltage_too_low",
+          "phase_c_voltage_too_high",
+          "phase_c_voltage_too_low",
+          "communication_error"
+        ],
+        "properties": {
+          "active_power_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "active_power_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "communication_error": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "phase_a_voltage_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "phase_a_voltage_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "phase_b_voltage_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "phase_b_voltage_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "phase_c_voltage_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "phase_c_voltage_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "power_factor_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "power_factor_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "reactive_power_too_high": {
+            "$ref": "#/components/schemas/BiPoint"
+          },
+          "reactive_power_too_low": {
+            "$ref": "#/components/schemas/BiPoint"
+          }
+        }
+      },
+      "BiPoint": {
+        "type": "object",
+        "description": "A binary input (BI) point defined in the PICS profile.",
+        "required": [
+          "point_index",
+          "name",
+          "event_class",
+          "state_0",
+          "state_1",
+          "iec_61850_uid",
+          "purpose",
+          "mandatory_1815",
+          "mandatory_1547"
+        ],
+        "properties": {
+          "assoc_bo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_class": {
+            "$ref": "#/components/schemas/EventClass"
+          },
+          "iec_61850_uid": {
+            "type": "string"
+          },
+          "mandatory_1547": {
+            "type": "boolean"
+          },
+          "mandatory_1815": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "point_index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "state_0": {
+            "type": "string"
+          },
+          "state_1": {
+            "type": "string"
+          }
+        }
+      },
+      "BinaryInputs": {
+        "type": "object",
+        "description": "All binary input points, grouped by base and equipment type.",
+        "required": [
+          "points",
+          "meters",
+          "ders",
+          "inverters",
+          "batteries"
+        ],
+        "properties": {
+          "batteries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BiBattery"
+            }
+          },
+          "ders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BiDer"
+            }
+          },
+          "inverters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BiInverter"
+            }
+          },
+          "meters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BiMeter"
+            }
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BiPoint"
+            }
+          }
+        }
+      },
+      "BinaryOutputs": {
+        "type": "object",
+        "description": "All binary output points in the profile.",
+        "required": [
+          "points"
+        ],
+        "properties": {
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoPoint"
+            }
+          }
+        }
+      },
+      "BoPoint": {
+        "type": "object",
+        "description": "A binary output (BO) point defined in the PICS profile.",
+        "required": [
+          "point_index",
+          "name",
+          "state_0",
+          "state_1",
+          "iec_61850_uid",
+          "purpose",
+          "mandatory_1815",
+          "mandatory_1547"
+        ],
+        "properties": {
+          "assoc_bi": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "iec_61850_uid": {
+            "type": "string"
+          },
+          "mandatory_1547": {
+            "type": "boolean"
+          },
+          "mandatory_1815": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "point_index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "state_0": {
+            "type": "string"
+          },
+          "state_1": {
+            "type": "string"
+          }
+        }
+      },
+      "ControlStationConfig": {
+        "type": "object",
+        "required": [
+          "use_reference_control_station"
+        ],
+        "properties": {
+          "ip_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "use_reference_control_station": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateJobRequest": {
+        "type": "object",
+        "required": [
+          "control_station_config",
+          "outstation_config",
+          "profile",
+          "device_under_test"
+        ],
+        "properties": {
+          "control_station_config": {
+            "$ref": "#/components/schemas/ControlStationConfig"
+          },
+          "device_under_test": {
+            "$ref": "#/components/schemas/DeviceUnderTest"
+          },
+          "outstation_config": {
+            "$ref": "#/components/schemas/OutstationConfig"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/PicsProfile",
+            "description": "Profile JSON document. The runtime type stays `serde_json::Value`\n(preserves the permissive deserialize behavior the existing\nfrontend relies on); the OpenAPI schema reports the stricter\n`PicsProfile` shape via `#[schema(value_type = PicsProfile)]`."
+          },
+          "scenario_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateJobResponse": {
+        "type": "object",
+        "description": "Response for POST /jobs: returns only the job_id.",
+        "required": [
+          "job_id"
+        ],
+        "properties": {
+          "job_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CtrPoint": {
+        "type": "object",
+        "description": "A counter (CTR) point defined in the PICS profile.",
+        "required": [
+          "point_index",
+          "name",
+          "counter_event_class",
+          "frozen_counter_exists",
+          "frozen_counter_event_class",
+          "iec_61850_uid",
+          "purpose",
+          "mandatory_1815",
+          "mandatory_1547"
+        ],
+        "properties": {
+          "counter_event_class": {
+            "$ref": "#/components/schemas/EventClass"
+          },
+          "frozen_counter_event_class": {
+            "$ref": "#/components/schemas/EventClass"
+          },
+          "frozen_counter_exists": {
+            "type": "boolean"
+          },
+          "iec_61850_uid": {
+            "type": "string"
+          },
+          "mandatory_1547": {
+            "type": "boolean"
+          },
+          "mandatory_1815": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "point_index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "purpose": {
+            "type": "string"
+          }
+        }
+      },
+      "CurveType": {
+        "type": "string",
+        "enum": [
+          "NotDefined",
+          "NotApplicableUnknown",
+          "VoltVar",
+          "FrequencyWatt",
+          "WattVar",
+          "VoltageWatt",
+          "RemainConnected",
+          "TemperatureMode",
+          "PricingSignalMode",
+          "HvrtMustTrip",
+          "HvrtMomentaryCessation",
+          "LvrtMustTrip",
+          "LvrtMomentaryCessation",
+          "HfrtMustTrip",
+          "HfrtMomentaryCessation",
+          "LfrtMustTrip",
+          "LfrtMomentaryCessation"
+        ]
+      },
+      "CurveTypeEntry": {
+        "type": "object",
+        "required": [
+          "variant",
+          "display_name",
+          "std_number"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "std_number": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "variant": {
+            "$ref": "#/components/schemas/CurveType"
+          }
+        }
+      },
+      "DeviceUnderTest": {
+        "type": "string",
+        "enum": [
+          "control_station",
+          "outstation"
+        ]
+      },
+      "EngineeringF64": {
+        "type": "number",
+        "format": "double",
+        "description": "A scaled engineering value."
+      },
+      "EnumEntry": {
+        "type": "object",
+        "required": [
+          "value",
+          "name",
+          "display_name"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "EnumsResponse": {
+        "type": "object",
+        "required": [
+          "curve_types",
+          "curve_x_units",
+          "curve_y_units",
+          "action_types",
+          "schedule_interval_units",
+          "mode_types"
+        ],
+        "properties": {
+          "action_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnumEntry"
+            }
+          },
+          "curve_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurveTypeEntry"
+            }
+          },
+          "curve_x_units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnumEntry"
+            }
+          },
+          "curve_y_units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnumEntry"
+            }
+          },
+          "mode_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModeTypeEntry"
+            }
+          },
+          "schedule_interval_units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnumEntry"
+            }
+          }
+        }
+      },
+      "EquipmentInfo": {
+        "type": "object",
+        "description": "Per-instance metadata for a single point type within an equipment group.",
+        "required": [
+          "count",
+          "start",
+          "points_per"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "points_per": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "start": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "EquipmentPoints": {
+        "type": "object",
+        "description": "Groups the per-point-type equipment metadata for a single equipment group.",
+        "required": [
+          "bo",
+          "bi",
+          "ao",
+          "ai",
+          "ctr"
+        ],
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/EquipmentInfo"
+          },
+          "ao": {
+            "$ref": "#/components/schemas/EquipmentInfo"
+          },
+          "bi": {
+            "$ref": "#/components/schemas/EquipmentInfo"
+          },
+          "bo": {
+            "$ref": "#/components/schemas/EquipmentInfo"
+          },
+          "ctr": {
+            "$ref": "#/components/schemas/EquipmentInfo"
+          }
+        }
+      },
+      "EventClass": {
+        "type": "string",
+        "description": "DNP3 event class assignment for a point (Class1, Class2, Class3, or None).\nEvent class represents priority: Class1 > Class2 > Class3.\nNone means you are not expected to generate events for those points",
+        "enum": [
+          "Class1",
+          "Class2",
+          "Class3",
+          "None"
+        ]
+      },
+      "ExpectedTest": {
+        "type": "object",
+        "description": "A single expected test result within a scenario.",
+        "required": [
+          "test_id",
+          "should_pass"
+        ],
+        "properties": {
+          "should_pass": {
+            "type": "boolean"
+          },
+          "test_id": {
+            "$ref": "#/components/schemas/TestName"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "running",
+          "stopping",
+          "stopped",
+          "finished",
+          "failed"
+        ]
+      },
+      "JobStatusResponse": {
+        "type": "object",
+        "description": "Response for GET /jobs/{id}: returns job_id and status.",
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          }
+        }
+      },
+      "KeySheet": {
+        "type": "object",
+        "description": "Index and count metadata for all point groups in the profile.",
+        "required": [
+          "config",
+          "functions",
+          "curves",
+          "system_meter",
+          "extensions",
+          "experimental",
+          "vendor",
+          "discovery",
+          "schedules_bc",
+          "schedules_bc_status",
+          "schedules",
+          "schedules_status",
+          "max_points",
+          "meter",
+          "der",
+          "inverter",
+          "battery"
+        ],
+        "properties": {
+          "battery": {
+            "$ref": "#/components/schemas/EquipmentPoints"
+          },
+          "config": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "curves": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "der": {
+            "$ref": "#/components/schemas/EquipmentPoints"
+          },
+          "discovery": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "experimental": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "extensions": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "functions": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "inverter": {
+            "$ref": "#/components/schemas/EquipmentPoints"
+          },
+          "max_points": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "meter": {
+            "$ref": "#/components/schemas/EquipmentPoints"
+          },
+          "schedules": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "schedules_bc": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "schedules_bc_status": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "schedules_status": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "system_meter": {
+            "$ref": "#/components/schemas/SectionPoints"
+          },
+          "vendor": {
+            "$ref": "#/components/schemas/SectionPoints"
+          }
+        }
+      },
+      "ModeType": {
+        "type": "string",
+        "enum": [
+          "VoltageRideThrough",
+          "FrequencyRideThrough",
+          "SetActivePower",
+          "ActivePowerLimiting",
+          "FrequencyWatt",
+          "VoltWatt",
+          "CoordinatedChargeDischarge",
+          "ActivePowerFollowing",
+          "AutomaticGenerationControl",
+          "ActivePowerSmoothing",
+          "FrequencyWattCurve",
+          "DynamicVoltWatt",
+          "ConstantVars",
+          "ConstantPowerFactor",
+          "VoltVar",
+          "WattVar",
+          "PowerFactorCorrection",
+          "DynamicReactiveCurrent",
+          "Price"
+        ]
+      },
+      "ModeTypeEntry": {
+        "type": "object",
+        "required": [
+          "variant",
+          "display_name",
+          "purposes",
+          "category"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/PowerModeCategory"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "purposes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "variant": {
+            "$ref": "#/components/schemas/ModeType"
+          }
+        }
+      },
+      "OutstationConfig": {
+        "type": "object",
+        "required": [
+          "use_reference_outstation"
+        ],
+        "properties": {
+          "ip_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "use_reference_outstation": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PicsProfile": {
+        "type": "object",
+        "description": "Top-level deserialized representation of a PICS profile document. Unvalidated.\nuse PicsProfile::new to get Validated<PicsProfile>.",
+        "required": [
+          "Key",
+          "BO",
+          "BI",
+          "AO",
+          "AI",
+          "CTR"
+        ],
+        "properties": {
+          "AI": {
+            "$ref": "#/components/schemas/AnalogInputs"
+          },
+          "AO": {
+            "$ref": "#/components/schemas/AnalogOutputs"
+          },
+          "BI": {
+            "$ref": "#/components/schemas/BinaryInputs"
+          },
+          "BO": {
+            "$ref": "#/components/schemas/BinaryOutputs"
+          },
+          "CTR": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CtrPoint"
+            }
+          },
+          "Key": {
+            "$ref": "#/components/schemas/KeySheet"
+          }
+        }
+      },
+      "PowerModeCategory": {
+        "type": "string",
+        "enum": [
+          "ActivePower",
+          "ReactivePower",
+          "EmergencyMode"
+        ]
+      },
+      "ProfileListItem": {
+        "type": "object",
+        "required": [
+          "name",
+          "filename",
+          "source"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "last_modified": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProfileSource"
+          }
+        }
+      },
+      "ProfileMutationAck": {
+        "type": "object",
+        "description": "Acknowledgement payload returned by the mutation endpoints.\nDefined here so the schema can be referenced by `#[utoipa::path]` even\nthough the handlers still return `serde_json::Value` for back-compat.",
+        "required": [
+          "status",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ProfileSource": {
+        "type": "string",
+        "description": "Provenance of a profile entry.\n\n`Seed` entries live under `<data_dir>/profiles/` (and the bundled\n`template/profile.json`) and are read-only at the deployment layer.\n`Working` entries live under `<data_dir>/working/` and are written\nby the save endpoint.",
+        "enum": [
+          "seed",
+          "working"
+        ]
+      },
+      "SaveProfileRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "profile"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/PicsProfile",
+            "description": "Profile JSON data. Accepts both \"profile\" and \"data\" field names\nfor backward compatibility with the existing frontend.\n\nThe runtime type stays `serde_json::Value` (preserves the existing\npermissive deserialize behavior); the OpenAPI schema reports the\nstricter `PicsProfile` shape via `#[schema(value_type = PicsProfile)]`."
+          }
+        }
+      },
+      "Scenario": {
+        "type": "object",
+        "description": "A test scenario with its expected outcomes.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "expected_tests"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "expected_tests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpectedTest"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "SectionInfo": {
+        "type": "object",
+        "description": "Start index for a single point type within a section.",
+        "required": [
+          "start"
+        ],
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "SectionPoints": {
+        "type": "object",
+        "description": "Groups the per-point-type start indices for a single section.",
+        "required": [
+          "bo",
+          "bi",
+          "ao",
+          "ai",
+          "ctr"
+        ],
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/SectionInfo"
+          },
+          "ao": {
+            "$ref": "#/components/schemas/SectionInfo"
+          },
+          "bi": {
+            "$ref": "#/components/schemas/SectionInfo"
+          },
+          "bo": {
+            "$ref": "#/components/schemas/SectionInfo"
+          },
+          "ctr": {
+            "$ref": "#/components/schemas/SectionInfo"
+          }
+        }
+      },
+      "StopJobResponse": {
+        "type": "object",
+        "description": "Response for DELETE /jobs/{id}: returns a message.",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "TestName": {
+        "type": "string",
+        "enum": [
+          "MON_001",
+          "SCHED_001",
+          "SCHED_002",
+          "ALARM_001",
+          "CONN_001",
+          "SERV_001",
+          "OP_001",
+          "CURVE_001",
+          "CURVE_002",
+          "CURVE_003",
+          "VRT_001",
+          "FRT_001",
+          "FW_001",
+          "DRCS_001",
+          "DVW_001",
+          "APL_001",
+          "CHG_001",
+          "CCM_001",
+          "APR1_001",
+          "APR2_001",
+          "APR3_001",
+          "AGC_001",
+          "APS_001",
+          "VW_001",
+          "FWC_001",
+          "CVAR_001",
+          "FPF_001",
+          "VV_001",
+          "WV_001",
+          "PFC_001",
+          "PSIG_001"
+        ]
+      },
+      "TransmissionI32": {
+        "type": "integer",
+        "format": "int32",
+        "description": "An unscaled, transmitted value"
+      },
+      "ValidationError": {
+        "type": "object",
+        "required": [
+          "point",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "point": {
+            "type": "string"
+          }
+        }
+      },
+      "ValidationErrors": {
+        "type": "object",
+        "required": [
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            }
+          }
+        }
+      },
+      "ValidationErrorsResponse": {
+        "type": "object",
+        "required": [
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "$ref": "#/components/schemas/ValidationErrors"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "profiles",
+      "description": "Saved PICS profile documents"
+    },
+    {
+      "name": "enums",
+      "description": "Enum lookup tables for the frontend"
+    },
+    {
+      "name": "health",
+      "description": "Service health and version probe"
+    },
+    {
+      "name": "scenarios",
+      "description": "Pre-loaded conformance test scenarios"
+    },
+    {
+      "name": "jobs",
+      "description": "Conformance test job lifecycle (non-SSE)"
+    }
+  ]
+}

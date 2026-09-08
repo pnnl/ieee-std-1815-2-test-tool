@@ -241,16 +241,12 @@ it with `{ workspace = true }` in each crate.
 
 ## Generating the OpenAPI TypeScript Client
 
-The Vite development server generates the frontend API client from the live
-Poem `/openapi.json` endpoint.
+The Vite development server generates the frontend API client from `openapi.json`.
 
 After changing the backend API, start the backend in another terminal and
 refresh both the snapshot and generated client:
 
 ```bash
-curl --fail --silent --show-error \
-  http://localhost:8000/openapi.json \
-  --output frontend/openapi.json
 cd frontend
 npm run generate:api
 ```

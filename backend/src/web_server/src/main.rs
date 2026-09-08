@@ -7,7 +7,9 @@ use common::profile::validation::Validated;
 use poem::Server;
 use poem::listener::TcpListener;
 use tracing_subscriber::prelude::*;
+use utoipa::OpenApi;
 
+use web_server::ApiDoc;
 use web_server::models::scenario::Scenario;
 use web_server::services::job_service::JobService;
 use web_server::startup_checks::assert_no_symlinks;
@@ -61,12 +63,23 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     const DEFAULT_DATA_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../data");
     const DEFAULT_FRONTEND_DIR: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../../../frontend/dist");
+    const DEFAULT_OPENAPI_OUTPUT_PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../frontend/openapi.json"
+    );
     let data_dir = std::env::var("DATA_DIR").unwrap_or_else(|_| DEFAULT_DATA_DIR.to_string());
     let frontend_dir =
         std::env::var("FRONTEND_DIR").unwrap_or_else(|_| DEFAULT_FRONTEND_DIR.to_string());
+    let openapi_output_path = std::env::var("OPENAPI_OUTPUT_PATH")
+        .unwrap_or_else(|_| DEFAULT_OPENAPI_OUTPUT_PATH.to_string());
     let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = std::env::var("PORT").unwrap_or_else(|_| "8000".to_string());
     let bind_addr = format!("{host}:{port}");
+
+    let openapi_json = serde_json::to_string_pretty(&ApiDoc::openapi())?;
+    std::fs::write(&openapi_output_path, format!("{openapi_json}\n"))
+        .with_context(|| format!("Writing OpenAPI document to {openapi_output_path}"))?;
+    tracing::info!("Wrote OpenAPI document to {openapi_output_path}");
 
     // Reject symlinks inside the static-served directories before binding.
     // Poem's `StaticFilesEndpoint` follows symlinks; an attacker (or a

@@ -1,23 +1,9 @@
 import { defineConfig } from '@hey-api/openapi-ts'
 
 // Codegen config for the Rust web_server's utoipa-emitted OpenAPI spec.
-//
-// The backend must be running and reachable at OPENAPI_INPUT_URL before
-// running `npm run generate:api`. The default points at the codegen-only
-// dev port (8765) used during the migration; override OPENAPI_INPUT_URL
-// to retarget (e.g. http://localhost:8001/openapi.json for the standard
-// host-mapped Poem dev port, or http://mesa-poem-dev:8000/openapi.json
-// from inside the compose network).
-//
-// Generated output is NOT committed (per #320): `src/api/generated/` is
-// gitignored and regenerated from the backend OpenAPI spec at build/dev
-// time via the Vite heyApiPlugin, or on demand via `npm run generate:api`.
-// The generator is the source-of-truth; never hand-edit the contents.
-const inputUrl =
-  process.env.OPENAPI_INPUT_URL ?? 'http://localhost:8765/openapi.json'
 
 export default defineConfig({
-  input: inputUrl,
+  input: './openapi.json',
   output: {
     path: 'src/api/generated',
     // No postProcess: prettier isn't a project dep, and our eslint config
@@ -27,8 +13,6 @@ export default defineConfig({
   },
   plugins: [
     {
-      // Fetch-based runtime client. Bundled into @hey-api/openapi-ts since
-      // v0.73; no separate @hey-api/client-fetch dep needed.
       name: '@hey-api/client-fetch',
       // Override the spec's servers[0].url so the generated client.gen.ts
       // defaults to same-origin ('') instead of whatever localhost:PORT was
