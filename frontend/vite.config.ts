@@ -19,10 +19,8 @@ const BACKEND_PORT = process.env.BACKEND_PORT || '8000'
 const BACKEND_TARGET = `http://${BACKEND_HOST}:${BACKEND_PORT}`
 
 // Static-data middleware. Serves /data/* file requests in dev (template
-// profile, scenarios.json, etc.) — read-only, parent-dir-confined. The
-// /api/profiles handlers that previously lived here have been retired
-// (Phase 2 of #225); profile management now flows through the backend
-// via the /api/profiles proxy entry below.
+// profile, scenarios.json, etc.) — read-only, parent-dir-confined. Profile
+// management flows through the backend via the /api/profiles proxy entry below.
 const dataServePlugin = (): PluginOption => ({
   name: 'serve-data',
   configureServer(server) {

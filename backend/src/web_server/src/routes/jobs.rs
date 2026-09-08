@@ -60,7 +60,6 @@ pub async fn delete_job(
     }
 }
 
-// SSE annotation deferred to #293
 #[handler]
 pub async fn job_events(
     service: Data<&Arc<JobService>>,

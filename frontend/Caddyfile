@@ -13,15 +13,13 @@ https://1815.2tests.local:443 {
     # TLS configuration with self-signed cert
     tls internal
 
-    # API routing after the Poem-only cutover (#259).
+    # API routing.
     #
     # The Poem web_server mounts ALL routes under /api natively (see
     # backend/src/web_server/src/lib.rs:`.nest("/api", routes::api_routes())`
     # → /api/health, /api/jobs, /api/profiles, /api/enums, /api/scenarios).
     # Therefore Caddy MUST NOT strip the /api prefix for any route — the
-    # path the client sends is the path Poem expects. This is a behavioural
-    # change from the Python era, where /api/jobs and /api/scenarios were
-    # rewritten to /jobs and /scenarios before proxying.
+    # path the client sends is the path Poem expects.
 
     # Proxy /api/health/test-connection to backend.
     handle /api/health/test-connection* {

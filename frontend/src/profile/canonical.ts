@@ -1331,8 +1331,7 @@ function numberOf(value: number | null | undefined): number {
 // index used by the backend (see backend/src/common/src/profile/indexed_db.rs:31).
 // Synthesising points with `point_index = 0` or cloning across parallel
 // arrays (which have different bases) produces a semantically invalid
-// profile even if the UI no longer crashes — issue #327 / Copilot review
-// on PR #330.
+// profile even if the UI no longer crashes.
 
 const SCHEDULE_PARALLEL_ARRAY_COUNT = 4
 
@@ -1388,7 +1387,7 @@ function resizeSchedulePointArray(
 // Replace the action-point array on a schedule. Pads parallel arrays out to
 // the new length, deriving each new slot's `point_index` from the schedule's
 // canonical layout so the wire-level DNP3 mapping stays correct even when
-// the schedule shipped with empty parallel arrays (see issue #327).
+// the schedule shipped with empty parallel arrays.
 export function setSchedulePoints(
   profile: PicsProfile,
   scheduleArrayIndex: number,

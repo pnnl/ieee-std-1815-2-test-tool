@@ -4,7 +4,7 @@
 // General-panel error, update this test to assert that message instead.
 //
 // `GET /api/profiles/:name` serves seed files as raw JSON with no shape
-// validation (#492), so a profile record missing a required key can reach
+// validation, so a profile record missing a required key can reach
 // this component as-is. The fixture below is derived from full.json, the
 // known-good PicsProfile, by omitting AI: a deviation from the generated
 // type rather than a hand-written non-canonical blob.
@@ -17,7 +17,7 @@ import fullProfileJson from '../../../data/profiles/full.json'
 import { renderWithTheme } from '@/testUtils'
 
 describe('EntitiesTab with a profile missing the AI key', () => {
-  it('throws when AI is missing from an otherwise-valid PicsProfile (#492: documents current behavior)', () => {
+  it('throws when AI is missing from an otherwise-valid PicsProfile', () => {
     const { AO, BI, BO, CTR, Key } = fullProfileJson as unknown as PicsProfile
     const profileMissingAi = { AO, BI, BO, CTR, Key } as unknown as PicsProfile
 

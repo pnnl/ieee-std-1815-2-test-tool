@@ -55,7 +55,7 @@ dev-up:
 	docker compose -f docker-compose.dev.yml up -d
 	@echo ""
 	@echo "=========================================================="
-	@echo "  MESA dev stack up (Poem-only after #259)"
+	@echo "  MESA dev stack up"
 	@echo ""
 	@echo "  Frontend:               http://localhost:3000"
 	@echo "  Frontend /api/* proxy:  Poem web_server (mesa-backend-dev:8000)"

@@ -215,7 +215,7 @@ describe('Validate action', () => {
 // into "clean" or an untouched-looking panel. Every test below starts from
 // a populated panel so "left untouched" and "cleared to false-clean" are
 // distinguishable on screen.
-describe('Validate action: malformed /validate envelope hardening (#492 follow-on)', () => {
+describe('Validate action: malformed /validate envelope hardening', () => {
   async function populatePanel() {
     renderApp()
     await waitForBootstrapLoad()
@@ -425,7 +425,7 @@ describe('JSON import', () => {
     expect(screen.getByText(/value out of range/)).toBeInTheDocument()
   })
 
-  it('#492 regression: cancelling the save-name prompt on a failing JSON import still surfaces the real /validate errors, not silence', async () => {
+  it('Cancelling the save-name prompt on a failing JSON import still surfaces the real /validate errors, not silence', async () => {
     // The file does not exist server-side, so handleImportFile takes the
     // "prompt for a save name" branch. Cancelling that prompt must not
     // discard already-computed `importValidationErrors`, or nothing loads
@@ -469,7 +469,7 @@ describe('JSON import', () => {
   })
 })
 
-describe('Load Profile from server (issue #492 acceptance criterion: populate on load)', () => {
+describe('Load Profile from server', () => {
   // Real errors from `POST /api/profiles/validate` against
   // invalid_ai.json: 6 plain `AI<digits>` errors route to Analog Inputs,
   // and 4 curve-structural entries (display-name `point`, not matching the
@@ -594,11 +594,7 @@ describe('Load Profile from server (issue #492 acceptance criterion: populate on
     expect(screen.getAllByText(/^AI2:/)).toHaveLength(2)
   })
 
-  // Copilot review finding on #526: VALIDATION_UNCONFIRMED_ERROR's message
-  // said "imported without validation", but loadProfileByName uses the
-  // same constant for a load-time /validate that couldn't answer. The
-  // wording must not claim an import happened here.
-  it('an unconfirmed /validate response during a load reads accurately, never claiming an import (Copilot review finding on #526)', async () => {
+  it('an unconfirmed /validate response during a load reads accurately, never claiming an import', async () => {
     renderApp()
     await waitForBootstrapLoad()
 
@@ -660,7 +656,7 @@ describe('Load Profile from server (issue #492 acceptance criterion: populate on
 // lands, the exact bytes just persisted are re-validated and the panel is
 // replaced wholesale (never merged) through the same three-outcome
 // `interpretValidateError` contract load and button-validate already use.
-describe('Save persists, then re-validates the saved profile and replaces the panel (issue #492, Craig)', () => {
+describe('Save persists, then re-validates the saved profile and replaces the panelw', () => {
   // Swap the bootstrap fixture for the trimmed profile (see
   // SMALL_AI_PROFILE) so expanding the Scada group stays fast.
   beforeEach(() => {

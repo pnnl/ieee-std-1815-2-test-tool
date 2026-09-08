@@ -68,7 +68,7 @@ function ProfileListModal({
     setLoading(true)
     setError(null)
     try {
-      // Generated client (Phase 2 of #225). `baseUrl: ''` forces same-origin
+      // Generated client. `baseUrl: ''` forces same-origin
       // so the request flows through the Vite split-route proxy to Poem.
       const { data, error: apiError } = await listProfiles({
         baseUrl: '',

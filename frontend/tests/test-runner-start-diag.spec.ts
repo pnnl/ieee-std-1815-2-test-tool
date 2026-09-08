@@ -1,8 +1,6 @@
 import { test, expect, request as pwRequest } from '@playwright/test'
 
 /**
- * One-off diagnostic for issue #222 / Test Runner Start button.
- *
  * Reproduces the click -> SSE -> render flow in a real browser and captures:
  *  - All console output (log/warn/error)
  *  - All page errors (uncaught exceptions)

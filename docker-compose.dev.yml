@@ -11,7 +11,7 @@ services:
         HOST_GID: ${HOST_GID:-1000}
     # Run as the host user so files written into the ./frontend bind mount
     # (notably the regenerated src/api/generated client) are owned by the
-    # developer, not root. See #320 follow-up.
+    # developer, not root.
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     ports:
       - "3000:3000"
@@ -27,7 +27,6 @@ services:
     environment:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
-      # Single backend after #259 (Python retired from runtime images).
       - BACKEND_HOST=mesa-backend-dev
       - BACKEND_PORT=8000
     command: sh -c "npm install --prefer-offline && npm run dev -- --host 0.0.0.0"
@@ -36,8 +35,7 @@ services:
     networks:
       - mesa-network-dev
     # backend-dev now exposes /api/health (it is the Poem web_server), so
-    # frontend-dev can wait on its healthcheck directly. No more poem-dev
-    # service to depend on (#259).
+    # frontend-dev can wait on its healthcheck directly.
     depends_on:
       backend-dev:
         condition: service_healthy
@@ -63,7 +61,7 @@ services:
       # Mount data directories.
       # data/profiles: read-only seed profiles (full.json, demo.json,
       # mandatory_*, minimal_*). data/working is rw because Poem owns user
-      # saves (#222).
+      # saves.
       - ./data/profiles:/data/profiles:ro
       # build.rs in the common crate resolves full.json relative to
       # CARGO_MANIFEST_DIR (/app/backend/src/common/../../../data/profiles/

@@ -509,9 +509,7 @@ function App() {
     setActiveTab,
   ])
 
-  // JSON import only: xlsx import (unified multipart /validate +
-  // /parse-xlsx) is deferred until #524's unified /validate contract
-  // merges.
+  // JSON import only
   const handleImportFile = async (file: File) => {
     try {
       const fileExtension = file.name.split('.').pop()?.toLowerCase()
