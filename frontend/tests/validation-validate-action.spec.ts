@@ -49,11 +49,13 @@ test.describe('Validate action refreshes the panel against the current edit', ()
     }
   })
 
-  test('obligation 16: editing a value out of range then pressing Validate populates the panel', async ({
+  test('editing a value out of range then pressing Validate populates the panel', async ({
     page,
   }) => {
     await page.goto('/')
-    await expect(page.getByText(/Current Profile:/i)).toBeVisible({
+    await expect(
+      page.getByText(/Current Profile: no profile loaded/i),
+    ).not.toBeVisible({
       timeout: 15000,
     })
 

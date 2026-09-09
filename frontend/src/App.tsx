@@ -74,7 +74,7 @@ const tabs = [
 const getTabFromSearch = (searchParams: URLSearchParams): string => {
   const tab = searchParams.get('tab')
   const isValidTab = tabs.some((item) => item.id === tab)
-  return isValidTab ? tab! : 'entities'
+  return isValidTab ? tab! : 'test_runner'
 }
 
 function App() {

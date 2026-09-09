@@ -72,7 +72,7 @@ function GanttVisualization({
   return (
     <div
       ref={containerRef}
-      className="flex flex-col gap-2 h-full p-4 bg-background border-l border-border overflow-auto"
+      className="flex flex-col gap-2 p-4 bg-background border-l border-border overflow-auto"
     >
       {/* Stacked Schedule Bars */}
       <div className="flex border border-border bg-muted/50">

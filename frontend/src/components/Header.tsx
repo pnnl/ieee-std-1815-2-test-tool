@@ -1,5 +1,7 @@
 import { useRef } from 'react'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@radix-ui/themes'
+import { GearIcon } from '@radix-ui/react-icons'
 
 interface HeaderProps {
   onImportFile: (file: File) => void
@@ -50,7 +52,7 @@ function Header({
   }
 
   return (
-    <header className="p-2 border-b border-border">
+    <header className="pb-2 border-b border-border">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">1815.2 Test Tool</h3>
@@ -117,13 +119,15 @@ function Header({
           >
             Copy
           </Button>
+          <Separator orientation="vertical"></Separator>
           <Button
             variant="outline"
+            color="gray"
             size="sm"
             onClick={onOpenPreferences}
             title="Open preferences"
           >
-            Preferences
+            <GearIcon /> Settings
           </Button>
           <input
             id="file-input"

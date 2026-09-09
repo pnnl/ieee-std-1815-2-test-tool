@@ -235,9 +235,6 @@ async function loadTestProfile(page: import('@playwright/test').Page) {
   await expect(
     page.locator('p', { hasText: /^Current Profile:/ }),
   ).toContainText(CURVES_TEST_PROFILE, { timeout: 15000 })
-  await expect(
-    page.getByRole('heading', { name: 'Entity Configuration' }),
-  ).toBeVisible({ timeout: 5000 })
 }
 
 async function openCurvesTabAndAddCurve(page: import('@playwright/test').Page) {

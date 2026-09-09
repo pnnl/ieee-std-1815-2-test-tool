@@ -24,7 +24,7 @@ button.iconButton > span.iconContainer {
 }
 
 .testRunnerSidebar {
-  width: 450px;
+  width: 400px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;

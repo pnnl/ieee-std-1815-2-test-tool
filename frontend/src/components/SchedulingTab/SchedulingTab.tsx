@@ -307,10 +307,7 @@ function SchedulingTab({
       >
         <div className="border-r border-border overflow-hidden flex flex-col">
           {!ganttPoppedOut && (
-            <div
-              className="overflow-hidden flex flex-col relative"
-              style={{ height: '340px', minHeight: '200px' }}
-            >
+            <div className="overflow-hidden flex flex-col relative">
               {ganttContent}
               <button
                 onClick={() => setGanttPoppedOut(true)}

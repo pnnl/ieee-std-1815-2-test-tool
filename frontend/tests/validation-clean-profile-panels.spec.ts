@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test'
 
 test.use({ storageState: { cookies: [], origins: [] } })
 
-test('obligation 17: a clean profile shows no General panel and no BO/BI callout shell', async ({
+test('a clean profile shows no General panel and no BO/BI callout shell', async ({
   page,
 }) => {
   await page.goto('/')

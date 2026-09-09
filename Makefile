@@ -46,7 +46,7 @@ setup-hosts:
 	fi
 
 # Development targets
-dev: setup-hosts dev-build dev-up
+dev: dev-build dev-up
 
 dev-build:
 	docker compose -f docker-compose.dev.yml build
@@ -116,3 +116,8 @@ gen-pics:
 # Clean up
 clean:
 	docker compose -f docker-compose.dev.yml down -v --remove-orphans 2>/dev/null || true
+
+install:
+	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+	~/.cargo/bin/cargo build
+	cd frontend && npm install && npm run build

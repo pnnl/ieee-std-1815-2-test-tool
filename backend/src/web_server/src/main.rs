@@ -34,7 +34,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         .truncate(true)
         .open(log_directory.join("web_server.log"))?;
 
-    // Write detailed server logs to a new file. Write only errors to the console.
+    // Write detailed server logs to a new file and to the console.
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::fmt::layer()
@@ -56,7 +56,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_target(false)
                 .with_writer(std::io::stdout)
                 .with_ansi(true)
-                .with_filter(tracing_subscriber::filter::LevelFilter::ERROR),
+                .with_filter(tracing_subscriber::filter::LevelFilter::INFO),
         )
         .init();
 

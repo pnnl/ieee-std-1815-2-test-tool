@@ -14,7 +14,7 @@ test.afterEach(async () => {
   // Best-effort cleanup of the working/ entry the save-as test creates.
   // Using a fresh API context — the test's own page context is gone by now.
   const apiContext = await playwrightRequest.newContext({
-    baseURL: 'http://localhost:3001',
+    baseURL: 'http://localhost:3000',
   })
   try {
     const resp = await apiContext.delete(`/api/profiles/${SAVE_AS_TEST_NAME}`)
@@ -136,7 +136,7 @@ test('full.json loads in browser without errors', async ({ page }) => {
 test('save-as flow updates header, dirty flag, and profile list', async ({
   page,
 }) => {
-  // Fresh boot: load full (seed), dirty it, save-as under a new name,
+  // Fresh boot: load full (profile, modify it, save-as under a new name,
   // and assert every state transition the user can observe:
   //   1. SaveAsModal closes on success
   //   2. Header flips from "full" to the new name
@@ -150,15 +150,13 @@ test('save-as flow updates header, dirty flag, and profile list', async ({
     timeout: 15000,
   })
 
-  // Land on Entities and dirty the first NumberInput.
+  // Got to Entities and modify the first NumberInput.
   await page.getByRole('tab', { name: 'Entities' }).first().click()
-  await page.waitForTimeout(300)
 
   const firstNumberInput = page.locator('input[type="number"]').first()
   await firstNumberInput.focus()
   await firstNumberInput.press('ArrowUp')
   await firstNumberInput.press('Tab')
-  await page.waitForTimeout(300)
 
   // Save → SaveAsModal opens (loadedSource=seed forces the branch).
   const saveButton = page.getByRole('button', { name: /^save$/i }).first()
