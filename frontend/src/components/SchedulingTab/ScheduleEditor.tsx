@@ -6,6 +6,7 @@ import { NativeSelect } from '@/components/ui/native-select'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Link, Text } from '@radix-ui/themes'
 import SchedulePointEditor from './SchedulePointEditor'
 import {
   INTERVAL_UNITS,
@@ -248,7 +249,18 @@ function ScheduleEditor({
               />
             </div>
 
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">
+            <Text as="p" size="1" color="gray">
+              Days of the week are not supported yet; see{' '}
+              <Link
+                href="https://github.com/pnnl/ieee-std-1815-2-test-tool/issues/31"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                this issue
+              </Link>
+              .
+            </Text>
+            {/* <p className="text-xs font-medium text-muted-foreground mb-1.5">
               Repeat on:
             </p>
             <div className="flex items-center gap-3">
@@ -284,7 +296,7 @@ function ScheduleEditor({
                   </div>
                 ),
               )}
-            </div>
+            </div> */}
           </div>
 
           <Separator />
