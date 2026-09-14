@@ -1,8 +1,8 @@
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { TableRow, TableCell } from '@/components/ui/table'
 import type { FlatPoint, FlatAiPoint } from '@/profile/canonical'
 import type { ValidationError } from '@/api/generated'
+import { CheckIcon } from '@radix-ui/react-icons'
 
 type EditableField =
   | 'name'
@@ -115,13 +115,7 @@ function PointRow({
         className="text-center"
         style={{ width: columnWidths[5] ? `${columnWidths[5]}px` : undefined }}
       >
-        <Checkbox
-          checked={point.mandatory_1547}
-          onCheckedChange={(checked) =>
-            onUpdate(point, 'mandatory_1547', !!checked)
-          }
-          className="mx-auto"
-        />
+        {point.mandatory_1547 && <CheckIcon></CheckIcon>}
       </TableCell>
 
       {/* Mandatory 1815 (IEEE 1815.2) */}
@@ -129,13 +123,7 @@ function PointRow({
         className="text-center"
         style={{ width: columnWidths[6] ? `${columnWidths[6]}px` : undefined }}
       >
-        <Checkbox
-          checked={point.mandatory_1815}
-          onCheckedChange={(checked) =>
-            onUpdate(point, 'mandatory_1815', !!checked)
-          }
-          className="mx-auto"
-        />
+        {point.mandatory_1815 && <CheckIcon></CheckIcon>}
       </TableCell>
 
       {/* Units (analog only) */}
