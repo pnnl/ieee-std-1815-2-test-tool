@@ -2455,6 +2455,7 @@
       },
       "ModeType": {
         "type": "string",
+        "description": "DER functions in the same order as the \"Compatibility of functions\" table (58).",
         "enum": [
           "VoltageRideThrough",
           "FrequencyRideThrough",
@@ -2463,6 +2464,7 @@
           "FrequencyWatt",
           "VoltWatt",
           "CoordinatedChargeDischarge",
+          "PeakPowerLimiting",
           "ActivePowerFollowing",
           "AutomaticGenerationControl",
           "ActivePowerSmoothing",
