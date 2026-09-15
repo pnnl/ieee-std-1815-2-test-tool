@@ -165,6 +165,7 @@ fn mode_display_name(mode: &ModeType) -> String {
         ModeType::PowerFactorCorrection => "Power Factor Correction",
         ModeType::DynamicReactiveCurrent => "Dynamic Reactive Current",
         ModeType::Price => "Pricing Signal",
+        ModeType::PeakPowerLimiting => "Peak Power Limiting",
     }
     .to_string()
 }
@@ -179,6 +180,7 @@ fn power_mode_to_category(mode: &ModeType) -> PowerModeCategory {
         | ModeType::ActivePowerFollowing
         | ModeType::VoltWatt
         | ModeType::FrequencyWattCurve
+        | ModeType::PeakPowerLimiting
         | ModeType::Price => PowerModeCategory::ActivePower,
         ModeType::ConstantVars
         | ModeType::ConstantPowerFactor

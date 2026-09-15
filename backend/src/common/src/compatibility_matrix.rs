@@ -17,16 +17,22 @@ pub enum CompatibilityType {
     Override = 5,
 }
 
-#[derive(Debug, Eq, Hash, PartialEq, Clone, EnumIter, Copy, Serialize, Deserialize)]
+/// DER functions in the same order as the "Compatibility of functions" table (58).
+#[derive(
+    Debug, Eq, Hash, PartialEq, Clone, EnumIter, Copy, Serialize, Deserialize, strum::EnumCount,
+)]
 #[cfg_attr(feature = "utoipa", derive(ToSchema))]
 pub enum ModeType {
     VoltageRideThrough,
     FrequencyRideThrough,
+    /// AKA "Charge-Discharge"
     SetActivePower,
     ActivePowerLimiting,
     FrequencyWatt,
     VoltWatt,
     CoordinatedChargeDischarge,
+    PeakPowerLimiting,
+    /// AKA "Active Power Response"
     ActivePowerFollowing,
     AutomaticGenerationControl,
     ActivePowerSmoothing,
@@ -67,30 +73,53 @@ impl ModeType {
             ModeType::VoltWatt => &["volt-watt"],
             ModeType::WattVar => &["watt-var"],
             ModeType::Price => &["pricing signal"],
+            ModeType::PeakPowerLimiting => &["peak power limiting"],
         }
     }
 }
 
+/// Compatibility matrix matching "Table 58—Compatibility of functions"
 #[allow(dead_code)]
-const MODE_COUNT: usize = ModeType::DynamicReactiveCurrent as usize + 1;
+const MODE_COUNT: usize = <ModeType as strum::EnumCount>::COUNT;
 #[allow(dead_code)]
-static COMPATIBILITY_MATRIX: [[i32; MODE_COUNT]; MODE_COUNT] = [
-    [0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
-    [5, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
-    [5, 5, 0, 1, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0],
-    [5, 5, 5, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
-    [5, 5, 3, 1, 0, 2, 2, 2, 4, 2, 2, 2, 0, 0, 0, 0, 0, 0],
-    [5, 5, 3, 1, 2, 0, 2, 2, 4, 2, 2, 2, 0, 0, 0, 0, 0, 0],
-    [5, 5, 3, 1, 2, 2, 0, 2, 4, 2, 2, 2, 0, 0, 0, 0, 0, 0],
-    [5, 5, 3, 1, 2, 2, 2, 0, 4, 2, 2, 2, 0, 0, 0, 0, 0, 0],
-    [5, 5, 3, 1, 4, 4, 4, 4, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0],
-    [5, 5, 3, 1, 2, 2, 2, 2, 4, 0, 2, 2, 0, 0, 0, 0, 0, 0],
-    [5, 5, 3, 1, 2, 2, 2, 2, 4, 4, 0, 2, 0, 0, 0, 0, 0, 0],
-    [5, 5, 3, 1, 2, 2, 2, 2, 4, 2, 2, 0, 0, 0, 0, 0, 0, 0],
-    [5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3],
-    [5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 3, 3, 3, 3],
-    [5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 3, 3, 3],
-    [5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 0, 3, 3],
-    [5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 0, 3],
-    [5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 0],
+#[rustfmt::skip]
+static COMPATIBILITY_MATRIX: [[&str; MODE_COUNT - 1]; MODE_COUNT - 1] = [ // Minus one to exclude Price, which isn't covered in Table 58
+     // Voltage Ride-Through
+    [ "C", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov"],
+    // Frequency Ride-Through
+    [  "",  "C", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov", "Ov"],
+    // Charge-Discharge (Set Active Power) 
+    [  "",   "",  "C",  "B",  "R",  "R",  "R",  "B",  "R",  "R",  "R",  "R",  "R",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Active Power Limiting (Generation and Consumption)
+    [  "",   "",   "",  "C",  "B",  "B",  "B",  "B",  "B",  "B",  "B",  "B",  "B",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Frequency-Watt (Droop or Sensitivity) 
+    [  "",   "",   "",   "",  "C",  "A",  "A",  "B",  "A", "Ex",  "A",  "A",  "A",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Volt-Watt 
+    [  "",   "",   "",   "",   "",  "C",  "A",  "B",  "A", "Ex",  "A",  "A",  "A",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Coordinated Charge-Discharge 
+    [  "",   "",   "",   "",   "",   "",  "C",  "B",  "A", "Ex",  "A",  "A",  "A",  "C",  "C",  "C",  "C",  "C",  "C"], 
+    // Peak Power Limiting 
+    [  "",   "",   "",   "",   "",   "",   "",  "C",  "B", "Ex",  "B",  "B",  "B",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Active Power Following
+    [  "",   "",   "",   "",   "",   "",   "",   "",  "C", "Ex",  "A",  "A",  "A",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Automatic Generation Control
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",  "C", "Ex", "Ex", "Ex",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Active Power Smoothing
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",   "",  "C",  "A",  "A",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Frequency-Watt Curve
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",  "C",  "A",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Dynamic Volt-Watt
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",  "C",  "C",  "C",  "C",  "C",  "C",  "C"],
+    // Constant Vars
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",  "C",  "R",  "R",  "R",  "R",  "R"],
+    // Constant Power Factor
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",  "C",  "R",  "R",  "R",  "R"],
+    // Volt-Var Control
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",  "C",  "A",  "A",  "A"],
+    // Watt-Var
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",  "C",  "A",  "A"],
+    // Power Factor Correction
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",  "C",  "A"],
+    // Dynamic Reactive Current
+    [  "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",   "",  "C"],
 ];
