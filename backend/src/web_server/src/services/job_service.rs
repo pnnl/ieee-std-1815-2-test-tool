@@ -919,7 +919,7 @@ fn run_all_scenarios_new_thread(
             ));
 
             // Apply scenario-specific profile transform.
-            // Note: this round-trips through PicsProfile (JSON → struct → transform → JSON).
+            // Note: this round-trips through PicsProfile (JSON -> struct -> transform -> JSON).
             // Any JSON fields not modelled in PicsProfile will be silently dropped.
             let transformed_profile = match apply_scenario_transform(
                 scenario_id,
