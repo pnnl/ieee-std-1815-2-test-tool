@@ -170,7 +170,12 @@ impl JobService {
         })?;
         request.profile = serde_json::to_value(&base_profile).unwrap();
 
-        let profile_path = format!("/tmp/mesa-tool_profile_{}.json", job_id);
+        // std::env::temp_dir() resolves the OS temp directory (unlike the
+        // hardcoded "/tmp" this replaces, which does not exist on Windows).
+        let profile_path = std::env::temp_dir()
+            .join(format!("mesa-tool_profile_{}.json", job_id))
+            .to_string_lossy()
+            .to_string();
         // Write the profile to a temporary file for the outstation and control station to read.
         std::fs::write(&profile_path, serde_json::to_string(&base_profile).unwrap()).map_err(|e| {
             info!(job_id = %job_id, error = %e, "create_job: failed to write profile to temporary file");
@@ -1804,6 +1809,125 @@ mod tests {
 
         let status = service.get_job_status(&created.job_id).await.unwrap();
         assert_eq!(status.status, JobStatus::Stopped);
+    }
+
+    // -- profile file lives under the OS temp directory (#51) --
+
+    /// Process-wide mutex serializing tests in this module that redirect
+    /// `TMPDIR`. `std::env::set_var` / `remove_var` are unsafe under edition
+    /// 2024 because they are not thread-safe, and cargo runs unit tests in
+    /// parallel by default. Same pattern as
+    /// `process_manager::tests::ENV_MUTEX`.
+    static TMPDIR_MUTEX: std::sync::LazyLock<std::sync::Mutex<()>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
+
+    /// RAII guard that points `TMPDIR` at a fresh directory for its
+    /// lifetime, then restores the previous value on drop. Needed because on
+    /// Linux `std::env::temp_dir()` already resolves to `/tmp`, so without
+    /// this redirect a `starts_with(temp_dir())` assertion would pass
+    /// against both the old hardcoded path and the fix, proving nothing.
+    ///
+    /// The directory is leaked (`TempDir::keep`) rather than removed on
+    /// drop: `TMPDIR` is process-global, so a concurrent test can still be
+    /// using the redirected path after this guard restores `TMPDIR`, and
+    /// removing the directory here would fail that other test instead.
+    struct ScopedTmpDir {
+        dir: std::path::PathBuf,
+        previous: Option<String>,
+        _guard: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl ScopedTmpDir {
+        fn new() -> Self {
+            let guard = TMPDIR_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+            let dir = tempfile::tempdir().expect("create scratch temp dir").keep();
+            let previous = std::env::var("TMPDIR").ok();
+            // SAFETY: serialized via TMPDIR_MUTEX; no other test in this
+            // module mutates TMPDIR without acquiring the same lock.
+            unsafe { std::env::set_var("TMPDIR", &dir) };
+            Self {
+                dir,
+                previous,
+                _guard: guard,
+            }
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.dir
+        }
+    }
+
+    impl Drop for ScopedTmpDir {
+        fn drop(&mut self) {
+            // SAFETY: we still hold TMPDIR_MUTEX via _guard.
+            unsafe {
+                match self.previous.take() {
+                    Some(v) => std::env::set_var("TMPDIR", v),
+                    None => std::env::remove_var("TMPDIR"),
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_profile_path_is_under_temp_dir_and_removed_on_stop() {
+        let service = test_service();
+        let request = CreateJobRequest {
+            control_station_config: crate::models::job::ControlStationConfig {
+                use_reference_control_station: false,
+                ip_address: None,
+                port: None,
+            },
+            outstation_config: crate::models::job::OutstationConfig {
+                use_reference_outstation: false,
+                ip_address: None,
+                port: None,
+            },
+            profile: serde_json::to_value(PicsProfile::load_full_profile()).unwrap(),
+            scenario_ids: vec![],
+            device_under_test: DeviceUnderTest::Outstation,
+        };
+
+        // Redirect TMPDIR only around create_job, the one call that reads
+        // std::env::temp_dir(). Dropping the guard immediately afterward
+        // shrinks the window in which a concurrently running test could
+        // observe the redirected value.
+        let (created, expected_temp_dir) = {
+            let scoped_tmp = ScopedTmpDir::new();
+            let expected_temp_dir = std::env::temp_dir();
+            assert_eq!(
+                expected_temp_dir,
+                scoped_tmp.path(),
+                "std::env::temp_dir() should resolve to the redirected TMPDIR"
+            );
+            let created = service.create_job(request).await.unwrap();
+            (created, expected_temp_dir)
+        };
+
+        let profile_path = {
+            let jobs = service.jobs.lock().await;
+            jobs.get(&created.job_id)
+                .expect("job should exist after create")
+                .profile_path
+                .clone()
+        };
+
+        assert!(
+            std::path::Path::new(&profile_path).starts_with(&expected_temp_dir),
+            "profile_path {profile_path} is not under {}",
+            expected_temp_dir.display()
+        );
+        assert!(
+            std::path::Path::new(&profile_path).exists(),
+            "profile file should exist right after create_job wrote it"
+        );
+
+        service.stop_job(&created.job_id).await.unwrap();
+
+        assert!(
+            !std::path::Path::new(&profile_path).exists(),
+            "profile file should be removed once the job is stopped"
+        );
     }
 
     // -- make_event helper tests --
