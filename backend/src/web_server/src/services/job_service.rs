@@ -1,4 +1,6 @@
 use std::collections::{HashMap, VecDeque};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::{Arc, RwLock as StdRwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -80,6 +82,9 @@ pub struct JobService {
     /// submitted profile. `None` when the service is created without a full
     /// profile (e.g. in unit tests that don't exercise the Unsupported scenario).
     full_profile: Option<Arc<Validated<PicsProfile>>>,
+    /// What runs a station's cargo build. Always `RealCompileRunner` outside
+    /// tests; see `CompileRunner`.
+    compile_runner: Arc<dyn CompileRunner>,
 }
 
 impl JobService {
@@ -89,6 +94,7 @@ impl JobService {
             data_dir,
             scenarios: Arc::new(Vec::new()),
             full_profile: None,
+            compile_runner: Arc::new(RealCompileRunner),
         }
     }
 
@@ -103,7 +109,18 @@ impl JobService {
             data_dir,
             scenarios,
             full_profile: Some(full_profile),
+            compile_runner: Arc::new(RealCompileRunner),
         }
+    }
+
+    /// Test-only: substitute what runs a station's cargo build, so a test
+    /// can assert how many builds a station actually started instead of
+    /// inferring it from a `status_update` that a later status for the same
+    /// process can overwrite before the test observes it.
+    #[cfg(test)]
+    fn with_compile_runner(mut self, compile_runner: Arc<dyn CompileRunner>) -> Self {
+        self.compile_runner = compile_runner;
+        self
     }
 
     pub async fn job_count(&self) -> usize {
@@ -219,6 +236,7 @@ impl JobService {
         let scenarios = self.scenarios.clone();
         let job_id_bg = job_id.clone();
         let full_profile = self.full_profile.clone();
+        let compile_runner = self.compile_runner.clone();
 
         tokio::spawn(async move {
             run_job_background(
@@ -230,6 +248,7 @@ impl JobService {
                 scenarios,
                 current_statuses,
                 full_profile,
+                compile_runner,
             )
             .await;
         });
@@ -419,6 +438,7 @@ async fn run_job_background(
     scenarios: Arc<Vec<Scenario>>,
     current_statuses: Arc<StdRwLock<HashMap<String, String>>>,
     full_profile: Option<Arc<Validated<PicsProfile>>>,
+    compile_runner: Arc<dyn CompileRunner>,
 ) {
     info!(job_id = %job_id, "run_job_background: starting process management");
     let profile_path = jobs
@@ -540,14 +560,16 @@ async fn run_job_background(
             info!(job_id = %job_id, "run_job_background: compiling outstation");
             let job_id = job_id.clone();
             let event_tx = event_tx.clone();
+            let compile_runner = compile_runner.clone();
             Some(CompileStep::Building(tokio::spawn(async move {
-                compile_cargo_package(
-                    &job_id,
-                    "reference-outstation",
-                    "reference-outstation",
-                    &event_tx,
-                )
-                .await
+                compile_runner
+                    .compile(
+                        &job_id,
+                        "reference-outstation",
+                        "reference-outstation",
+                        &event_tx,
+                    )
+                    .await
             })))
         }
         Some(StationCompileDecision::Fail { .. }) => {
@@ -572,14 +594,16 @@ async fn run_job_background(
             info!(job_id = %job_id, "run_job_background: compiling control station");
             let job_id = job_id.clone();
             let event_tx = event_tx.clone();
+            let compile_runner = compile_runner.clone();
             Some(CompileStep::Building(tokio::spawn(async move {
-                compile_cargo_package(
-                    &job_id,
-                    "reference-control-station",
-                    "reference-control-station",
-                    &event_tx,
-                )
-                .await
+                compile_runner
+                    .compile(
+                        &job_id,
+                        "reference-control-station",
+                        "reference-control-station",
+                        &event_tx,
+                    )
+                    .await
             })))
         }
         Some(StationCompileDecision::Fail { .. }) => {
@@ -923,6 +947,42 @@ enum CompileStep {
     AlreadyBuilt,
     /// `cargo build` is running in a spawned task.
     Building(JoinHandle<bool>),
+}
+
+/// What actually builds a station's binary when `decide_station_compile`
+/// says `Build`. Production always uses `RealCompileRunner`, whose `compile`
+/// is `compile_cargo_package` unchanged. Tests substitute a runner that
+/// records each invocation instead of spawning a subprocess, so "how many
+/// builds did this station start" is a fact a test can assert directly
+/// rather than infer from a `status_update` that a later status for the
+/// same process silently overwrites in `current_statuses`.
+trait CompileRunner: Send + Sync {
+    fn compile<'a>(
+        &'a self,
+        job_id: &'a str,
+        package_name: &'a str,
+        display_name: &'a str,
+        event_tx: &'a broadcast::Sender<JobEvent>,
+    ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>>;
+}
+
+struct RealCompileRunner;
+
+impl CompileRunner for RealCompileRunner {
+    fn compile<'a>(
+        &'a self,
+        job_id: &'a str,
+        package_name: &'a str,
+        display_name: &'a str,
+        event_tx: &'a broadcast::Sender<JobEvent>,
+    ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
+        Box::pin(compile_cargo_package(
+            job_id,
+            package_name,
+            display_name,
+            event_tx,
+        ))
+    }
 }
 
 /// Attempt to compile a cargo package by name.
@@ -2146,6 +2206,96 @@ mod tests {
         })
     }
 
+    /// Test double for `CompileRunner`: records each invocation per package
+    /// name and returns success without spawning `cargo`, so a test can
+    /// assert exactly how many builds a station started.
+    #[derive(Clone, Default)]
+    struct CountingCompileRunner {
+        counts: Arc<std::sync::Mutex<HashMap<String, u32>>>,
+    }
+
+    impl CountingCompileRunner {
+        fn count(&self, package_name: &str) -> u32 {
+            *self
+                .counts
+                .lock()
+                .expect("counts lock poisoned")
+                .get(package_name)
+                .unwrap_or(&0)
+        }
+    }
+
+    impl CompileRunner for CountingCompileRunner {
+        fn compile<'a>(
+            &'a self,
+            _job_id: &'a str,
+            package_name: &'a str,
+            _display_name: &'a str,
+            _event_tx: &'a broadcast::Sender<JobEvent>,
+        ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
+            Box::pin(async move {
+                let mut counts = self.counts.lock().expect("counts lock poisoned");
+                *counts.entry(package_name.to_string()).or_insert(0) += 1;
+                true
+            })
+        }
+    }
+
+    /// Poll `recorder` for up to 5 seconds and return whatever count it
+    /// last observed for `package_name`. The compile invocation runs inside
+    /// the job's spawned background task, so the count only becomes visible
+    /// after that task is scheduled; a fixed sleep would either race it or
+    /// waste time, so poll instead, as `wait_for_status` already does for
+    /// job status.
+    async fn wait_for_compile_count(recorder: &CountingCompileRunner, package_name: &str) -> u32 {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let count = recorder.count(package_name);
+            if count > 0 || tokio::time::Instant::now() >= deadline {
+                return count;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    }
+
+    /// Collect every event broadcast for a job from the moment `rx` was
+    /// subscribed, until a `status_update` for `terminal_process` reaches
+    /// `terminal_status`, or 5 seconds pass. Unlike `subscribe_events`'s
+    /// replay snapshot, which keeps only the latest status per process, the
+    /// live receiver delivers every event once, so a transient status (for
+    /// example "compiling" on the way to "running") is still visible here
+    /// even after `current_statuses` has moved past it. The caller must
+    /// subscribe `rx` immediately after `create_job` returns, before any
+    /// other `.await`, so no event fires before the subscription exists.
+    async fn drain_live_events(
+        rx: &mut broadcast::Receiver<JobEvent>,
+        terminal_process: &str,
+        terminal_status: &str,
+    ) -> Vec<JobEvent> {
+        let mut events = Vec::new();
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return events;
+            }
+            match tokio::time::timeout(remaining, rx.recv()).await {
+                Ok(Ok(event)) => {
+                    let is_terminal = event.event_type == "status_update"
+                        && event.message.get("process").and_then(|p| p.as_str())
+                            == Some(terminal_process)
+                        && event.message.get("status").and_then(|s| s.as_str())
+                            == Some(terminal_status);
+                    events.push(event);
+                    if is_terminal {
+                        return events;
+                    }
+                }
+                _ => return events,
+            }
+        }
+    }
+
     /// A binary guaranteed to exist and to exit almost immediately on every
     /// platform: this test binary itself, given CLI args it does not
     /// understand. `/bin/true` does not exist on Windows, and this suite
@@ -2257,6 +2407,54 @@ mod tests {
         let _ = service.stop_job(&response.job_id).await;
     }
 
+    // -- item 1 seam: the number of builds a station started is asserted
+    // directly through the recorder, in the default suite, without a real
+    // cargo build. Each kills a wiring mutant that swaps decide_station_compile's
+    // Build arm for AlreadyBuilt: the pure decision tests above cannot see
+    // it because they test the mapping, not this call site. --
+
+    #[tokio::test]
+    async fn test_create_job_unset_outstation_bin_starts_one_build() {
+        let _lock = test_env_lock::ENV_MUTEX.lock().await;
+        let _env_guard = test_env_lock::ScopedEnvVar::unset("REFERENCE_OUTSTATION_BIN");
+
+        let recorder = CountingCompileRunner::default();
+        let service = test_service().with_compile_runner(Arc::new(recorder.clone()));
+        let response = service
+            .create_job(outstation_only_request(20182))
+            .await
+            .unwrap();
+
+        let count = wait_for_compile_count(&recorder, "reference-outstation").await;
+        assert_eq!(
+            count, 1,
+            "an unset REFERENCE_OUTSTATION_BIN must start exactly one outstation build"
+        );
+
+        let _ = service.stop_job(&response.job_id).await;
+    }
+
+    #[tokio::test]
+    async fn test_create_job_unset_control_station_bin_starts_one_build() {
+        let _lock = test_env_lock::ENV_MUTEX.lock().await;
+        let _env_guard = test_env_lock::ScopedEnvVar::unset("REFERENCE_CONTROL_STATION_BIN");
+
+        let recorder = CountingCompileRunner::default();
+        let service = test_service().with_compile_runner(Arc::new(recorder.clone()));
+        let response = service
+            .create_job(control_station_only_request(20181))
+            .await
+            .unwrap();
+
+        let count = wait_for_compile_count(&recorder, "reference-control-station").await;
+        assert_eq!(
+            count, 1,
+            "an unset REFERENCE_CONTROL_STATION_BIN must start exactly one control station build"
+        );
+
+        let _ = service.stop_job(&response.job_id).await;
+    }
+
     #[tokio::test]
     async fn test_create_job_missing_outstation_bin_fails_before_spawn() {
         // Acceptance criterion 3: a *_BIN naming a missing file fails the
@@ -2305,25 +2503,40 @@ mod tests {
     #[tokio::test]
     async fn test_create_job_configured_outstation_bin_skips_cargo_build() {
         // Acceptance criterion 1: a *_BIN naming an existing file does not
-        // invoke cargo.
+        // invoke cargo. Asserted two ways: the compile runner recorded zero
+        // invocations (catches a wiring bug that always builds regardless of
+        // the decision), and the live event stream never carried an
+        // outstation "compiling" status (catches a wiring bug that emits the
+        // status without building; `current_statuses` only keeps the latest
+        // value per process, so a replay snapshot cannot see this once the
+        // station has moved on to "running").
         let _lock = test_env_lock::ENV_MUTEX.lock().await;
         let binary = portable_station_binary();
         let _env_guard = test_env_lock::ScopedEnvVar::set("REFERENCE_OUTSTATION_BIN", &binary);
 
-        let service = test_service();
+        let recorder = CountingCompileRunner::default();
+        let service = test_service().with_compile_runner(Arc::new(recorder.clone()));
         let response = service
             .create_job(outstation_only_request(20195))
             .await
             .unwrap();
 
-        let status = wait_for_status(&service, &response.job_id, JobStatus::Running).await;
-        assert_eq!(status, JobStatus::Running);
-
-        let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
+        // Subscribe before any other await so the live receiver cannot miss
+        // an event the background task fires before this test resumes.
+        let (_replay, mut rx) = service.subscribe_events(&response.job_id).await.unwrap();
+        let events = drain_live_events(&mut rx, "outstation", "running").await;
         assert!(
-            !saw_status_update(&replay, "outstation", "compiling"),
+            !saw_status_update(&events, "outstation", "compiling"),
             "cargo build should have been skipped when REFERENCE_OUTSTATION_BIN names an existing file"
         );
+        assert_eq!(
+            recorder.count("reference-outstation"),
+            0,
+            "no build should have started for a configured outstation"
+        );
+
+        let status = wait_for_status(&service, &response.job_id, JobStatus::Running).await;
+        assert_eq!(status, JobStatus::Running);
 
         let stopped = service.stop_job(&response.job_id).await.unwrap();
         assert_eq!(stopped.message, "Job stopped");
@@ -2377,24 +2590,34 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_job_configured_control_station_bin_skips_cargo_build() {
+        // Same two-way assertion as the outstation equivalent above: a
+        // recorded build count and a live-stream check, neither of which a
+        // "keep only the latest status" replay snapshot can provide.
         let _lock = test_env_lock::ENV_MUTEX.lock().await;
         let binary = portable_station_binary();
         let _env_guard = test_env_lock::ScopedEnvVar::set("REFERENCE_CONTROL_STATION_BIN", &binary);
 
-        let service = test_service();
+        let recorder = CountingCompileRunner::default();
+        let service = test_service().with_compile_runner(Arc::new(recorder.clone()));
         let response = service
             .create_job(control_station_only_request(20193))
             .await
             .unwrap();
 
-        let status = wait_for_status(&service, &response.job_id, JobStatus::Running).await;
-        assert_eq!(status, JobStatus::Running);
-
-        let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
+        let (_replay, mut rx) = service.subscribe_events(&response.job_id).await.unwrap();
+        let events = drain_live_events(&mut rx, "control_station", "running").await;
         assert!(
-            !saw_status_update(&replay, "control_station", "compiling"),
+            !saw_status_update(&events, "control_station", "compiling"),
             "cargo build should have been skipped when REFERENCE_CONTROL_STATION_BIN names an existing file"
         );
+        assert_eq!(
+            recorder.count("reference-control-station"),
+            0,
+            "no build should have started for a configured control station"
+        );
+
+        let status = wait_for_status(&service, &response.job_id, JobStatus::Running).await;
+        assert_eq!(status, JobStatus::Running);
 
         let stopped = service.stop_job(&response.job_id).await.unwrap();
         assert_eq!(stopped.message, "Job stopped");
@@ -2402,9 +2625,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_job_both_stations_configured_skips_both_cargo_builds() {
-        // Kills a mutant that reads the wrong variable for one station's
-        // branch: if either branch read the other's env var it would only
-        // ever see one variable set in this test and fail to skip its build.
+        // Both variables are set here, so a branch that reads the other
+        // station's variable still skips; that mutation is caught by the
+        // control-station-only and outstation-only tests above, not this
+        // one. What this test adds over those is running both branches in
+        // the same job, so a bug that only appears when both stations are
+        // configured together still has a test to catch it.
         let _lock = test_env_lock::ENV_MUTEX.lock().await;
         let binary = portable_station_binary();
         let _outstation_guard =
@@ -2424,7 +2650,8 @@ mod tests {
         // rather than reaching Running; that is expected here and orthogonal
         // to what this test asserts, which is that neither build was
         // spawned.
-        wait_for_status(&service, &response.job_id, JobStatus::Failed).await;
+        let status = wait_for_status(&service, &response.job_id, JobStatus::Failed).await;
+        assert_eq!(status, JobStatus::Failed);
 
         let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
         assert!(
@@ -2443,6 +2670,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_job_mixed_missing_control_station_fails_before_outstation_build_spawns() {
+        // Both stations are classified before either build is spawned (see
+        // the module comment above run_job_background's checks), so a
+        // Missing control station must leave the compile runner untouched
+        // for both packages, including the outstation, whose *_BIN is
+        // unset and would otherwise build.
         let _lock = test_env_lock::ENV_MUTEX.lock().await;
         let _outstation_guard = test_env_lock::ScopedEnvVar::unset("REFERENCE_OUTSTATION_BIN");
         let missing_path = format!(
@@ -2453,7 +2685,8 @@ mod tests {
         let _control_station_guard =
             test_env_lock::ScopedEnvVar::set("REFERENCE_CONTROL_STATION_BIN", &missing_path);
 
-        let service = test_service();
+        let recorder = CountingCompileRunner::default();
+        let service = test_service().with_compile_runner(Arc::new(recorder.clone()));
         let response = service
             .create_job(both_stations_request(20190, 20189))
             .await
@@ -2462,11 +2695,18 @@ mod tests {
         let status = wait_for_status(&service, &response.job_id, JobStatus::Failed).await;
         assert_eq!(status, JobStatus::Failed);
 
-        let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
-        assert!(
-            !saw_status_update(&replay, "outstation", "compiling"),
+        assert_eq!(
+            recorder.count("reference-outstation"),
+            0,
             "the outstation cargo build must not start once the control station's *_BIN is Missing"
         );
+        assert_eq!(
+            recorder.count("reference-control-station"),
+            0,
+            "a Missing *_BIN must fail the job before its own build starts"
+        );
+
+        let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
         let saw_message = replay.iter().any(|event| {
             event
                 .message
