@@ -71,7 +71,7 @@ fn format_conformance_log(payload: &serde_json::Value, should_pass: Option<bool>
     let status = if passed { "PASS" } else { "FAIL" };
     let mut line = match should_pass {
         Some(expected) => {
-            let result_mark = if passed == expected { "✓" } else { "✗" };
+            let result_mark = if passed == expected { "[x]" } else { "[ ]" };
             if expected {
                 format!("{result_mark} {test}: {status}")
             } else {
@@ -88,7 +88,7 @@ fn format_conformance_log(payload: &serde_json::Value, should_pass: Option<bool>
             .and_then(|c| c.get("issue"))
             .and_then(|v| v.as_str())
         {
-            line = format!("{line} — {first_issue}");
+            line = format!("{line} - {first_issue}");
         }
     }
     line
@@ -927,7 +927,7 @@ mod tests {
         let payload = serde_json::json!({"test": "MON_001", "passed": true, "comments": []});
         assert_eq!(
             format_conformance_log(&payload, Some(true)),
-            "✓ MON_001: PASS"
+            "[x] MON_001: PASS"
         );
     }
 
@@ -936,7 +936,7 @@ mod tests {
         let payload = serde_json::json!({"test": "MON_001", "passed": false, "comments": []});
         assert_eq!(
             format_conformance_log(&payload, Some(true)),
-            "✗ MON_001: FAIL"
+            "[ ] MON_001: FAIL"
         );
     }
 
@@ -945,7 +945,7 @@ mod tests {
         let payload = serde_json::json!({"test": "CURVE_001", "passed": false, "comments": []});
         assert_eq!(
             format_conformance_log(&payload, Some(false)),
-            "✓ CURVE_001: actual: FAIL expected: FAIL"
+            "[x] CURVE_001: actual: FAIL expected: FAIL"
         );
     }
 
@@ -954,7 +954,7 @@ mod tests {
         let payload = serde_json::json!({"test": "CURVE_001", "passed": true, "comments": []});
         assert_eq!(
             format_conformance_log(&payload, Some(false)),
-            "✗ CURVE_001: actual: PASS expected: FAIL"
+            "[ ] CURVE_001: actual: PASS expected: FAIL"
         );
     }
 
@@ -1052,7 +1052,7 @@ mod tests {
         assert_eq!(e2.event_type, "log");
         assert_eq!(
             e2.message["message"].as_str(),
-            Some("✓ MON_001: PASS"),
+            Some("[x] MON_001: PASS"),
             "conformance log should show that the result matched the expectation"
         );
 
