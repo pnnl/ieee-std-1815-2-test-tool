@@ -220,12 +220,10 @@ mod tests {
 
     #[test]
     fn env_layer_wins_over_a_malformed_user_file() {
-        // The design plan (section 4.4) states the precedence but is silent
-        // on whether a higher layer's presence means a lower, malformed file
-        // is read at all. The safe reading: precedence is "first match wins"
-        // and a lower layer is never even opened once a higher one answers,
-        // so a bad file the user never intended to use (or has not gotten to
-        // fixing yet) cannot break a launch that does not depend on it.
+        // Precedence is "first match wins": a lower layer is never even
+        // opened once a higher one answers, so a bad file the user never
+        // intended to use (or has not gotten to fixing yet) cannot break a
+        // launch that does not depend on it.
         let dir = tempfile::tempdir().expect("create temp dir");
         let user_file = write_file(&dir, "user.toml", "not valid toml {{{");
         let install_file = missing_path(&dir, "install.toml");
