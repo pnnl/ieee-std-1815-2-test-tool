@@ -49,12 +49,9 @@ Source: "..\target\release\reference-control-station.exe"; DestDir: "{app}\bin";
 ; frontend\dist is a build output of the workflow's npm run build step.
 Source: "..\frontend\dist\*"; DestDir: "{app}\frontend"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Everything in data/ except working/ (user profiles, never shipped) and
-; README.md (repo-only contributor doc).
-Source: "..\data\pics.xlsx"; DestDir: "{app}\data"; Flags: ignoreversion
-Source: "..\data\scenarios.json"; DestDir: "{app}\data"; Flags: ignoreversion
-Source: "..\data\scenarios.schema.json"; DestDir: "{app}\data"; Flags: ignoreversion
-Source: "..\data\profiles\*"; DestDir: "{app}\data\profiles"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\data\template\*"; DestDir: "{app}\data\template"; Flags: ignoreversion recursesubdirs createallsubdirs
+; README.md (repo-only contributor doc), so a new top-level data file
+; ships without an edit here.
+Source: "..\data\*"; DestDir: "{app}\data"; Excludes: "working\*,README.md"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "launch.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\Disclaimer.txt"; DestDir: "{app}"; Flags: ignoreversion
