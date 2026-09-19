@@ -62,7 +62,9 @@ Name: "{group}\Uninstall IEEE 1815.2 Test Tool"; Filename: "{uninstallexe}"
 
 [Run]
 ; skipifsilent keeps a silent (CI or scripted) install from auto-launching.
-; not IsAdminInstallMode: postinstall runs with the token Setup started
-; with, so an elevated Setup would leave the unauthenticated loopback
-; server running elevated for every local user to reach.
-Filename: "{app}\launch.cmd"; Description: "Launch IEEE 1815.2 Test Tool now"; Flags: postinstall skipifsilent nowait; Check: not IsAdminInstallMode
+; not IsAdmin: postinstall runs with the token Setup started with.
+; IsAdminInstallMode alone misses a per-user Setup launched from an
+; already-elevated prompt, which would leave the unauthenticated loopback
+; server running elevated. The checkbox is then unavailable under any
+; elevated token; that is intended.
+Filename: "{app}\launch.cmd"; Description: "Launch IEEE 1815.2 Test Tool now"; Flags: postinstall skipifsilent nowait; Check: not IsAdmin
