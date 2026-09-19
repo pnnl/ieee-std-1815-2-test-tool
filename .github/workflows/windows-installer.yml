@@ -1,0 +1,157 @@
+name: Windows Installer
+
+on:
+  pull_request:
+    branches: ["develop", "main"]
+    paths:
+      - "installer/**"
+      - "backend/**"
+      - "frontend/**"
+      - "data/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/windows-installer.yml"
+  push:
+    branches: ["develop", "main"]
+    tags: ["v*"]
+    paths:
+      - "installer/**"
+      - "backend/**"
+      - "frontend/**"
+      - "data/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/windows-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Pinned official Inno Setup 6 download; a 7.x bump is a separate
+  # change. Hash recorded from the vendor file, not from a third party.
+  INNO_URL: "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
+  INNO_SHA256: "9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732"
+
+jobs:
+  build:
+    name: Build setup exe
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Compute installer version
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -like 'v*') {
+            $ver = $env:GITHUB_REF_NAME.Substring(1)
+            $appVersion = $ver
+            $versionInfo = "$ver.0"
+          } else {
+            $line = Select-String -Path backend\src\web_server\Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
+            $crateVersion = $line.Matches[0].Groups[1].Value
+            $appVersion = "$crateVersion-ci.$env:GITHUB_RUN_NUMBER"
+            $versionInfo = "$crateVersion.$env:GITHUB_RUN_NUMBER"
+          }
+          "app_version=$appVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "version_info=$versionInfo" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Show Rust toolchain (installs the pinned version from rust-toolchain.toml)
+        shell: pwsh
+        run: rustup show
+
+      - name: Build release binaries (static CRT)
+        shell: pwsh
+        env:
+          RUSTFLAGS: "-C target-feature=+crt-static"
+        run: cargo build --release --locked -p web_server -p reference-outstation -p reference-control-station
+
+      - name: Assert exes do not import VCRUNTIME140.dll
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) {
+            Write-Error "no Visual Studio install with the VC.Tools.x86.x64 component was found"
+            exit 1
+          }
+          $dumpbin = Get-ChildItem -Path "$vsPath\VC\Tools\MSVC" -Recurse -Filter "dumpbin.exe" |
+            Where-Object { $_.FullName -like "*Hostx64\x64*" } |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $dumpbin) {
+            Write-Error "dumpbin.exe not found under $vsPath"
+            exit 1
+          }
+          $exes = @(
+            "target\release\web_server.exe",
+            "target\release\reference-outstation.exe",
+            "target\release\reference-control-station.exe"
+          )
+          $failed = $false
+          foreach ($exe in $exes) {
+            $deps = & $dumpbin /dependents $exe
+            if ($LASTEXITCODE -ne 0 -or -not $deps) {
+              Write-Error "$exe : dumpbin exited $LASTEXITCODE or produced no output"
+              $failed = $true
+              continue
+            }
+            Write-Host "$exe dependents:"
+            Write-Host ($deps | Out-String)
+            if ($deps -match "VCRUNTIME140") {
+              Write-Error "$exe imports a VCRUNTIME140 DLL: +crt-static did not take effect"
+              $failed = $true
+            } else {
+              Write-Host "$exe : no VCRUNTIME140 import (static CRT confirmed)"
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Download and verify Inno Setup
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP "innosetup-installer.exe"
+          Invoke-WebRequest -Uri $env:INNO_URL -OutFile $dest
+          $actual = (Get-FileHash -Path $dest -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $env:INNO_SHA256) {
+            Write-Error "Inno Setup download hash mismatch: expected $env:INNO_SHA256, got $actual"
+            exit 1
+          }
+          $installDir = Join-Path $env:RUNNER_TEMP "inno"
+          Start-Process -FilePath $dest -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$installDir" -Wait
+          if (-not (Test-Path (Join-Path $installDir "ISCC.exe"))) {
+            Write-Error "ISCC.exe not found under $installDir after a silent install"
+            exit 1
+          }
+
+      - name: Build setup exe with Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = Join-Path $env:RUNNER_TEMP "inno\ISCC.exe"
+          & $iscc "/DAppVersion=${{ steps.version.outputs.app_version }}" "/DVersionInfoVersion=${{ steps.version.outputs.version_info }}" "installer\ieee-1815-2-test-tool.iss"
+
+      - name: Upload setup exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: ieee-1815-2-test-tool-setup
+          path: target/installer/*.exe
+          retention-days: 14
+          if-no-files-found: error

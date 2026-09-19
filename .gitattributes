@@ -5,3 +5,8 @@ frontend/openapi.json linguist-generated
 
 **/generated/** linguist-generated
 **/profiles/*.json linguist-generated
+
+# Windows-native scripts: keep CRLF regardless of a contributor's
+# core.autocrlf, since cmd.exe parses an LF-only batch file unreliably.
+installer/*.iss text eol=crlf
+installer/*.cmd text eol=crlf
