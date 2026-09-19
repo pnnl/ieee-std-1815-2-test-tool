@@ -55,7 +55,11 @@ pub struct ResolvedPort {
 /// set is never silently overridden by a lower-priority default.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SettingsError {
-    /// The file at `path` could not be read as UTF-8 or parsed as TOML.
+    /// The file at `path` exists but could not be opened or read (permission
+    /// denied, the path is a directory, and similar I/O failures other than
+    /// the file not existing).
+    UnreadableFile { path: PathBuf, detail: String },
+    /// The file at `path` was read but could not be parsed as TOML.
     MalformedFile { path: PathBuf, detail: String },
     /// The `port` key at `source` was not an integer in 1024-65535.
     InvalidPort { source: PortSource, value: String },
@@ -64,6 +68,14 @@ pub enum SettingsError {
 impl fmt::Display for SettingsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            SettingsError::UnreadableFile { path, detail } => {
+                write!(
+                    f,
+                    "settings file {} could not be read: {}",
+                    path.display(),
+                    detail
+                )
+            }
             SettingsError::MalformedFile { path, detail } => {
                 write!(
                     f,
@@ -141,7 +153,7 @@ fn read_port_file(path: &Path, source: PortSource) -> Result<Option<u16>, Settin
         Ok(text) => text,
         Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(err) => {
-            return Err(SettingsError::MalformedFile {
+            return Err(SettingsError::UnreadableFile {
                 path: path.to_path_buf(),
                 detail: err.to_string(),
             });
@@ -388,6 +400,34 @@ mod tests {
         match err {
             SettingsError::MalformedFile { path, .. } => assert_eq!(path, user_file),
             other => panic!("expected MalformedFile, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_read_error_that_is_not_missing_stays_an_error_naming_the_path() {
+        // A directory where the settings file should be is a portable way to
+        // trigger a read error other than NotFound, without relying on
+        // permission bits that root ignores.
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let user_file = dir.path().join("user.toml");
+        fs::create_dir(&user_file).expect("create directory standing in for the file");
+        let install_file = missing_path(&dir, "install.toml");
+
+        let err = resolve_port(None, &user_file, &install_file).unwrap_err();
+
+        let message = err.to_string();
+        assert!(
+            message.contains(&user_file.display().to_string()),
+            "message {message:?} does not name {}",
+            user_file.display()
+        );
+        assert!(
+            !message.contains("malformed"),
+            "message {message:?} calls a read failure malformed"
+        );
+        match err {
+            SettingsError::UnreadableFile { path, .. } => assert_eq!(path, user_file),
+            other => panic!("expected UnreadableFile, got {other:?}"),
         }
     }
 
