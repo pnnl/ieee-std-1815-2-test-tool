@@ -10,23 +10,24 @@ set "DATA_ROOT=%LOCALAPPDATA%\ieee-1815-2-test-tool"
 
 if not exist "%APP_DIR%bin\web_server.exe" (
   call :fail "web_server.exe not found under %APP_DIR%bin. Reinstall the tool."
+  exit /b 1
 )
 
 if not exist "%DATA_ROOT%" mkdir "%DATA_ROOT%" >nul 2>&1
-if not exist "%DATA_ROOT%" call :fail "could not create %DATA_ROOT%."
+if not exist "%DATA_ROOT%" (call :fail "could not create %DATA_ROOT%." & exit /b 1)
 
 if not exist "%DATA_ROOT%\logs" mkdir "%DATA_ROOT%\logs" >nul 2>&1
-if not exist "%DATA_ROOT%\logs" call :fail "could not create %DATA_ROOT%\logs."
+if not exist "%DATA_ROOT%\logs" (call :fail "could not create %DATA_ROOT%\logs." & exit /b 1)
 
 rem robocopy refreshes the read-only seed data on every launch, so an
 rem upgrade's new profiles reach the user's data root.
 rem The redirect only silences robocopy's per-file listing; its exit
 rem code is still checked below (0-7 success, 8+ failure).
 robocopy "%APP_DIR%data" "%DATA_ROOT%\data" /E /XD working >nul
-if %ERRORLEVEL% GEQ 8 call :fail "seeding data into %DATA_ROOT%\data failed, robocopy exit code %ERRORLEVEL%."
+if %ERRORLEVEL% GEQ 8 (call :fail "seeding data into %DATA_ROOT%\data failed, robocopy exit code %ERRORLEVEL%." & exit /b 1)
 
 if not exist "%DATA_ROOT%\data\working" mkdir "%DATA_ROOT%\data\working" >nul 2>&1
-if not exist "%DATA_ROOT%\data\working" call :fail "could not create %DATA_ROOT%\data\working."
+if not exist "%DATA_ROOT%\data\working" (call :fail "could not create %DATA_ROOT%\data\working." & exit /b 1)
 
 rem Each var is set only if the user has not already set it, so a user
 rem override always wins.
@@ -56,6 +57,10 @@ if not "%SERVER_EXIT%"=="0" (
 exit /b %SERVER_EXIT%
 
 :fail
-echo ERROR: %~1
+rem Quoted so a path containing &, ^, ( or ) in %~1 is not re-parsed as a
+rem command separator or block token; call :fail never returns to its
+rem caller, since every call site exits right after it (exit /b in a
+rem CALLed label only pops that call frame, it does not stop the script).
+echo ERROR: "%~1"
 pause
 exit /b 1
