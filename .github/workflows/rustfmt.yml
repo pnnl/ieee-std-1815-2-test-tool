@@ -2,7 +2,7 @@ name: Rustfmt
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "develop"]
     paths:
       - "backend/**/*.rs"
       - "backend/**/Cargo.toml"
