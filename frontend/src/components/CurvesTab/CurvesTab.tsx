@@ -202,12 +202,6 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
     )
   }
 
-  const activePointCount = curveConfig.number_of_points || 0
-  const activePoints = curvePoints.slice(
-    0,
-    Math.min(activePointCount, MAX_CURVE_POINTS),
-  )
-
   const curveSelectData = Array.from(
     { length: Math.max(1, currentCurveCount) },
     (_, i) => ({
@@ -419,7 +413,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
 
           <div className="flex flex-col items-center justify-center flex-1 p-4">
             <CurveChart
-              points={activePoints}
+              points={curvePoints}
               xLabel={CURVE_X_UNITS[curveConfig.x_units]}
               yLabel={CURVE_Y_UNITS[curveConfig.y_units]}
               onPointMove={(pointIdx, x, y) => {

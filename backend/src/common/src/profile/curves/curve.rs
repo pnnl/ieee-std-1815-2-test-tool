@@ -162,6 +162,66 @@ impl AiCurve {
         }
 
         errors.extend(self.collect_errors_ai_curve_scaling());
+
+        // Check x_values for consistency
+        for x_value in &self.x_values {
+            if let Some(first) = self.x_values.first() {
+
+                fn check_consistency<A: PartialEq + std::fmt::Debug>(
+                    errors: &mut ValidationErrors,
+                    point: &str,
+                    a: &A,
+                    b: &A,
+                    label: &str,
+                ) {
+                    if a != b {
+                        errors.push(ValidationError {
+                            point: point.to_owned(),
+                            message: format!(
+                                "Inconsistency found in {} among x_values. First x value:\n{:?},\nCurrent x value:\n{:?}",
+                                label,
+                                a,
+                                b
+                            ),
+                        });
+                    }
+                }
+
+                let point = format!("{}: x_values", self.display_name());
+                let error_count = errors.len();
+                check_consistency(
+                    &mut errors, &point, &first.minimum(), &x_value.minimum(), "minimum",
+                );
+                check_consistency(
+                    &mut errors, &point, &first.maximum(), &x_value.maximum(), "maximum",
+                );
+                check_consistency(
+                    &mut errors, &point, &first.multiplier(), &x_value.multiplier(), "multiplier",
+                );
+                check_consistency(
+                    &mut errors, &point, &first.offset, &x_value.offset, "offset",
+                );
+                check_consistency(
+                    &mut errors, &point, &first.units, &x_value.units, "units",
+                );
+                check_consistency(
+                    &mut errors, &point, &first.event_class, &x_value.event_class, "event_class",
+                );
+                check_consistency(
+                    &mut errors, &point, &first.purpose, &x_value.purpose, "purpose",
+                );
+                check_consistency(
+                    &mut errors, &point, &first.mandatory_1547, &x_value.mandatory_1547, "mandatory_1547",
+                );
+                check_consistency(
+                    &mut errors, &point, &first.mandatory_1815, &x_value.mandatory_1815, "mandatory_1815",
+                );
+                if errors.len() > error_count {
+                    break;
+                }
+            }
+        }
+
         errors
     }
 
