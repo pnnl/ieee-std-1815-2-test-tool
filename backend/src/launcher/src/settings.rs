@@ -379,6 +379,12 @@ mod tests {
 
         let err = resolve_port(None, &user_file, &install_file).unwrap_err();
 
+        let message = err.to_string();
+        assert!(
+            message.contains(&user_file.display().to_string()),
+            "message {message:?} does not name {}",
+            user_file.display()
+        );
         match err {
             SettingsError::MalformedFile { path, .. } => assert_eq!(path, user_file),
             other => panic!("expected MalformedFile, got {other:?}"),
@@ -393,6 +399,12 @@ mod tests {
 
         let err = resolve_port(None, &user_file, &install_file).unwrap_err();
 
+        let message = err.to_string();
+        assert!(
+            message.contains(&install_file.display().to_string()),
+            "message {message:?} does not name {}",
+            install_file.display()
+        );
         match err {
             SettingsError::MalformedFile { path, .. } => assert_eq!(path, install_file),
             other => panic!("expected MalformedFile, got {other:?}"),
