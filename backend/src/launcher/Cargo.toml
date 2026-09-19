@@ -15,7 +15,6 @@ name = "test-tool-launcher"
 path = "src/main.rs"
 
 [dependencies]
-serde = { workspace = true }
 toml = { workspace = true }
 
 [dev-dependencies]
