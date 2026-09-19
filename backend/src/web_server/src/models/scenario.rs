@@ -10,7 +10,7 @@ mod tests {
     fn test_scenario_deserializes_valid_json() {
         let json = serde_json::json!({
             "id": "configuration",
-            "name": "Configuration",
+            "name": "Outstation ingests PICS",
             "description": "Test description.",
             "expected_tests": [
                 { "test_id": "MON_001", "should_pass": true },
@@ -19,7 +19,7 @@ mod tests {
         });
         let scenario: Scenario = serde_json::from_value(json).unwrap();
         assert_eq!(scenario.id, "configuration");
-        assert_eq!(scenario.name, "Configuration");
+        assert_eq!(scenario.name, "Outstation ingests PICS");
         assert_eq!(scenario.expected_tests.len(), 2);
         assert!(scenario.expected_tests[0].should_pass);
         assert!(!scenario.expected_tests[1].should_pass);
@@ -29,7 +29,7 @@ mod tests {
     fn test_scenario_deserializes_empty_expected_tests() {
         let json = serde_json::json!({
             "id": "lower_bounds",
-            "name": "Lower Bounds",
+            "name": "Points cannot be modified below their minimum",
             "description": "Attempt to modify all points outside their minimum values.",
             "expected_tests": []
         });

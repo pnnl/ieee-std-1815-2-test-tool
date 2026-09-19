@@ -203,14 +203,14 @@ pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
     vec![
         Scenario {
             id: ScenarioId::Configuration.as_str().to_string(),
-            name: "Configuration".to_string(),
+            name: "Outstation ingests PICS".to_string(),
             description: "Use base PICS and verify the outstation has accurately ingested PICS."
                 .to_string(),
             expected_tests: all_pass(),
         },
         Scenario {
             id: ScenarioId::ModifyPoints.as_str().to_string(),
-            name: "Modify Points".to_string(),
+            name: "All points can be modified".to_string(),
             description:
                 "Update all points that can be modified within boundaries, including curves and \
                 schedules if supported."
@@ -219,37 +219,37 @@ pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
         },
         Scenario {
             id: ScenarioId::Unsupported.as_str().to_string(),
-            name: "Unsupported".to_string(),
+            name: "Unsupported points cannot be modified".to_string(),
             description: "Attempt to modify all points that are not supported.".to_string(),
             expected_tests: all_fail(),
         },
         Scenario {
             id: ScenarioId::BelowLowerBounds.as_str().to_string(),
-            name: "Lower Bounds".to_string(),
+            name: "Points cannot be modified below their minimum".to_string(),
             description: "Attempt to modify all points outside their minimum values.".to_string(),
             expected_tests: bounds_expected_tests.clone(),
         },
         Scenario {
             id: ScenarioId::AboveUpperBounds.as_str().to_string(),
-            name: "Upper Bounds".to_string(),
+            name: "Points cannot be modified above their maximum".to_string(),
             description: "Attempt to modify all points outside their maximum values.".to_string(),
             expected_tests: bounds_expected_tests,
         },
         Scenario {
             id: ScenarioId::MaxCurves.as_str().to_string(),
-            name: "Max Curves".to_string(),
+            name: "Curves beyond the maximum are rejected".to_string(),
             description: "Attempt to add more than the maximum number of curves.".to_string(),
             expected_tests: curve_expected_tests,
         },
         Scenario {
             id: ScenarioId::MaxSchedules.as_str().to_string(),
-            name: "Max Schedules".to_string(),
+            name: "Schedules beyond the maximum are rejected".to_string(),
             description: "Attempt to add more than the maximum number of schedules.".to_string(),
             expected_tests: schedule_expected_tests,
         },
         Scenario {
             id: ScenarioId::Functional.as_str().to_string(),
-            name: "Functional".to_string(),
+            name: "All scheduled modes complete without repeating".to_string(),
             description:
                 "Allow EUT to run until all scheduled modes have finished without repeating."
                     .to_string(),
@@ -259,7 +259,7 @@ pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
         },
         Scenario {
             id: ScenarioId::FunctionalRepeat.as_str().to_string(),
-            name: "Functional Repeat".to_string(),
+            name: "All schedules complete after one repeat".to_string(),
             description:
                 "Allow EUT to run until all schedules have finished, with each one repeating once."
                     .to_string(),
@@ -313,6 +313,43 @@ mod tests {
         let scenarios = generate_scenarios(&profile);
         let config = scenarios.iter().find(|s| s.id == "configuration").unwrap();
         assert!(config.expected_tests.iter().all(|t| t.should_pass));
+    }
+
+    #[test]
+    fn test_scenario_names_describe_the_expected_outcome() {
+        let profile = load_default_profile();
+        let scenarios = generate_scenarios(&profile);
+        let expected_names = [
+            ("configuration", "Outstation ingests PICS"),
+            ("modify_points", "All points can be modified"),
+            ("unsupported", "Unsupported points cannot be modified"),
+            (
+                "lower_bounds",
+                "Points cannot be modified below their minimum",
+            ),
+            (
+                "upper_bounds",
+                "Points cannot be modified above their maximum",
+            ),
+            ("max_curves", "Curves beyond the maximum are rejected"),
+            (
+                "max_schedules",
+                "Schedules beyond the maximum are rejected",
+            ),
+            (
+                "functional",
+                "All scheduled modes complete without repeating",
+            ),
+            (
+                "functional_repeat",
+                "All schedules complete after one repeat",
+            ),
+        ];
+
+        for (id, name) in expected_names {
+            let scenario = scenarios.iter().find(|scenario| scenario.id == id).unwrap();
+            assert_eq!(scenario.name, name);
+        }
     }
 
     #[test]

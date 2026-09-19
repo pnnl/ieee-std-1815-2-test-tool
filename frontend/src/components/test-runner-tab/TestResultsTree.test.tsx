@@ -6,13 +6,13 @@ import type { Scenario } from './scenarios'
 const scenarios: Scenario[] = [
   {
     id: 'configuration',
-    name: 'Configuration',
+    name: 'Outstation ingests PICS',
     description: 'Configuration tests',
     expected_tests: [],
   },
   {
     id: 'monitoring',
-    name: 'Monitoring',
+    name: 'All points can be modified',
     description: 'Monitoring tests',
     expected_tests: [],
   },
@@ -35,6 +35,13 @@ function renderTree(
 }
 
 describe('TestResultsTree bulk selection actions', () => {
+  it('shows descriptive scenario names without info buttons', () => {
+    renderTree({ configuration: true, monitoring: true })
+
+    expect(screen.getByText('Outstation ingests PICS')).toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+
   it('shows only Deselect all when every scenario is selected', () => {
     renderTree({ configuration: true, monitoring: true })
 

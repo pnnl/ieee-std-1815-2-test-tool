@@ -24,12 +24,12 @@ export interface EventDispatchCallbacks {
  * scenario name only when present.
  *
  * Examples:
- *   { status: 'error', scenario_name: 'Configuration', message: 'Broken pipe' }
- *     -> '[Configuration] error: Broken pipe'
+ *   { status: 'error', scenario_name: 'Outstation ingests PICS', message: 'Broken pipe' }
+ *     -> '[Outstation ingests PICS] error: Broken pipe'
  *   { status: 'all_complete', message: 'All scenarios complete' }
  *     -> 'all_complete: All scenarios complete'
- *   { status: 'passed', scenario_name: 'Configuration' }
- *     -> '[Configuration] passed'
+ *   { status: 'passed', scenario_name: 'Outstation ingests PICS' }
+ *     -> '[Outstation ingests PICS] passed'
  */
 function formatScenarioStatusLog(
   message: TestRunnerScenarioStatusMessage,
