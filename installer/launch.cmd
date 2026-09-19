@@ -20,10 +20,13 @@ if not exist "%DATA_ROOT%\logs" mkdir "%DATA_ROOT%\logs" >nul 2>&1
 if not exist "%DATA_ROOT%\logs" (call :fail "could not create %DATA_ROOT%\logs." & exit /b 1)
 
 rem robocopy refreshes the read-only seed data on every launch, so an
-rem upgrade's new profiles reach the user's data root.
-rem The redirect only silences robocopy's per-file listing; its exit
-rem code is still checked below (0-7 success, 8+ failure).
-robocopy "%APP_DIR%data" "%DATA_ROOT%\data" /E /XD working >nul
+rem upgrade's new profiles reach the user's data root. /R:2 /W:1 bound
+rem the default 1,000,000 retries at 30s apart, so a seed file locked
+rem by an upgrade fails fast instead of hanging; /NFL /NDL /NJH /NP
+rem keep the per-file listing quiet while robocopy's own errors and
+rem summary still reach the console. Exit code is still checked below
+rem (0-7 success, 8+ failure).
+robocopy "%APP_DIR%data" "%DATA_ROOT%\data" /E /XD working /R:2 /W:1 /NFL /NDL /NJH /NP
 if %ERRORLEVEL% GEQ 8 (call :fail "seeding data into %DATA_ROOT%\data failed, robocopy exit code %ERRORLEVEL%." & exit /b 1)
 
 if not exist "%DATA_ROOT%\data\working" mkdir "%DATA_ROOT%\data\working" >nul 2>&1
