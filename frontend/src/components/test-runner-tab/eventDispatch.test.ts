@@ -30,7 +30,7 @@ describe('dispatchTestRunnerEvent', () => {
         message:
           'Failed to send scenario command: Failed to write to control station stdin: Broken pipe (os error 32)',
         scenario_id: 'configuration',
-        scenario_name: 'Configuration',
+        scenario_name: 'Outstation ingests PICS',
         status: 'error',
       },
     }
@@ -41,7 +41,7 @@ describe('dispatchTestRunnerEvent', () => {
     expect(callbacks.addLog).toHaveBeenCalledTimes(1)
     expect(callbacks.addLog).toHaveBeenCalledWith(
       'test_runner',
-      '[Configuration] error: Failed to send scenario command: Failed to write to control station stdin: Broken pipe (os error 32)',
+      '[Outstation ingests PICS] error: Failed to send scenario command: Failed to write to control station stdin: Broken pipe (os error 32)',
     )
   })
 
@@ -76,7 +76,7 @@ describe('dispatchTestRunnerEvent', () => {
         event_type: 'scenario_status',
         message: 'Scenario started',
         scenario_id: 'configuration',
-        scenario_name: 'Configuration',
+        scenario_name: 'Outstation ingests PICS',
         status: 'running',
       },
     }
@@ -86,7 +86,7 @@ describe('dispatchTestRunnerEvent', () => {
     expect(callbacks.warnUnknown).not.toHaveBeenCalled()
     expect(callbacks.addLog).toHaveBeenCalledWith(
       'test_runner',
-      '[Configuration] running: Scenario started',
+      '[Outstation ingests PICS] running: Scenario started',
     )
   })
 
@@ -98,7 +98,7 @@ describe('dispatchTestRunnerEvent', () => {
       message: {
         event_type: 'scenario_status',
         scenario_id: 'configuration',
-        scenario_name: 'Configuration',
+        scenario_name: 'Outstation ingests PICS',
         status: 'passed',
       },
     }
@@ -108,7 +108,7 @@ describe('dispatchTestRunnerEvent', () => {
     expect(callbacks.warnUnknown).not.toHaveBeenCalled()
     expect(callbacks.addLog).toHaveBeenCalledWith(
       'test_runner',
-      '[Configuration] passed',
+      '[Outstation ingests PICS] passed',
     )
   })
 

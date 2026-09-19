@@ -59,7 +59,7 @@ mod tests {
         let scenarios = vec![
             Scenario {
                 id: "configuration".to_string(),
-                name: "Configuration".to_string(),
+                name: "Outstation ingests PICS".to_string(),
                 description: "Test config.".to_string(),
                 expected_tests: vec![ExpectedTest {
                     test_id: TestName::MON_001,
@@ -68,7 +68,7 @@ mod tests {
             },
             Scenario {
                 id: "unsupported".to_string(),
-                name: "Unsupported".to_string(),
+                name: "Unsupported points cannot be modified".to_string(),
                 description: "Test unsupported.".to_string(),
                 expected_tests: vec![],
             },

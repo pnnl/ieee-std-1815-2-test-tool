@@ -8,8 +8,8 @@ import {
 } from './expectedTests'
 import { ConformanceTestResult } from './types'
 import { type Scenario } from './scenarios'
-import { Badge, Box, IconButton, Popover, Text } from '@radix-ui/themes'
-import { CheckCheck, InfoIcon, SquareX } from 'lucide-react'
+import { Badge, Box, Text } from '@radix-ui/themes'
+import { CheckCheck, SquareX } from 'lucide-react'
 import { deriveOutcome } from './testOutcome'
 import { Button } from '../ui/button'
 
@@ -325,19 +325,6 @@ export default function TestResultsTree({
                 <Text size="3" style={{ opacity: scenarioEnabled ? 1 : 0.5 }}>
                   {scenarioOrTest.scenario.name}
                 </Text>
-                <Popover.Root>
-                  <Popover.Trigger onClick={(e) => e.stopPropagation()}>
-                    <IconButton variant="ghost" color="gray" size="1" ml="1">
-                      <InfoIcon size="15" />
-                    </IconButton>
-                  </Popover.Trigger>
-                  <Popover.Content>
-                    <Box>
-                      <Text>{scenarioOrTest.scenario.description}</Text>
-                    </Box>
-                  </Popover.Content>
-                </Popover.Root>
-
                 <span
                   style={{
                     marginLeft: 'auto',

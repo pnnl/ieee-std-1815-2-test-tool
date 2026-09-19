@@ -1,7 +1,7 @@
 [
   {
     "id": "configuration",
-    "name": "Configuration",
+    "name": "Outstation ingests PICS",
     "description": "Use base PICS and verify the outstation has accurately ingested PICS.",
     "expected_tests": [
       { "test_id": "MON_001", "should_pass": true },
@@ -38,7 +38,7 @@
   },
   {
     "id": "modify_points",
-    "name": "Modify Points",
+    "name": "All points can be modified",
     "description": "Update all points that can be modified within boundaries, including curves and schedules if supported.",
     "expected_tests": [
       { "test_id": "MON_001", "should_pass": true },
@@ -75,7 +75,7 @@
   },
   {
     "id": "unsupported",
-    "name": "Unsupported",
+    "name": "Unsupported points cannot be modified",
     "description": "Attempt to modify all points that are not supported.",
     "expected_tests": [
       { "test_id": "MON_001", "should_pass": false },
@@ -112,37 +112,37 @@
   },
   {
     "id": "lower_bounds",
-    "name": "Lower Bounds",
+    "name": "Points cannot be modified below their minimum",
     "description": "Attempt to modify all points outside their minimum values.",
     "expected_tests": []
   },
   {
     "id": "upper_bounds",
-    "name": "Upper Bounds",
+    "name": "Points cannot be modified above their maximum",
     "description": "Attempt to modify all points outside their maximum values.",
     "expected_tests": []
   },
   {
     "id": "max_curves",
-    "name": "Max Curves",
+    "name": "Curves beyond the maximum are rejected",
     "description": "Attempt to add more than the maximum number of curves.",
     "expected_tests": []
   },
   {
     "id": "max_schedules",
-    "name": "Max Schedules",
+    "name": "Schedules beyond the maximum are rejected",
     "description": "Attempt to add more than the maximum number of schedules.",
     "expected_tests": []
   },
   {
     "id": "functional",
-    "name": "Functional",
+    "name": "All scheduled modes complete without repeating",
     "description": "Allow EUT to run until all scheduled modes have finished without repeating.",
     "expected_tests": []
   },
   {
     "id": "functional_repeat",
-    "name": "Functional Repeat",
+    "name": "All schedules complete after one repeat",
     "description": "Allow EUT to run until all schedules have finished, with each one repeating once.",
     "expected_tests": []
   }
