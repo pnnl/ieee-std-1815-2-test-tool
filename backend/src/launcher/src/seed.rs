@@ -226,6 +226,34 @@ mod tests {
     }
 
     #[test]
+    fn a_user_file_the_seed_never_shipped_survives_seeding() {
+        let shipped = tempfile::tempdir().expect("create shipped dir");
+        let user_root = tempfile::tempdir().expect("create user root dir");
+        write_file(shipped.path(), "profiles/default.toml", "profile = 1\n");
+        write_file(
+            user_root.path(),
+            "data/profiles/user-notes.txt",
+            "kept beside the seed\n",
+        );
+        write_file(
+            user_root.path(),
+            "data/working/job-42.json",
+            "in progress\n",
+        );
+
+        seed_data(shipped.path(), user_root.path()).expect("seed");
+
+        assert_eq!(
+            read_file(user_root.path(), "data/profiles/user-notes.txt"),
+            "kept beside the seed\n"
+        );
+        assert_eq!(
+            read_file(user_root.path(), "data/working/job-42.json"),
+            "in progress\n"
+        );
+    }
+
+    #[test]
     fn nested_directories_are_copied_recursively() {
         let shipped = tempfile::tempdir().expect("create shipped dir");
         let user_root = tempfile::tempdir().expect("create user root dir");
