@@ -65,4 +65,7 @@ Name: "{group}\Uninstall IEEE 1815.2 Test Tool"; Filename: "{uninstallexe}"
 
 [Run]
 ; skipifsilent keeps a silent (CI or scripted) install from auto-launching.
-Filename: "{app}\launch.cmd"; Description: "Launch IEEE 1815.2 Test Tool now"; Flags: postinstall skipifsilent nowait
+; not IsAdminInstallMode: postinstall runs with the token Setup started
+; with, so an elevated Setup would leave the unauthenticated loopback
+; server running elevated for every local user to reach.
+Filename: "{app}\launch.cmd"; Description: "Launch IEEE 1815.2 Test Tool now"; Flags: postinstall skipifsilent nowait; Check: not IsAdminInstallMode
