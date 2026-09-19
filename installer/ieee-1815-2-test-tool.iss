@@ -1,7 +1,7 @@
 ; Inno Setup script for the IEEE 1815.2 Test Tool Windows installer.
 ; Built by .github/workflows/windows-installer.yml, which passes
-; AppVersion and VersionInfoVersion via /D (see the Windows support plan,
-; section D3). The defaults below only cover a manual local iscc run.
+; AppVersion and VersionInfoVersion via /D. The defaults below only
+; cover a manual local iscc run.
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
