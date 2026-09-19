@@ -13,21 +13,35 @@ use std::path::{Path, PathBuf};
 /// absent.
 const WORKING_DIR_NAME: &str = "working";
 
-/// A seeding step failed at `path`. `source` is the underlying I/O error.
+/// A seeding step failed at `path`. `copy_source_path` is set only for a
+/// copy failure, since that is the one step with two paths, either of which
+/// can be the one the I/O error actually names (the shipped file could be
+/// unreadable, or the destination could be unwritable). `source` is the
+/// underlying I/O error.
 #[derive(Debug)]
 pub struct SeedError {
     pub path: PathBuf,
+    pub copy_source_path: Option<PathBuf>,
     pub source: io::Error,
 }
 
 impl std::fmt::Display for SeedError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "seeding failed at {}: {}",
-            self.path.display(),
-            self.source
-        )
+        match &self.copy_source_path {
+            Some(copy_source_path) => write!(
+                f,
+                "seeding failed copying {} to {}: {}",
+                copy_source_path.display(),
+                self.path.display(),
+                self.source
+            ),
+            None => write!(
+                f,
+                "seeding failed at {}: {}",
+                self.path.display(),
+                self.source
+            ),
+        }
     }
 }
 
@@ -49,6 +63,7 @@ pub fn seed_data(shipped_data_dir: &Path, user_data_root: &Path) -> Result<(), S
     let dest_data_dir = user_data_root.join("data");
     fs::create_dir_all(&dest_data_dir).map_err(|source| SeedError {
         path: dest_data_dir.clone(),
+        copy_source_path: None,
         source,
     })?;
 
@@ -57,6 +72,7 @@ pub fn seed_data(shipped_data_dir: &Path, user_data_root: &Path) -> Result<(), S
     let working_dir = dest_data_dir.join(WORKING_DIR_NAME);
     fs::create_dir_all(&working_dir).map_err(|source| SeedError {
         path: working_dir,
+        copy_source_path: None,
         source,
     })?;
 
@@ -69,12 +85,14 @@ pub fn seed_data(shipped_data_dir: &Path, user_data_root: &Path) -> Result<(), S
 fn copy_dir_excluding_working(src: &Path, dest: &Path, top_level: bool) -> Result<(), SeedError> {
     let entries = fs::read_dir(src).map_err(|source| SeedError {
         path: src.to_path_buf(),
+        copy_source_path: None,
         source,
     })?;
 
     for entry in entries {
         let entry = entry.map_err(|source| SeedError {
             path: src.to_path_buf(),
+            copy_source_path: None,
             source,
         })?;
         let file_name = entry.file_name();
@@ -87,18 +105,21 @@ fn copy_dir_excluding_working(src: &Path, dest: &Path, top_level: bool) -> Resul
         let dest_path = dest.join(&file_name);
         let file_type = entry.file_type().map_err(|source| SeedError {
             path: src_path.clone(),
+            copy_source_path: None,
             source,
         })?;
 
         if file_type.is_dir() {
             fs::create_dir_all(&dest_path).map_err(|source| SeedError {
                 path: dest_path.clone(),
+                copy_source_path: None,
                 source,
             })?;
             copy_dir_excluding_working(&src_path, &dest_path, false)?;
         } else if file_type.is_file() {
             fs::copy(&src_path, &dest_path).map_err(|source| SeedError {
                 path: dest_path.clone(),
+                copy_source_path: Some(src_path.clone()),
                 source,
             })?;
         }
@@ -222,6 +243,34 @@ mod tests {
         assert_eq!(
             read_file(user_root.path(), "data/working/job-42.json"),
             "in progress\n"
+        );
+    }
+
+    #[test]
+    fn a_copy_failure_is_returned_and_names_both_paths() {
+        // A pre-existing directory at the destination file's path is a
+        // portable way to make `fs::copy` fail (it cannot overwrite a
+        // directory), without relying on permission bits root ignores.
+        let shipped = tempfile::tempdir().expect("create shipped dir");
+        let user_root = tempfile::tempdir().expect("create user root dir");
+        write_file(shipped.path(), "blocked.toml", "profile = 1\n");
+        fs::create_dir_all(user_root.path().join("data/blocked.toml"))
+            .expect("create directory standing in for the destination file");
+
+        let err = seed_data(shipped.path(), user_root.path()).expect_err("seed should fail");
+
+        let message = err.to_string();
+        let expected_src = shipped.path().join("blocked.toml");
+        let expected_dest = user_root.path().join("data/blocked.toml");
+        assert!(
+            message.contains(&expected_src.display().to_string()),
+            "message {message:?} does not name the source path {}",
+            expected_src.display()
+        );
+        assert!(
+            message.contains(&expected_dest.display().to_string()),
+            "message {message:?} does not name the destination path {}",
+            expected_dest.display()
         );
     }
 
