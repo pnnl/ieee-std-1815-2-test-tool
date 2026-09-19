@@ -478,95 +478,114 @@ async fn run_job_background(
             .collect::<HashMap<_, _>>(),
     );
 
-    // Compile the outstation and control station in parallel, unless a
-    // *_BIN env var already names a binary to run. process_manager::find_binary
-    // checks that same env var first (see its doc comment), so when it is
-    // set to an existing file, that is the path that will actually be
-    // spawned and a cargo build of it would be redundant.
-    let outstation_compile = if use_ref_outstation {
-        match check_station_bin("REFERENCE_OUTSTATION_BIN") {
-            StationBinCheck::Missing { path } => {
-                fail_missing_station_bin(
-                    &event_tx,
-                    &jobs,
-                    &job_id,
-                    "REFERENCE_OUTSTATION_BIN",
-                    &path,
-                )
-                .await;
-                return;
-            }
-            StationBinCheck::Configured => {
-                info!(job_id = %job_id, "run_job_background: REFERENCE_OUTSTATION_BIN set, skipping cargo build");
-                Some(CompileStep::AlreadyBuilt)
-            }
-            StationBinCheck::NotConfigured => {
-                emit_status_update(
-                    &current_statuses,
-                    &event_tx,
-                    &job_id,
-                    "outstation",
-                    "compiling",
-                );
-                info!(job_id = %job_id, "run_job_background: compiling outstation");
-                let job_id = job_id.clone();
-                let event_tx = event_tx.clone();
-                Some(CompileStep::Building(tokio::spawn(async move {
-                    compile_cargo_package(
-                        &job_id,
-                        "reference-outstation",
-                        "reference-outstation",
-                        &event_tx,
-                    )
-                    .await
-                })))
-            }
-        }
+    // Classify both stations' *_BIN env vars before spawning either build:
+    // a missing binary for one station must fail the job before a build for
+    // the OTHER station starts, or the started build outlives the Failed
+    // job (see fail_missing_station_bin).
+    let outstation_check = if use_ref_outstation {
+        Some(check_station_bin("REFERENCE_OUTSTATION_BIN"))
+    } else {
+        None
+    };
+    let control_station_check = if use_ref_control_station {
+        Some(check_station_bin("REFERENCE_CONTROL_STATION_BIN"))
     } else {
         None
     };
 
-    let control_station_compile = if use_ref_control_station {
-        match check_station_bin("REFERENCE_CONTROL_STATION_BIN") {
-            StationBinCheck::Missing { path } => {
-                fail_missing_station_bin(
-                    &event_tx,
-                    &jobs,
-                    &job_id,
-                    "REFERENCE_CONTROL_STATION_BIN",
-                    &path,
-                )
-                .await;
-                return;
-            }
-            StationBinCheck::Configured => {
-                info!(job_id = %job_id, "run_job_background: REFERENCE_CONTROL_STATION_BIN set, skipping cargo build");
-                Some(CompileStep::AlreadyBuilt)
-            }
-            StationBinCheck::NotConfigured => {
-                emit_status_update(
-                    &current_statuses,
-                    &event_tx,
-                    &job_id,
-                    "control_station",
-                    "compiling",
-                );
-                info!(job_id = %job_id, "run_job_background: compiling control station");
-                let job_id = job_id.clone();
-                let event_tx = event_tx.clone();
-                Some(CompileStep::Building(tokio::spawn(async move {
-                    compile_cargo_package(
-                        &job_id,
-                        "reference-control-station",
-                        "reference-control-station",
-                        &event_tx,
-                    )
-                    .await
-                })))
-            }
+    if let Some(StationBinCheck::Missing { path }) = &outstation_check {
+        fail_missing_station_bin(
+            &current_statuses,
+            &event_tx,
+            &jobs,
+            &job_id,
+            "outstation",
+            "REFERENCE_OUTSTATION_BIN",
+            path,
+        )
+        .await;
+        return;
+    }
+    if let Some(StationBinCheck::Missing { path }) = &control_station_check {
+        fail_missing_station_bin(
+            &current_statuses,
+            &event_tx,
+            &jobs,
+            &job_id,
+            "control_station",
+            "REFERENCE_CONTROL_STATION_BIN",
+            path,
+        )
+        .await;
+        return;
+    }
+
+    // process_manager::find_binary checks the same env var first (see its
+    // doc comment), so when it is set to an existing file, that is the path
+    // that will actually be spawned and a cargo build of it would be
+    // redundant.
+    let outstation_compile = match outstation_check.map(decide_station_compile) {
+        Some(StationCompileDecision::Skip) => {
+            info!(job_id = %job_id, "run_job_background: REFERENCE_OUTSTATION_BIN set, skipping cargo build");
+            Some(CompileStep::AlreadyBuilt)
         }
-    } else {
-        None
+        Some(StationCompileDecision::Build) => {
+            emit_status_update(
+                &current_statuses,
+                &event_tx,
+                &job_id,
+                "outstation",
+                "compiling",
+            );
+            info!(job_id = %job_id, "run_job_background: compiling outstation");
+            let job_id = job_id.clone();
+            let event_tx = event_tx.clone();
+            Some(CompileStep::Building(tokio::spawn(async move {
+                compile_cargo_package(
+                    &job_id,
+                    "reference-outstation",
+                    "reference-outstation",
+                    &event_tx,
+                )
+                .await
+            })))
+        }
+        Some(StationCompileDecision::Fail { .. }) => {
+            unreachable!("Missing is filtered out and returned above")
+        }
+        None => None,
+    };
+
+    let control_station_compile = match control_station_check.map(decide_station_compile) {
+        Some(StationCompileDecision::Skip) => {
+            info!(job_id = %job_id, "run_job_background: REFERENCE_CONTROL_STATION_BIN set, skipping cargo build");
+            Some(CompileStep::AlreadyBuilt)
+        }
+        Some(StationCompileDecision::Build) => {
+            emit_status_update(
+                &current_statuses,
+                &event_tx,
+                &job_id,
+                "control_station",
+                "compiling",
+            );
+            info!(job_id = %job_id, "run_job_background: compiling control station");
+            let job_id = job_id.clone();
+            let event_tx = event_tx.clone();
+            Some(CompileStep::Building(tokio::spawn(async move {
+                compile_cargo_package(
+                    &job_id,
+                    "reference-control-station",
+                    "reference-control-station",
+                    &event_tx,
+                )
+                .await
+            })))
+        }
+        Some(StationCompileDecision::Fail { .. }) => {
+            unreachable!("Missing is filtered out and returned above")
+        }
+        None => None,
     };
 
     // Wait for the outstation compile, then spawn it. `AlreadyBuilt` means
@@ -850,12 +869,38 @@ fn check_station_bin(env_var: &str) -> StationBinCheck {
     classify_station_bin(std::env::var(env_var).ok())
 }
 
+/// What `run_job_background` should do for a station, given its `*_BIN`
+/// classification. Pure mapping from `StationBinCheck`, so the compile
+/// decision is unit-testable without spawning `cargo` or touching the
+/// process environment.
+#[derive(Debug, PartialEq, Eq)]
+enum StationCompileDecision {
+    /// The env var names a file that does not exist; fail the job.
+    Fail { path: String },
+    /// The env var names an existing file; nothing to build.
+    Skip,
+    /// The env var is unset; run `cargo build` for the station.
+    Build,
+}
+
+fn decide_station_compile(check: StationBinCheck) -> StationCompileDecision {
+    match check {
+        StationBinCheck::Missing { path } => StationCompileDecision::Fail { path },
+        StationBinCheck::Configured => StationCompileDecision::Skip,
+        StationBinCheck::NotConfigured => StationCompileDecision::Build,
+    }
+}
+
 /// Fail a job because a `*_BIN` env var names a file that does not exist,
-/// before any station has been spawned.
+/// before any station has been spawned. Emits a `status_update` so the UI's
+/// station pill leaves "starting" instead of hanging there with only a log
+/// line as the signal, matching the compile-failure path's `<station> error`.
 async fn fail_missing_station_bin(
+    current_statuses: &Arc<StdRwLock<HashMap<String, String>>>,
     event_tx: &broadcast::Sender<JobEvent>,
     jobs: &Arc<Mutex<HashMap<String, JobState>>>,
     job_id: &str,
+    station_label: &str,
     env_var: &str,
     path: &str,
 ) {
@@ -867,6 +912,7 @@ async fn fail_missing_station_bin(
         job_id,
         serde_json::json!({"message": msg}),
     ));
+    emit_status_update(current_statuses, event_tx, job_id, station_label, "error");
     update_job_status(jobs, job_id, JobStatus::Failed).await;
 }
 
@@ -1497,6 +1543,7 @@ pub(crate) fn make_event(
 mod tests {
     use super::*;
     use crate::models::job::DeviceUnderTest;
+    use crate::services::test_env_lock;
     use crate::test_helpers::test_service;
 
     // -- Constructor tests --
@@ -2035,38 +2082,46 @@ mod tests {
         );
     }
 
+    // -- StationCompileDecision / decide_station_compile: pure decision
+    // logic, the seam that lets the compile decision be asserted without
+    // ever spawning cargo --
+
+    #[test]
+    fn test_decide_station_compile_unset_builds() {
+        assert_eq!(
+            decide_station_compile(StationBinCheck::NotConfigured),
+            StationCompileDecision::Build
+        );
+    }
+
+    #[test]
+    fn test_decide_station_compile_configured_skips() {
+        assert_eq!(
+            decide_station_compile(StationBinCheck::Configured),
+            StationCompileDecision::Skip
+        );
+    }
+
+    #[test]
+    fn test_decide_station_compile_missing_fails() {
+        assert_eq!(
+            decide_station_compile(StationBinCheck::Missing {
+                path: "/no/such/file".to_string()
+            }),
+            StationCompileDecision::Fail {
+                path: "/no/such/file".to_string()
+            }
+        );
+    }
+
     // -- check_station_bin / run_job_background: env-var-driven behavior --
     //
-    // These three tests exercise all of #50's acceptance criteria through
-    // the public create_job API. They mutate process-wide env vars, so they
-    // serialize on ENV_VAR_LOCK and use EnvVarGuard to restore state even on
-    // panic.
-
-    static ENV_VAR_LOCK: Mutex<()> = Mutex::const_new(());
-
-    /// Sets an env var for the guard's lifetime and removes it on drop, so a
-    /// panicking assertion still leaves the environment clean for the next
-    /// test holding ENV_VAR_LOCK.
-    struct EnvVarGuard {
-        key: &'static str,
-    }
-
-    impl EnvVarGuard {
-        fn set(key: &'static str, value: &str) -> Self {
-            // SAFETY: every test that constructs this guard holds
-            // ENV_VAR_LOCK for the guard's whole lifetime, so no other
-            // thread reads or writes `key` concurrently.
-            unsafe { std::env::set_var(key, value) };
-            Self { key }
-        }
-    }
-
-    impl Drop for EnvVarGuard {
-        fn drop(&mut self) {
-            // SAFETY: see EnvVarGuard::set.
-            unsafe { std::env::remove_var(self.key) };
-        }
-    }
+    // These tests exercise #50's acceptance criteria through the public
+    // create_job API. They mutate process-wide env vars, so they hold
+    // test_env_lock::ENV_MUTEX for their whole body and use ScopedEnvVar to
+    // restore state even on panic. That lock is shared with
+    // process_manager's tests (see test_env_lock), so the SAFETY comments on
+    // both modules' set_var/remove_var calls are true.
 
     async fn wait_for_status(service: &JobService, job_id: &str, target: JobStatus) -> JobStatus {
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
@@ -2077,6 +2132,30 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
+    }
+
+    /// Whether `replay` contains a `status_update` event for `process` with
+    /// the given `status`: a structural signal, so a later rewording of a
+    /// log message cannot silently satisfy an absence check that relies on
+    /// it (unlike matching on a log string's text).
+    fn saw_status_update(replay: &[JobEvent], process: &str, status: &str) -> bool {
+        replay.iter().any(|event| {
+            event.event_type == "status_update"
+                && event.message.get("process").and_then(|p| p.as_str()) == Some(process)
+                && event.message.get("status").and_then(|s| s.as_str()) == Some(status)
+        })
+    }
+
+    /// A binary guaranteed to exist and to exit almost immediately on every
+    /// platform: this test binary itself, given CLI args it does not
+    /// understand. `/bin/true` does not exist on Windows, and this suite
+    /// runs there too (issue #57).
+    fn portable_station_binary() -> String {
+        std::env::current_exe()
+            .expect("current_exe must resolve inside a test binary")
+            .to_str()
+            .expect("test binary path must be UTF-8")
+            .to_string()
     }
 
     fn outstation_only_request(port: u16) -> CreateJobRequest {
@@ -2097,6 +2176,46 @@ mod tests {
         }
     }
 
+    fn control_station_only_request(port: u16) -> CreateJobRequest {
+        CreateJobRequest {
+            control_station_config: crate::models::job::ControlStationConfig {
+                use_reference_control_station: true,
+                ip_address: Some("127.0.0.1".to_string()),
+                port: Some(port),
+            },
+            outstation_config: crate::models::job::OutstationConfig {
+                // A non-loopback address, not None: run_job_background
+                // treats a loopback outstation address as "use reference"
+                // even with use_reference_outstation false, and the default
+                // outstation IP (None resolves to) is loopback.
+                use_reference_outstation: false,
+                ip_address: Some("10.0.0.2".to_string()),
+                port: Some(20001),
+            },
+            profile: serde_json::to_value(PicsProfile::load_full_profile()).unwrap(),
+            scenario_ids: vec![],
+            device_under_test: DeviceUnderTest::ControlStation,
+        }
+    }
+
+    fn both_stations_request(outstation_port: u16, control_station_port: u16) -> CreateJobRequest {
+        CreateJobRequest {
+            control_station_config: crate::models::job::ControlStationConfig {
+                use_reference_control_station: true,
+                ip_address: Some("127.0.0.1".to_string()),
+                port: Some(control_station_port),
+            },
+            outstation_config: crate::models::job::OutstationConfig {
+                use_reference_outstation: true,
+                ip_address: Some("127.0.0.1".to_string()),
+                port: Some(outstation_port),
+            },
+            profile: serde_json::to_value(PicsProfile::load_full_profile()).unwrap(),
+            scenario_ids: vec![],
+            device_under_test: DeviceUnderTest::Outstation,
+        }
+    }
+
     #[tokio::test]
     #[ignore = "invokes a real `cargo build -p reference-outstation` subprocess"]
     async fn test_create_job_unset_bin_still_compiles_via_cargo() {
@@ -2104,11 +2223,11 @@ mod tests {
         // decision is unchanged, so a status_update to "compiling" is still
         // emitted for the outstation. Ignored by default because, like the
         // pre-existing test_create_job_with_reference_outstation, it drives
-        // a real subprocess (here, a cargo build) rather than a fake.
-        let _lock = ENV_VAR_LOCK.lock().await;
-        // SAFETY: this test holds ENV_VAR_LOCK; no other thread reads or
-        // writes this var concurrently.
-        unsafe { std::env::remove_var("REFERENCE_OUTSTATION_BIN") };
+        // a real subprocess (here, a cargo build) rather than a fake; the
+        // decision itself (build vs. skip vs. fail) is covered without
+        // cargo by the decide_station_compile tests above.
+        let _lock = test_env_lock::ENV_MUTEX.lock().await;
+        let _env_guard = test_env_lock::ScopedEnvVar::unset("REFERENCE_OUTSTATION_BIN");
 
         let service = test_service();
         let response = service
@@ -2122,11 +2241,7 @@ mod tests {
         let mut saw_compiling = false;
         while tokio::time::Instant::now() < deadline {
             let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
-            saw_compiling = replay.iter().any(|event| {
-                event.event_type == "status_update"
-                    && event.message.get("process").and_then(|p| p.as_str()) == Some("outstation")
-                    && event.message.get("status").and_then(|s| s.as_str()) == Some("compiling")
-            });
+            saw_compiling = saw_status_update(&replay, "outstation", "compiling");
             if saw_compiling {
                 break;
             }
@@ -2146,7 +2261,7 @@ mod tests {
     async fn test_create_job_missing_outstation_bin_fails_before_spawn() {
         // Acceptance criterion 3: a *_BIN naming a missing file fails the
         // job with a message naming the variable and the path.
-        let _lock = ENV_VAR_LOCK.lock().await;
+        let _lock = test_env_lock::ENV_MUTEX.lock().await;
         let missing_path = format!(
             "{}/definitely-missing-{}/no-such-binary",
             std::env::temp_dir().display(),
@@ -2156,7 +2271,8 @@ mod tests {
             !std::path::Path::new(&missing_path).exists(),
             "test fixture path must not exist: {missing_path}"
         );
-        let _env_guard = EnvVarGuard::set("REFERENCE_OUTSTATION_BIN", &missing_path);
+        let _env_guard =
+            test_env_lock::ScopedEnvVar::set("REFERENCE_OUTSTATION_BIN", &missing_path);
 
         let service = test_service();
         let response = service
@@ -2180,19 +2296,19 @@ mod tests {
             saw_message,
             "expected a log event naming REFERENCE_OUTSTATION_BIN and the missing path"
         );
+        assert!(
+            saw_status_update(&replay, "outstation", "error"),
+            "expected an outstation error status_update so the UI pill leaves starting"
+        );
     }
 
     #[tokio::test]
     async fn test_create_job_configured_outstation_bin_skips_cargo_build() {
         // Acceptance criterion 1: a *_BIN naming an existing file does not
-        // invoke cargo. /bin/true stands in for the station binary: it
-        // exits immediately, so this test needs no TCP port.
-        let _lock = ENV_VAR_LOCK.lock().await;
-        assert!(
-            std::path::Path::new("/bin/true").is_file(),
-            "test fixture /bin/true must exist"
-        );
-        let _env_guard = EnvVarGuard::set("REFERENCE_OUTSTATION_BIN", "/bin/true");
+        // invoke cargo.
+        let _lock = test_env_lock::ENV_MUTEX.lock().await;
+        let binary = portable_station_binary();
+        let _env_guard = test_env_lock::ScopedEnvVar::set("REFERENCE_OUTSTATION_BIN", &binary);
 
         let service = test_service();
         let response = service
@@ -2204,20 +2320,164 @@ mod tests {
         assert_eq!(status, JobStatus::Running);
 
         let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
-        let compiled = replay.iter().any(|event| {
-            event
-                .message
-                .get("message")
-                .and_then(|m| m.as_str())
-                .map(|m| m.contains("Compiling reference-outstation"))
-                .unwrap_or(false)
-        });
         assert!(
-            !compiled,
+            !saw_status_update(&replay, "outstation", "compiling"),
             "cargo build should have been skipped when REFERENCE_OUTSTATION_BIN names an existing file"
         );
 
         let stopped = service.stop_job(&response.job_id).await.unwrap();
         assert_eq!(stopped.message, "Job stopped");
+    }
+
+    // -- control-station coverage: T1, mutations of the outstation branch
+    // must not also pass the control-station branch, and vice versa --
+
+    #[tokio::test]
+    async fn test_create_job_missing_control_station_bin_fails_before_spawn() {
+        let _lock = test_env_lock::ENV_MUTEX.lock().await;
+        let missing_path = format!(
+            "{}/definitely-missing-{}/no-such-binary",
+            std::env::temp_dir().display(),
+            Uuid::new_v4().simple()
+        );
+        assert!(
+            !std::path::Path::new(&missing_path).exists(),
+            "test fixture path must not exist: {missing_path}"
+        );
+        let _env_guard =
+            test_env_lock::ScopedEnvVar::set("REFERENCE_CONTROL_STATION_BIN", &missing_path);
+
+        let service = test_service();
+        let response = service
+            .create_job(control_station_only_request(20194))
+            .await
+            .unwrap();
+
+        let status = wait_for_status(&service, &response.job_id, JobStatus::Failed).await;
+        assert_eq!(status, JobStatus::Failed);
+
+        let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
+        let saw_message = replay.iter().any(|event| {
+            event
+                .message
+                .get("message")
+                .and_then(|m| m.as_str())
+                .map(|m| m.contains("REFERENCE_CONTROL_STATION_BIN") && m.contains(&missing_path))
+                .unwrap_or(false)
+        });
+        assert!(
+            saw_message,
+            "expected a log event naming REFERENCE_CONTROL_STATION_BIN and the missing path"
+        );
+        assert!(
+            saw_status_update(&replay, "control_station", "error"),
+            "expected a control_station error status_update so the UI pill leaves starting"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_create_job_configured_control_station_bin_skips_cargo_build() {
+        let _lock = test_env_lock::ENV_MUTEX.lock().await;
+        let binary = portable_station_binary();
+        let _env_guard = test_env_lock::ScopedEnvVar::set("REFERENCE_CONTROL_STATION_BIN", &binary);
+
+        let service = test_service();
+        let response = service
+            .create_job(control_station_only_request(20193))
+            .await
+            .unwrap();
+
+        let status = wait_for_status(&service, &response.job_id, JobStatus::Running).await;
+        assert_eq!(status, JobStatus::Running);
+
+        let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
+        assert!(
+            !saw_status_update(&replay, "control_station", "compiling"),
+            "cargo build should have been skipped when REFERENCE_CONTROL_STATION_BIN names an existing file"
+        );
+
+        let stopped = service.stop_job(&response.job_id).await.unwrap();
+        assert_eq!(stopped.message, "Job stopped");
+    }
+
+    #[tokio::test]
+    async fn test_create_job_both_stations_configured_skips_both_cargo_builds() {
+        // Kills a mutant that reads the wrong variable for one station's
+        // branch: if either branch read the other's env var it would only
+        // ever see one variable set in this test and fail to skip its build.
+        let _lock = test_env_lock::ENV_MUTEX.lock().await;
+        let binary = portable_station_binary();
+        let _outstation_guard =
+            test_env_lock::ScopedEnvVar::set("REFERENCE_OUTSTATION_BIN", &binary);
+        let _control_station_guard =
+            test_env_lock::ScopedEnvVar::set("REFERENCE_CONTROL_STATION_BIN", &binary);
+
+        let service = test_service();
+        let response = service
+            .create_job(both_stations_request(20192, 20191))
+            .await
+            .unwrap();
+
+        // The fake station binary (this test binary, given unrecognized
+        // args) exits almost immediately without binding a port, so the
+        // control-station branch's outstation-readiness wait fails the job
+        // rather than reaching Running; that is expected here and orthogonal
+        // to what this test asserts, which is that neither build was
+        // spawned.
+        wait_for_status(&service, &response.job_id, JobStatus::Failed).await;
+
+        let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
+        assert!(
+            !saw_status_update(&replay, "outstation", "compiling"),
+            "outstation cargo build should have been skipped"
+        );
+        assert!(
+            !saw_status_update(&replay, "control_station", "compiling"),
+            "control_station cargo build should have been skipped"
+        );
+    }
+
+    // -- item 1 regression: classify both stations before spawning either
+    // build, so a missing binary for one station cannot leave a cargo build
+    // for the other running past the job's Failed transition --
+
+    #[tokio::test]
+    async fn test_create_job_mixed_missing_control_station_fails_before_outstation_build_spawns() {
+        let _lock = test_env_lock::ENV_MUTEX.lock().await;
+        let _outstation_guard = test_env_lock::ScopedEnvVar::unset("REFERENCE_OUTSTATION_BIN");
+        let missing_path = format!(
+            "{}/definitely-missing-{}/no-such-binary",
+            std::env::temp_dir().display(),
+            Uuid::new_v4().simple()
+        );
+        let _control_station_guard =
+            test_env_lock::ScopedEnvVar::set("REFERENCE_CONTROL_STATION_BIN", &missing_path);
+
+        let service = test_service();
+        let response = service
+            .create_job(both_stations_request(20190, 20189))
+            .await
+            .unwrap();
+
+        let status = wait_for_status(&service, &response.job_id, JobStatus::Failed).await;
+        assert_eq!(status, JobStatus::Failed);
+
+        let (replay, _rx) = service.subscribe_events(&response.job_id).await.unwrap();
+        assert!(
+            !saw_status_update(&replay, "outstation", "compiling"),
+            "the outstation cargo build must not start once the control station's *_BIN is Missing"
+        );
+        let saw_message = replay.iter().any(|event| {
+            event
+                .message
+                .get("message")
+                .and_then(|m| m.as_str())
+                .map(|m| m.contains("REFERENCE_CONTROL_STATION_BIN") && m.contains(&missing_path))
+                .unwrap_or(false)
+        });
+        assert!(
+            saw_message,
+            "expected a log event naming REFERENCE_CONTROL_STATION_BIN and the missing path"
+        );
     }
 }
