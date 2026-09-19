@@ -1,0 +1,21 @@
+[package]
+name = "test-tool-launcher"
+version = "0.1.0"
+edition = { workspace = true }
+
+[lints]
+workspace = true
+
+[lib]
+name = "test_tool_launcher"
+path = "src/lib.rs"
+
+[[bin]]
+name = "test-tool-launcher"
+path = "src/main.rs"
+
+[dependencies]
+toml = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
