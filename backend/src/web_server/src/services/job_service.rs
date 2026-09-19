@@ -85,6 +85,11 @@ pub struct JobService {
     /// What runs a station's cargo build. Always `RealCompileRunner` outside
     /// tests; see `CompileRunner`.
     compile_runner: Arc<dyn CompileRunner>,
+    /// Directory `create_job` writes each job's temporary profile file into.
+    /// Defaults to `std::env::temp_dir()` (see `new`/`with_scenarios`); tests
+    /// inject a scratch directory via `with_profile_dir` instead of mutating
+    /// the process-global `TMPDIR` env var.
+    profile_dir: std::path::PathBuf,
 }
 
 impl JobService {
@@ -95,6 +100,7 @@ impl JobService {
             scenarios: Arc::new(Vec::new()),
             full_profile: None,
             compile_runner: Arc::new(RealCompileRunner),
+            profile_dir: std::env::temp_dir(),
         }
     }
 
@@ -110,6 +116,22 @@ impl JobService {
             scenarios,
             full_profile: Some(full_profile),
             compile_runner: Arc::new(RealCompileRunner),
+            profile_dir: std::env::temp_dir(),
+        }
+    }
+
+    /// Create a JobService that writes job profile files under `profile_dir`
+    /// instead of `std::env::temp_dir()`, so a test can assert on removal
+    /// without redirecting the process-global temp directory.
+    #[cfg(test)]
+    pub(crate) fn with_profile_dir(data_dir: String, profile_dir: std::path::PathBuf) -> Self {
+        Self {
+            jobs: Arc::new(Mutex::new(HashMap::new())),
+            data_dir,
+            scenarios: Arc::new(Vec::new()),
+            full_profile: None,
+            compile_runner: Arc::new(RealCompileRunner),
+            profile_dir,
         }
     }
 
@@ -187,7 +209,14 @@ impl JobService {
         })?;
         request.profile = serde_json::to_value(&base_profile).unwrap();
 
-        let profile_path = format!("/tmp/mesa-tool_profile_{}.json", job_id);
+        // self.profile_dir defaults to std::env::temp_dir(), the OS temp
+        // directory, unlike the hardcoded "/tmp" this replaces which does
+        // not exist on Windows.
+        let profile_path = self
+            .profile_dir
+            .join(format!("mesa-tool_profile_{}.json", job_id))
+            .to_string_lossy()
+            .to_string();
         // Write the profile to a temporary file for the outstation and control station to read.
         std::fs::write(&profile_path, serde_json::to_string(&base_profile).unwrap()).map_err(|e| {
             info!(job_id = %job_id, error = %e, "create_job: failed to write profile to temporary file");
@@ -1379,107 +1408,122 @@ fn run_all_scenarios_new_thread(
 
         info!(job_id = %job_id, "orchestrator: all scenarios complete, cleaning up child processes");
 
-        // Take child processes and clean up.
-        // IMPORTANT: Do NOT cancel the token here. Cancelling before sending
-        // the "finished" event creates a race where stream_output tasks exit
-        // before the final events can be delivered. Instead, terminate the
-        // child processes directly. Their stdout/stderr will EOF, which
-        // naturally ends the stream_output tasks.
-        let mut job_lock = jobs.lock().await;
-        if let Some(state) = job_lock.get_mut(&job_id) {
-            // Take child processes out of the state for termination
-            let mut outstation_child = state.outstation_child.take();
-            let mut control_station_child = state.control_station_child.take();
-            let _cs_stdin = state.control_station_stdin.take(); // drop stdin handle
-            let io_handles: Vec<JoinHandle<()>> = state.io_handles.drain(..).collect();
-            let profile_path = state.profile_path.clone();
-
-            // Release lock before awaiting async termination
-            drop(job_lock);
-
-            // Terminate child processes and emit per-process exit events
-            if let Some(ref mut child) = control_station_child {
-                info!(job_id = %job_id, "orchestrator: terminating control station child process");
-                process_manager::terminate_and_emit(
-                    child,
-                    "control_station",
-                    &job_id,
-                    &event_tx,
-                    &current_statuses,
-                )
-                .await;
-            }
-            if let Some(ref mut child) = outstation_child {
-                info!(job_id = %job_id, "orchestrator: terminating outstation child process");
-                process_manager::terminate_and_emit(
-                    child,
-                    "outstation",
-                    &job_id,
-                    &event_tx,
-                    &current_statuses,
-                )
-                .await;
-            }
-
-            // Now cancel the token so stream_output tasks that haven't
-            // already exited via EOF will stop promptly.
-            cancel_token.cancel();
-
-            // Wait for IO tasks to finish
-            for handle in io_handles {
-                match tokio::time::timeout(Duration::from_secs(5), handle).await {
-                    Ok(_) => {}
-                    Err(_) => {
-                        warn!(job_id = %job_id, "orchestrator: IO task did not finish within timeout");
-                    }
-                }
-            }
-
-            // Clean up profile temp file
-            let _ = std::fs::remove_file(&profile_path);
-            info!(job_id = %job_id, "orchestrator: cleaned up temp profile file");
-
-            // Update status to completed and send the "finished" event
-            // BEFORE dropping the sender.
-            {
-                let mut job_lock = jobs.lock().await;
-                if let Some(state) = job_lock.get_mut(&job_id) {
-                    state.status = JobStatus::Finished;
-                }
-            }
-            emit_status_update(
-                &current_statuses,
-                &event_tx,
-                &job_id,
-                "test_runner",
-                "finished",
-            );
-
-            info!(job_id = %job_id, "orchestrator: finished event sent, waiting briefly before closing channel");
-
-            // Give the SSE client time to receive the "finished" event
-            // before we drop the broadcast sender.
-            tokio::time::sleep(Duration::from_millis(200)).await;
-
-            // Remove the job from the HashMap. This drops the last
-            // broadcast::Sender held in JobState, which closes the
-            // BroadcastStream and causes the SSE connection to end.
-            // The orchestrator's own `event_tx` clone is also about to
-            // be dropped when this function returns.
-            {
-                let mut job_lock = jobs.lock().await;
-                job_lock.remove(&job_id);
-            }
-
-            // Drop our clone of event_tx explicitly (it will drop at end
-            // of scope anyway, but being explicit about the intent).
-            drop(event_tx);
-
-            info!(job_id = %job_id, "orchestrator: cleanup complete, job removed from state map");
-        } else {
-            info!(job_id = %job_id, "orchestrator: job not found in state map during cleanup (may have been stopped externally)");
-        }
+        finish_job(job_id, jobs, event_tx, current_statuses, cancel_token).await;
     })
+}
+
+/// Terminate any child processes still recorded for `job_id`, remove its
+/// temporary profile file, mark it `Finished`, and drop it from `jobs`.
+///
+/// Split out of `run_all_scenarios_new_thread` so this cleanup (in
+/// particular the profile-file removal) can be exercised directly by a
+/// test without spawning a real outstation or control station process.
+///
+/// IMPORTANT: does NOT cancel `cancel_token` until after the child
+/// processes are terminated. Cancelling before sending the "finished"
+/// event creates a race where stream_output tasks exit before the final
+/// events can be delivered.
+async fn finish_job(
+    job_id: String,
+    jobs: Arc<Mutex<HashMap<String, JobState>>>,
+    event_tx: broadcast::Sender<JobEvent>,
+    current_statuses: Arc<StdRwLock<HashMap<String, String>>>,
+    cancel_token: CancellationToken,
+) {
+    let mut job_lock = jobs.lock().await;
+    if let Some(state) = job_lock.get_mut(&job_id) {
+        // Take child processes out of the state for termination
+        let mut outstation_child = state.outstation_child.take();
+        let mut control_station_child = state.control_station_child.take();
+        let _cs_stdin = state.control_station_stdin.take(); // drop stdin handle
+        let io_handles: Vec<JoinHandle<()>> = state.io_handles.drain(..).collect();
+        let profile_path = state.profile_path.clone();
+
+        // Release lock before awaiting async termination
+        drop(job_lock);
+
+        // Terminate child processes and emit per-process exit events
+        if let Some(ref mut child) = control_station_child {
+            info!(job_id = %job_id, "orchestrator: terminating control station child process");
+            process_manager::terminate_and_emit(
+                child,
+                "control_station",
+                &job_id,
+                &event_tx,
+                &current_statuses,
+            )
+            .await;
+        }
+        if let Some(ref mut child) = outstation_child {
+            info!(job_id = %job_id, "orchestrator: terminating outstation child process");
+            process_manager::terminate_and_emit(
+                child,
+                "outstation",
+                &job_id,
+                &event_tx,
+                &current_statuses,
+            )
+            .await;
+        }
+
+        // Now cancel the token so stream_output tasks that haven't
+        // already exited via EOF will stop promptly.
+        cancel_token.cancel();
+
+        // Wait for IO tasks to finish
+        for handle in io_handles {
+            match tokio::time::timeout(Duration::from_secs(5), handle).await {
+                Ok(_) => {}
+                Err(_) => {
+                    warn!(job_id = %job_id, "orchestrator: IO task did not finish within timeout");
+                }
+            }
+        }
+
+        // Clean up profile temp file
+        let _ = std::fs::remove_file(&profile_path);
+        info!(job_id = %job_id, "orchestrator: cleaned up temp profile file");
+
+        // Update status to completed and send the "finished" event
+        // BEFORE dropping the sender.
+        {
+            let mut job_lock = jobs.lock().await;
+            if let Some(state) = job_lock.get_mut(&job_id) {
+                state.status = JobStatus::Finished;
+            }
+        }
+        emit_status_update(
+            &current_statuses,
+            &event_tx,
+            &job_id,
+            "test_runner",
+            "finished",
+        );
+
+        info!(job_id = %job_id, "orchestrator: finished event sent, waiting briefly before closing channel");
+
+        // Give the SSE client time to receive the "finished" event
+        // before we drop the broadcast sender.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Remove the job from the HashMap. This drops the last
+        // broadcast::Sender held in JobState, which closes the
+        // BroadcastStream and causes the SSE connection to end.
+        // The orchestrator's own `event_tx` clone is also about to
+        // be dropped when this function returns.
+        {
+            let mut job_lock = jobs.lock().await;
+            job_lock.remove(&job_id);
+        }
+
+        // Drop our clone of event_tx explicitly (it will drop at end
+        // of scope anyway, but being explicit about the intent).
+        drop(event_tx);
+
+        info!(job_id = %job_id, "orchestrator: cleanup complete, job removed from state map");
+    } else {
+        info!(job_id = %job_id, "orchestrator: job not found in state map during cleanup (may have been stopped externally)");
+    }
 }
 
 /// Record the latest status for `process` and broadcast a `status_update` event.
@@ -2033,6 +2077,117 @@ mod tests {
 
         let status = service.get_job_status(&created.job_id).await.unwrap();
         assert_eq!(status.status, JobStatus::Stopped);
+    }
+
+    // -- profile file lives under the configured profile directory (#51) --
+
+    #[tokio::test]
+    async fn test_profile_path_is_under_configured_dir_and_removed_on_stop() {
+        // JobService::with_profile_dir injects a scratch directory instead
+        // of reading std::env::temp_dir(), so this proves the location
+        // without redirecting the process-global TMPDIR (which a
+        // concurrently running test could also observe).
+        let profile_dir = tempfile::tempdir().expect("create scratch profile dir");
+        let service = JobService::with_profile_dir(
+            "/tmp/mesa-test-data".to_string(),
+            profile_dir.path().to_path_buf(),
+        );
+        let request = CreateJobRequest {
+            control_station_config: crate::models::job::ControlStationConfig {
+                use_reference_control_station: false,
+                ip_address: None,
+                port: None,
+            },
+            outstation_config: crate::models::job::OutstationConfig {
+                use_reference_outstation: false,
+                ip_address: None,
+                port: None,
+            },
+            profile: serde_json::to_value(PicsProfile::load_full_profile()).unwrap(),
+            scenario_ids: vec![],
+            device_under_test: DeviceUnderTest::Outstation,
+        };
+
+        let created = service.create_job(request).await.unwrap();
+
+        let profile_path = {
+            let jobs = service.jobs.lock().await;
+            jobs.get(&created.job_id)
+                .expect("job should exist after create")
+                .profile_path
+                .clone()
+        };
+
+        assert!(
+            std::path::Path::new(&profile_path).starts_with(profile_dir.path()),
+            "profile_path {profile_path} is not under {}",
+            profile_dir.path().display()
+        );
+        assert!(
+            std::path::Path::new(&profile_path).exists(),
+            "profile file should exist right after create_job wrote it"
+        );
+
+        service.stop_job(&created.job_id).await.unwrap();
+
+        assert!(
+            !std::path::Path::new(&profile_path).exists(),
+            "profile file should be removed once the job is stopped"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_profile_path_removed_on_finish() {
+        // Exercises `finish_job` directly against a synthetic JobState
+        // instead of driving a real job through completion, since that
+        // would require compiling and spawning the reference outstation
+        // and control station (see test_create_job_with_reference_outstation,
+        // #[ignore]'d for the same reason).
+        let service = test_service();
+        let job_id = "finish-path-test-job".to_string();
+
+        let profile_dir = tempfile::tempdir().expect("create scratch profile dir");
+        let profile_path = profile_dir
+            .path()
+            .join("mesa-tool_profile_finish-path-test-job.json")
+            .to_string_lossy()
+            .to_string();
+        std::fs::write(&profile_path, "{}").expect("write scratch profile file");
+        assert!(std::path::Path::new(&profile_path).exists());
+
+        let (event_tx, _rx) = broadcast::channel::<JobEvent>(EVENT_CHANNEL_CAPACITY);
+        let current_statuses = Arc::new(StdRwLock::new(HashMap::new()));
+        let state = JobState {
+            status: JobStatus::Running,
+            cancel_token: CancellationToken::new(),
+            event_tx: event_tx.clone(),
+            outstation_child: None,
+            control_station_child: None,
+            control_station_stdin: None,
+            io_handles: Vec::new(),
+            profile_path: profile_path.clone(),
+            current_statuses: current_statuses.clone(),
+            log_buffer: Arc::new(StdRwLock::new(VecDeque::new())),
+        };
+        service.jobs.lock().await.insert(job_id.clone(), state);
+
+        finish_job(
+            job_id.clone(),
+            service.jobs.clone(),
+            event_tx,
+            current_statuses,
+            CancellationToken::new(),
+        )
+        .await;
+
+        assert!(
+            !std::path::Path::new(&profile_path).exists(),
+            "profile file should be removed once the job finishes"
+        );
+        assert!(
+            service.get_job_status(&job_id).await.is_err(),
+            "job should be dropped from state once finish_job completes"
+        );
     }
 
     // -- make_event helper tests --
