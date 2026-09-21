@@ -41,8 +41,7 @@ fn run() -> Result<()> {
         let profile = match load_xlsx_profile(&cli.input) {
             Ok(profile) => profile,
             Err(errors) => {
-                eprintln!("{} validation error(s) found:", errors.len());
-                eprintln!("Errors: {}", errors);
+                tracing::error!("{} validation error(s) found: {}", errors.len(), errors);
                 std::process::exit(1);
             }
         };
