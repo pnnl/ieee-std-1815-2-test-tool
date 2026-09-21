@@ -130,7 +130,7 @@ function TestRunnerTab({
       .catch((error) => {
         toast.error(
           'Failed to load scenarios: ' +
-          (error instanceof Error ? error.message : 'Unknown error'),
+            (error instanceof Error ? error.message : 'Unknown error'),
         )
       })
   }, [])
@@ -302,7 +302,7 @@ function TestRunnerTab({
       setProcessStatus('test_runner', 'error')
       toast.error(
         'Error stopping job: ' +
-        (error instanceof Error ? error.message : 'Unknown error'),
+          (error instanceof Error ? error.message : 'Unknown error'),
       )
     } finally {
       if (eventSourceRef.current) {
@@ -346,7 +346,7 @@ function TestRunnerTab({
       .catch((error) => {
         toast.error(
           'Failed to copy logs: ' +
-          (error instanceof Error ? error.message : 'Unknown error'),
+            (error instanceof Error ? error.message : 'Unknown error'),
         )
       })
   }
@@ -382,7 +382,7 @@ function TestRunnerTab({
     } catch (error) {
       toast.error(
         'Failed to download bundle: ' +
-        (error instanceof Error ? error.message : 'Unknown error'),
+          (error instanceof Error ? error.message : 'Unknown error'),
       )
     }
   }

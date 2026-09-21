@@ -93,7 +93,7 @@ fn cell_str(range: &Range<Data>, row: u32, col: u32) -> Option<String> {
             if trimmed.is_empty() {
                 None
             } else {
-                Some(trimmed.to_string())
+                Some(trimmed.replace("\r\n", "\n").replace('\r', "\n"))
             }
         }
         Data::Float(f) => Some(f.to_string()),
@@ -288,47 +288,66 @@ fn cell_i32_required(
     }
 }
 
-fn cell_event_class(range: &Range<Data>, row: u32, col: u32, errors: &mut Vec<LoadError>,
+fn cell_event_class(
+    range: &Range<Data>,
+    row: u32,
+    col: u32,
+    sheet: &str,
+    point_index: &str,
+    field: &str,
+    errors: &mut Vec<LoadError>,
 ) -> EventClass {
     let mut failed = false;
     let event_class = match range.get((row as usize, col as usize)) {
         Some(Data::Int(i)) => match i {
+            0 => EventClass::None,
             1 => EventClass::Class1,
             2 => EventClass::Class2,
             3 => EventClass::Class3,
             _ => {
                 failed = true;
                 EventClass::None
-            },
+            }
         },
-        Some(Data::Float(f)) => match *f as i64 {
-            1 => EventClass::Class1,
-            2 => EventClass::Class2,
-            3 => EventClass::Class3,
+        Some(Data::Float(f)) => match *f {
+            0.0 => EventClass::None,
+            1.0 => EventClass::Class1,
+            2.0 => EventClass::Class2,
+            3.0 => EventClass::Class3,
             _ => {
                 failed = true;
                 EventClass::None
-            },
+            }
         },
         Some(Data::String(s)) => match s.trim() {
+            "n/a" => EventClass::None,
+            "0" => EventClass::None,
             "1" => EventClass::Class1,
             "2" => EventClass::Class2,
             "3" => EventClass::Class3,
+            "not in Class 0" => EventClass::None,
             _ => {
                 failed = true;
                 EventClass::None
-            },
+            }
         },
         _ => EventClass::None,
     };
 
     if failed {
+        let (start_row, start_col) = range.start().unwrap_or_default();
+        let spreadsheet_row = start_row + row + 1;
+        let spreadsheet_col = start_col + col + 1;
+        let value = range.get((row as usize, col as usize)).unwrap();
         errors.push(LoadError::at_row(
-            "EventClass",
-            "unknown",
-            "Default Event Class",
-            row,
-            "Invalid event class value".to_string(),
+            sheet,
+            point_index,
+            field,
+            spreadsheet_row,
+            format!(
+                "{sheet} row {spreadsheet_row}, column {spreadsheet_col} ({field}): \
+                 Invalid event class value {value:?}; expected 1, 2, or 3, or an empty cell"
+            ),
         ));
     }
 
@@ -674,7 +693,15 @@ pub fn load_bi_sheet(range: &Range<Data>, errors: &mut Vec<LoadError>) -> Result
         }
         points.push(BiPoint {
             name: cell_str_required(range, row, BiCol::Name as u32, "name", &point_index_str)?,
-            event_class: cell_event_class(range, row, BiCol::EventClass as u32, errors),
+            event_class: cell_event_class(
+                range,
+                row,
+                BiCol::EventClass as u32,
+                "BI",
+                &point_index_str,
+                "Default Event Class",
+                errors,
+            ),
             state_0: cell_str_required(
                 range,
                 row,
@@ -897,7 +924,15 @@ pub fn load_ai_sheet(
         let point = AiPoint::new(
             point_index,
             cell_str_required(range, row, AiCol::Name as u32, "name", &point_index_str)?,
-            cell_event_class(range, row, AiCol::EventClass as u32, errors),
+            cell_event_class(
+                range,
+                row,
+                AiCol::EventClass as u32,
+                "AI",
+                &point_index_str,
+                "Default Event Class",
+                errors,
+            ),
             TransmissionI32(cell_i32_required(
                 range,
                 row,
@@ -1055,10 +1090,16 @@ fn synthesize_ride_through_curve_and_schedules(
         let x_scaling = x_units.scaling();
         let y_scaling = y_units.scaling();
 
-        let curve_type_pt =
-            clone_point_with_value(&template_curve.curve_type, curve_type as u8 as f64, ctx.errors);
-        let number_of_points_pt =
-            clone_point_with_value(&template_curve.number_of_points, points.len() as f64, ctx.errors);
+        let curve_type_pt = clone_point_with_value(
+            &template_curve.curve_type,
+            curve_type as u8 as f64,
+            ctx.errors,
+        );
+        let number_of_points_pt = clone_point_with_value(
+            &template_curve.number_of_points,
+            points.len() as f64,
+            ctx.errors,
+        );
         let x_units_pt =
             clone_point_with_value(&template_curve.x_units, x_units as u8 as f64, ctx.errors);
         let y_units_pt =
@@ -1733,7 +1774,15 @@ pub fn load_ctr_sheet(range: &Range<Data>, errors: &mut Vec<LoadError>) -> Resul
         }
         points.push(CtrPoint {
             name: cell_str_required(range, row, CtrCol::Name as u32, "name", &point_index_str)?,
-            counter_event_class: cell_event_class(range, row, CtrCol::CounterEventClass as u32, errors),
+            counter_event_class: cell_event_class(
+                range,
+                row,
+                CtrCol::CounterEventClass as u32,
+                "CTR",
+                &point_index_str,
+                "Counter Event Class",
+                errors,
+            ),
             frozen_counter_exists: parse_frozen_counter_exists(
                 range,
                 row,
@@ -1743,6 +1792,9 @@ pub fn load_ctr_sheet(range: &Range<Data>, errors: &mut Vec<LoadError>) -> Resul
                 range,
                 row,
                 CtrCol::FrozenCounterEventClass as u32,
+                "CTR",
+                &point_index_str,
+                "Frozen Counter Event Class",
                 errors,
             ),
             iec_61850_uid: cell_str_required(
@@ -2614,14 +2666,13 @@ fn workbook_to_profile_with_name(
         .map(load_bo_sheet)
         .transpose()?
         .unwrap_or_default();
-    
+
     let mut errors: Vec<LoadError> = Vec::new();
 
     let bi = get_worksheet(&wb, Sheet::Bi.as_str())
         .map(|r| load_bi_sheet(r, &mut errors))
         .transpose()?
         .unwrap_or_default();
-
 
     let ao = get_worksheet(&wb, Sheet::Ao.as_str())
         .map(|r| load_ao_sheet(r, &mut errors))

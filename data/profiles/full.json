@@ -39579,7 +39579,7 @@
           {
             "point_index": 337,
             "name": "Curve Point 3 X-Value",
-            "event_class": "None",
+            "event_class": "Class2",
             "minimum": 0,
             "maximum": 2147483647,
             "multiplier": 1.0,
@@ -39777,7 +39777,7 @@
           {
             "point_index": 337,
             "name": "Curve Point 3 X-Value",
-            "event_class": "None",
+            "event_class": "Class2",
             "minimum": 0,
             "maximum": 2147483647,
             "multiplier": 1.0,
@@ -39975,7 +39975,7 @@
           {
             "point_index": 337,
             "name": "Curve Point 3 X-Value",
-            "event_class": "None",
+            "event_class": "Class2",
             "minimum": 0,
             "maximum": 2147483647,
             "multiplier": 1.0,
@@ -40173,7 +40173,7 @@
           {
             "point_index": 337,
             "name": "Curve Point 3 X-Value",
-            "event_class": "None",
+            "event_class": "Class2",
             "minimum": 0,
             "maximum": 2147483647,
             "multiplier": 1.0,
