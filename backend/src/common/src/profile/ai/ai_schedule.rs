@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::profile::{
     AiPoint,
-    validation::{ValidationError, ValidationErrors},
+    validation::{ValidationError, ValidationErrors, collect_duplicate_ai_errors},
 };
 
 fn days_and_millis_to_datetime(days: i64, millis: i64) -> Option<DateTime<Utc>> {
@@ -131,6 +131,8 @@ impl AiSchedule {
 
     pub fn collect_validation_errors(&self) -> ValidationErrors {
         let mut errors = ValidationErrors::new();
+
+        errors.extend(collect_duplicate_ai_errors(self.iter_points()));
 
         if days_and_millis_to_datetime(
             self.start_date.value().0 as i64,

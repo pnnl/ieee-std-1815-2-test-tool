@@ -4,7 +4,9 @@ use test_tool_macros::{AiEnumFields, ai_enum};
 use crate::profile::{
     AiPoint,
     enums::AiEnum,
-    validation::{ValidationErrors, collect_low_high_threshold_errors},
+    validation::{
+        ValidationErrors, collect_duplicate_ai_errors, collect_low_high_threshold_errors,
+    },
 };
 
 #[ai_enum]
@@ -246,6 +248,8 @@ impl AiMeter {
         // pub current_b: AiPoint,
         // pub current_c: AiPoint,
         errors.extend(self.collect_enum_errors());
+
+        errors.extend(collect_duplicate_ai_errors(self.iter_points()));
 
         errors.extend(collect_low_high_threshold_errors(
             &self.active_power_low_threshold,

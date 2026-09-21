@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::profile::{
     AiBattery, AiCurve, AiDer, AiInverter, AiMeter, AiPoint, AiSchedule, AiScheduleBC,
+    validation::ValidationErrors,
 };
 
 /// All analog input points, grouped by base and functional/equipment type.
@@ -84,5 +85,27 @@ impl AnalogInputs {
             points.extend(schedule.iter_points_mut());
         }
         points
+    }
+
+    pub(crate) fn collect_validation_errors(&self) -> crate::profile::validation::ValidationErrors {
+        let mut errors = ValidationErrors::new();
+
+        for curve in self.curves.iter() {
+            errors.extend(curve.collect_errors())
+        }
+
+        for schedule in self.schedules.iter() {
+            errors.extend(schedule.collect_validation_errors())
+        }
+
+        for meter in self.meters.iter() {
+            errors.extend(meter.collect_errors());
+        }
+
+        for point in self.all_ai_points_full() {
+            errors.extend(point.collect_errors())
+        }
+
+        errors
     }
 }
