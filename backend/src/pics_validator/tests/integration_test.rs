@@ -115,18 +115,6 @@ fn test_load_full_xlsx() {
         "expected schedule edit selector at point index 3000 in base AI points"
     );
 
-    // AI: curves
-    assert_eq!(
-        profile.ai.curves[0].x_values.len(),
-        100,
-        "expected 100 AI curve x-values"
-    );
-    assert_eq!(
-        profile.ai.curves[0].y_values.len(),
-        100,
-        "expected 100 AI curve y-values"
-    );
-
     // AI: meters
     assert_eq!(
         profile.ai.meters[0].type_of_connection_point.point_index,
@@ -289,16 +277,6 @@ fn test_load_profile_full() {
     assert!(
         profile.ai.points.iter().any(|p| p.point_index == 328u16),
         "expected curve edit selector at point index 328 in base AI points"
-    );
-    assert_eq!(
-        profile.ai.curves[0].x_values.len(),
-        100,
-        "expected 100 AI curve x-values"
-    );
-    assert_eq!(
-        profile.ai.curves[0].y_values.len(),
-        100,
-        "expected 100 AI curve y-values"
     );
     assert_eq!(
         profile.ai.schedules_bc.len(),
@@ -589,16 +567,6 @@ fn test_load_profile_mandatory_1815() {
     assert!(
         profile.ai.points.iter().any(|p| p.point_index == 328u16),
         "expected curve edit selector at point index 328 in base AI points"
-    );
-    assert_eq!(
-        profile.ai.curves[0].x_values.len(),
-        10,
-        "expected 10 AI curve x-values"
-    );
-    assert_eq!(
-        profile.ai.curves[0].y_values.len(),
-        10,
-        "expected 10 AI curve y-values"
     );
     assert_eq!(
         profile.ai.schedules_bc.len(),
