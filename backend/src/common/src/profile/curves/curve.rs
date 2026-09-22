@@ -3,7 +3,9 @@ use tracing::error;
 use crate::profile::{
     AiCurve, AiPoint, CurveType,
     scale_curve::{DependentVariableUnit, IndependentVariableUnit, ScalingEntry},
-    validation::{ValidationError, ValidationErrors, is_whole_number_in_range},
+    validation::{
+        ValidationError, ValidationErrors, collect_duplicate_ai_errors, is_whole_number_in_range,
+    },
 };
 
 /// Convert a finite, whole-number f64 to a u8 curve code.
@@ -90,6 +92,8 @@ impl AiCurve {
 
     pub fn collect_errors(&self) -> ValidationErrors {
         let mut errors = ValidationErrors::new();
+
+        errors.extend(collect_duplicate_ai_errors(self.iter_points()));
 
         let _curve_type_enum = match CurveType::try_from(self.curve_type.value()) {
             Ok(curve_type) => curve_type,
