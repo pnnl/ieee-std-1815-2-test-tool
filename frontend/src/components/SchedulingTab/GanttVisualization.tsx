@@ -77,18 +77,18 @@ function GanttVisualization({
       {/* Stacked Schedule Bars */}
       <div className="flex border border-border bg-muted/50">
         <div
-          className="flex-1 relative bg-background overflow-hidden"
-          style={{ height: STACK_HEIGHT }}
+          className="flex-1 relative bg-background overflow-auto"
+          style={{ minHeight: 100, height: Math.min(STACK_HEIGHT, 300) }}
         >
-          {/* Time axis line */}
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1a5276]" />
+          {/* Dummy element to ensure proper spacing for the stacked bars since they're absolutely positioned */}
+          <div style={{ height: STACK_HEIGHT, visibility: 'hidden' }} />
 
           {/* Schedule bars */}
           {events.map((event, idx) => {
             const left = timeToPercent(event.startDateTime)
             const right = timeToPercent(event.stopDateTime)
             const width = right - left
-            const bottom = idx * BAR_HEIGHT
+            const top = idx * BAR_HEIGHT
             const schedColor = getScheduleColor(event.groupId)
             const isSelected = selectedIndex === event.id
 
@@ -101,7 +101,7 @@ function GanttVisualization({
                 style={{
                   left: `${left}%`,
                   width: `${width}%`,
-                  bottom,
+                  top: `${top}px`,
                   height: BAR_HEIGHT - 2,
                   backgroundColor: schedColor,
                   zIndex: events.length - idx,

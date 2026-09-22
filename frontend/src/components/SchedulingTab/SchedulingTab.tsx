@@ -301,11 +301,20 @@ function SchedulingTab({
       <div
         className="grid min-h-[500px]"
         style={{
-          gridTemplateColumns: '1fr 220px',
+          gridTemplateColumns: '220px 1fr',
           height: 'calc(100vh - 160px)',
         }}
       >
-        <div className="border-r border-border overflow-hidden flex flex-col">
+        <div className="overflow-hidden flex flex-col bg-muted">
+          <ScheduleList
+            schedules={schedules}
+            selectedIndex={selectedIndex}
+            onSelect={handleSelectSchedule}
+            onAdd={handleAddSchedule}
+            onDelete={handleDeleteSchedule}
+          />
+        </div>
+        <div className="border-r border-border flex flex-col">
           {!ganttPoppedOut && (
             <div className="overflow-hidden flex flex-col relative">
               {ganttContent}
@@ -318,7 +327,7 @@ function SchedulingTab({
               </button>
             </div>
           )}
-          <div className="border-t border-border overflow-hidden flex flex-col flex-1 min-h-0">
+          <div className="border-t border-border flex flex-col flex-1">
             {ganttPoppedOut && (
               <div className="flex items-center justify-end px-2 py-1 border-b border-border bg-muted/30">
                 <button
@@ -335,16 +344,6 @@ function SchedulingTab({
               profileData={profileData}
             />
           </div>
-        </div>
-
-        <div className="overflow-hidden flex flex-col bg-muted">
-          <ScheduleList
-            schedules={schedules}
-            selectedIndex={selectedIndex}
-            onSelect={handleSelectSchedule}
-            onAdd={handleAddSchedule}
-            onDelete={handleDeleteSchedule}
-          />
         </div>
       </div>
     </>
