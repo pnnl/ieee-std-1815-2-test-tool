@@ -99,7 +99,8 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
             tracing::error!("Failed to parse {}: {e}", base_profile_path.display());
             std::process::exit(1);
         });
-        PicsProfile::into_validated(parsed_profile).context("Validating full.json")?
+        PicsProfile::into_validated(parsed_profile)
+            .context("Validating full.json while starting web server.")?
     };
     let scenarios: Vec<Scenario> = scenario_generator::generate_scenarios(&base_profile);
     tracing::info!("Generated {} scenarios from profile", scenarios.len());

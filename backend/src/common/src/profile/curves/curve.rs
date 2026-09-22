@@ -162,6 +162,50 @@ impl AiCurve {
         }
 
         errors.extend(self.collect_errors_ai_curve_scaling());
+
+        // Check consistency within each axis independently.
+        for (axis, values) in [("x", &self.x_values), ("y", &self.y_values)] {
+            let Some((first, rest)) = values.split_first() else {
+                continue;
+            };
+            let point = format!("{}: {axis}_values", self.display_name());
+
+            for current in rest {
+                let error_count = errors.len();
+
+                // Accept either a field (offset) or a getter (minimum()).
+                macro_rules! check_consistency {
+                    ($field_or_method:ident $($call_parens:tt)*) => {{
+                        let a = &first.$field_or_method $($call_parens)*;
+                        let b = &current.$field_or_method $($call_parens)*;
+                        if a != b {
+                            errors.push(ValidationError {
+                                point: point.clone(),
+                                message: format!(
+                                    "Inconsistency found in field '{}' among {axis}_values. First {axis} value:\n{:?},\nCurrent {axis} value:\n{:?}",
+                                    stringify!($field_or_method),
+                                    a,
+                                    b,
+                                ),
+                            });
+                        }
+                    }};
+                }
+
+                check_consistency!(minimum());
+                check_consistency!(maximum());
+                check_consistency!(multiplier());
+                check_consistency!(offset);
+                check_consistency!(units);
+                check_consistency!(event_class);
+                check_consistency!(purpose);
+
+                if errors.len() > error_count {
+                    break;
+                }
+            }
+        }
+
         errors
     }
 

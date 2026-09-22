@@ -93,7 +93,7 @@ fn cell_str(range: &Range<Data>, row: u32, col: u32) -> Option<String> {
             if trimmed.is_empty() {
                 None
             } else {
-                Some(trimmed.to_string())
+                Some(trimmed.replace("\r\n", "\n").replace('\r', "\n"))
             }
         }
         Data::Float(f) => Some(f.to_string()),
@@ -288,28 +288,70 @@ fn cell_i32_required(
     }
 }
 
-fn cell_event_class(range: &Range<Data>, row: u32, col: u32) -> EventClass {
-    match range.get((row as usize, col as usize)) {
+fn cell_event_class(
+    range: &Range<Data>,
+    row: u32,
+    col: u32,
+    sheet: &str,
+    point_index: &str,
+    field: &str,
+    errors: &mut Vec<LoadError>,
+) -> EventClass {
+    let mut failed = false;
+    let event_class = match range.get((row as usize, col as usize)) {
         Some(Data::Int(i)) => match i {
+            0 => EventClass::None,
             1 => EventClass::Class1,
             2 => EventClass::Class2,
             3 => EventClass::Class3,
-            _ => EventClass::None,
+            _ => {
+                failed = true;
+                EventClass::None
+            }
         },
-        Some(Data::Float(f)) => match *f as i64 {
-            1 => EventClass::Class1,
-            2 => EventClass::Class2,
-            3 => EventClass::Class3,
-            _ => EventClass::None,
+        Some(Data::Float(f)) => match *f {
+            0.0 => EventClass::None,
+            1.0 => EventClass::Class1,
+            2.0 => EventClass::Class2,
+            3.0 => EventClass::Class3,
+            _ => {
+                failed = true;
+                EventClass::None
+            }
         },
         Some(Data::String(s)) => match s.trim() {
+            "n/a" => EventClass::None,
+            "0" => EventClass::None,
             "1" => EventClass::Class1,
             "2" => EventClass::Class2,
             "3" => EventClass::Class3,
-            _ => EventClass::None,
+            "not in Class 0" => EventClass::None,
+            _ => {
+                failed = true;
+                EventClass::None
+            }
         },
         _ => EventClass::None,
+    };
+
+    if failed {
+        let (start_row, start_col) = range.start().unwrap_or_default();
+        let spreadsheet_row = start_row + row + 1;
+        let spreadsheet_col = start_col + col + 1;
+        let value = range.get((row as usize, col as usize)).unwrap();
+        errors.push(LoadError::at_row(
+            sheet,
+            point_index,
+            field,
+            spreadsheet_row,
+            format!(
+                "{sheet} row {spreadsheet_row}, column {spreadsheet_col} ({field}): \
+                 Invalid event class value {value:?}; expected 1, 2, or 3, or an empty cell"
+            ),
+        ));
     }
+
+    event_class
 }
 
 fn parse_mandatory(range: &Range<Data>, row: u32, col: u32) -> bool {
@@ -627,7 +669,7 @@ pub fn load_bo_sheet(range: &Range<Data>) -> Result<BinaryOutputs, ValidationErr
 // BI sheet loading - flat (reclassification is done by reclassify_by_key)
 // ---------------------------------------------------------------------------
 
-pub fn load_bi_sheet(range: &Range<Data>) -> Result<BinaryInputs> {
+pub fn load_bi_sheet(range: &Range<Data>, errors: &mut Vec<LoadError>) -> Result<BinaryInputs> {
     let mut points = Vec::new();
     let (row_count, _) = range.get_size();
 
@@ -651,7 +693,15 @@ pub fn load_bi_sheet(range: &Range<Data>) -> Result<BinaryInputs> {
         }
         points.push(BiPoint {
             name: cell_str_required(range, row, BiCol::Name as u32, "name", &point_index_str)?,
-            event_class: cell_event_class(range, row, BiCol::EventClass as u32),
+            event_class: cell_event_class(
+                range,
+                row,
+                BiCol::EventClass as u32,
+                "BI",
+                &point_index_str,
+                "Default Event Class",
+                errors,
+            ),
             state_0: cell_str_required(
                 range,
                 row,
@@ -874,7 +924,15 @@ pub fn load_ai_sheet(
         let point = AiPoint::new(
             point_index,
             cell_str_required(range, row, AiCol::Name as u32, "name", &point_index_str)?,
-            cell_event_class(range, row, AiCol::EventClass as u32),
+            cell_event_class(
+                range,
+                row,
+                AiCol::EventClass as u32,
+                "AI",
+                &point_index_str,
+                "Default Event Class",
+                errors,
+            ),
             TransmissionI32(cell_i32_required(
                 range,
                 row,
@@ -1017,7 +1075,7 @@ struct SynthesizeCtx<'a> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn synthesize_ride_through(
+fn synthesize_ride_through_curve_and_schedules(
     ctx: &mut SynthesizeCtx<'_>,
     points: &[(f64, f64)],
     curve_type: CurveType,
@@ -1027,36 +1085,36 @@ fn synthesize_ride_through(
     schedule_type_val: f64,
     bo_uid: BoUid,
     curves_start: u16,
-    should_expand: bool,
 ) -> (Option<AiCurve>, Option<AiScheduleBC>, Option<AiSchedule>) {
-    let curve = ctx.curve_template.map(|template| {
+    let curve = ctx.curve_template.map(|template_curve| {
         let x_scaling = x_units.scaling();
         let y_scaling = y_units.scaling();
 
-        let curve_type_pt =
-            clone_point_with_value(&template.curve_type, curve_type as u8 as f64, ctx.errors);
-        let number_of_points_pt =
-            clone_point_with_value(&template.number_of_points, points.len() as f64, ctx.errors);
+        let curve_type_pt = clone_point_with_value(
+            &template_curve.curve_type,
+            curve_type as u8 as f64,
+            ctx.errors,
+        );
+        let number_of_points_pt = clone_point_with_value(
+            &template_curve.number_of_points,
+            points.len() as f64,
+            ctx.errors,
+        );
         let x_units_pt =
-            clone_point_with_value(&template.x_units, x_units as u8 as f64, ctx.errors);
+            clone_point_with_value(&template_curve.x_units, x_units as u8 as f64, ctx.errors);
         let y_units_pt =
-            clone_point_with_value(&template.y_units, y_units as u8 as f64, ctx.errors);
+            clone_point_with_value(&template_curve.y_units, y_units as u8 as f64, ctx.errors);
 
-        let target_len = if should_expand {
-            template.x_values.len()
-        } else {
-            points.len()
-        };
-        let mut x_values = Vec::with_capacity(target_len);
-        let mut y_values = Vec::with_capacity(target_len);
-        for idx in 0..target_len {
+        let mut x_values = Vec::with_capacity(points.len());
+        let mut y_values = Vec::with_capacity(points.len());
+        for idx in 0..points.len() {
             let (x_eng, y_eng) = if idx < points.len() {
                 points[idx]
             } else {
                 points[points.len() - 1]
             };
 
-            let x_template = match template.x_values.get(idx) {
+            let x_template_point = match template_curve.x_values.get(idx) {
                 Some(p) => p,
                 None => {
                     ctx.errors.push(LoadError::post_assembly(
@@ -1068,7 +1126,7 @@ fn synthesize_ride_through(
                     continue;
                 }
             };
-            let mut x_point = x_template.clone();
+            let mut x_point = x_template_point.clone();
             if let Some(ref scaling) = x_scaling {
                 x_point = with_generated_scaling(
                     &x_point,
@@ -1083,7 +1141,7 @@ fn synthesize_ride_through(
             }
             x_values.push(x_point);
 
-            let y_template = match template.y_values.get(idx) {
+            let y_template_point = match template_curve.y_values.get(idx) {
                 Some(p) => p,
                 None => {
                     ctx.errors.push(LoadError::post_assembly(
@@ -1095,7 +1153,7 @@ fn synthesize_ride_through(
                     continue;
                 }
             };
-            let mut y_point = y_template.clone();
+            let mut y_point = y_template_point.clone();
             if let Some(ref scaling) = y_scaling {
                 y_point = with_generated_scaling(
                     &y_point,
@@ -1324,27 +1382,7 @@ fn synthesize_ride_through(
             }
 
             // Calculate K (number of coordinate slots to write)
-            let k = if should_expand {
-                let initial_meta_count = 1 // Selector
-                    + if find_associated_ao(ctx.profile_index, &c.curve_type).is_some() { 1 } else { 0 }
-                    + if find_associated_ao(ctx.profile_index, &c.number_of_points).is_some() { 1 } else { 0 }
-                    + if find_associated_ao(ctx.profile_index, &c.x_units).is_some() { 1 } else { 0 }
-                    + if find_associated_ao(ctx.profile_index, &c.y_units).is_some() { 1 } else { 0 };
-
-                let final_meta_count =
-                    if find_bo_by_index(ctx.profile_index, bo_uid as u16).is_some() {
-                        1
-                    } else {
-                        0
-                    };
-
-                let meta_total = initial_meta_count + final_meta_count;
-                let max_coords =
-                    (template.time_offsets.len() as isize - meta_total as isize).max(0) as usize;
-                (max_coords / 2).min(c.x_values.len())
-            } else {
-                points.len()
-            };
+            let k = points.len();
 
             // 6. X values write
             for idx in 0..k {
@@ -1445,8 +1483,6 @@ fn synthesize_ride_through_profile(
 
     let curves_start = profile.key.curves.ai.start;
 
-    let should_expand = profile_name == "full" || profile_name == "mandatory_1815";
-
     let mut ctx = SynthesizeCtx {
         profile_index,
         curve_template: curve_template.as_ref(),
@@ -1463,7 +1499,7 @@ fn synthesize_ride_through_profile(
         (2000.0, 110.0),
         (100000.0, 110.0),
     ];
-    let (hvrt_curve, hvrt_bc, hvrt_sched) = synthesize_ride_through(
+    let (hvrt_curve, hvrt_bc, hvrt_sched) = synthesize_ride_through_curve_and_schedules(
         &mut ctx,
         hvrt_points,
         CurveType::HVRTMustTrip,
@@ -1473,7 +1509,6 @@ fn synthesize_ride_through_profile(
         1.0, // schedule_type_val
         BoUid::Volt_Ride_Through_DHVT_Mod,
         curves_start,
-        should_expand,
     );
     if let Some(c) = hvrt_curve {
         profile.ai.curves.push(c);
@@ -1492,7 +1527,7 @@ fn synthesize_ride_through_profile(
         (2000.0, 45.0),
         (160.0, 45.0),
     ];
-    let (lvrt_curve, lvrt_bc, lvrt_sched) = synthesize_ride_through(
+    let (lvrt_curve, lvrt_bc, lvrt_sched) = synthesize_ride_through_curve_and_schedules(
         &mut ctx,
         lvrt_points,
         CurveType::LVRTMustTrip,
@@ -1502,7 +1537,6 @@ fn synthesize_ride_through_profile(
         2.0, // schedule_type_val
         BoUid::Volt_Ride_Through_DHVT_Mod,
         curves_start,
-        should_expand,
     );
     if let Some(c) = lvrt_curve {
         profile.ai.curves.push(c);
@@ -1521,7 +1555,7 @@ fn synthesize_ride_through_profile(
         (300000.0, 61.2),
         (3000000.0, 61.2),
     ];
-    let (hfrt_curve, hfrt_bc, hfrt_sched) = synthesize_ride_through(
+    let (hfrt_curve, hfrt_bc, hfrt_sched) = synthesize_ride_through_curve_and_schedules(
         &mut ctx,
         hfrt_points,
         CurveType::HFRTMustTrip,
@@ -1531,7 +1565,6 @@ fn synthesize_ride_through_profile(
         5.0, // schedule_type_val
         BoUid::Freq_Ride_Through_DHFT_Mod,
         curves_start,
-        should_expand,
     );
     if let Some(c) = hfrt_curve {
         profile.ai.curves.push(c);
@@ -1550,7 +1583,7 @@ fn synthesize_ride_through_profile(
         (300000.0, 56.5),
         (160.0, 56.5),
     ];
-    let (lfrt_curve, lfrt_bc, lfrt_sched) = synthesize_ride_through(
+    let (lfrt_curve, lfrt_bc, lfrt_sched) = synthesize_ride_through_curve_and_schedules(
         &mut ctx,
         lfrt_points,
         CurveType::LFRTMustTrip,
@@ -1560,7 +1593,6 @@ fn synthesize_ride_through_profile(
         6.0, // schedule_type_val
         BoUid::Freq_Ride_Through_DHFT_Mod,
         curves_start,
-        should_expand,
     );
     if let Some(c) = lfrt_curve {
         profile.ai.curves.push(c);
@@ -1721,7 +1753,7 @@ fn apply_schedule_value_scaling(
     }
 }
 
-pub fn load_ctr_sheet(range: &Range<Data>) -> Result<Vec<CtrPoint>> {
+pub fn load_ctr_sheet(range: &Range<Data>, errors: &mut Vec<LoadError>) -> Result<Vec<CtrPoint>> {
     let mut points = Vec::new();
     let (row_count, _) = range.get_size();
 
@@ -1742,7 +1774,15 @@ pub fn load_ctr_sheet(range: &Range<Data>) -> Result<Vec<CtrPoint>> {
         }
         points.push(CtrPoint {
             name: cell_str_required(range, row, CtrCol::Name as u32, "name", &point_index_str)?,
-            counter_event_class: cell_event_class(range, row, CtrCol::CounterEventClass as u32),
+            counter_event_class: cell_event_class(
+                range,
+                row,
+                CtrCol::CounterEventClass as u32,
+                "CTR",
+                &point_index_str,
+                "Counter Event Class",
+                errors,
+            ),
             frozen_counter_exists: parse_frozen_counter_exists(
                 range,
                 row,
@@ -1752,6 +1792,10 @@ pub fn load_ctr_sheet(range: &Range<Data>) -> Result<Vec<CtrPoint>> {
                 range,
                 row,
                 CtrCol::FrozenCounterEventClass as u32,
+                "CTR",
+                &point_index_str,
+                "Frozen Counter Event Class",
+                errors,
             ),
             iec_61850_uid: cell_str_required(
                 range,
@@ -2623,12 +2667,12 @@ fn workbook_to_profile_with_name(
         .transpose()?
         .unwrap_or_default();
 
+    let mut errors: Vec<LoadError> = Vec::new();
+
     let bi = get_worksheet(&wb, Sheet::Bi.as_str())
-        .map(load_bi_sheet)
+        .map(|r| load_bi_sheet(r, &mut errors))
         .transpose()?
         .unwrap_or_default();
-
-    let mut errors: Vec<LoadError> = Vec::new();
 
     let ao = get_worksheet(&wb, Sheet::Ao.as_str())
         .map(|r| load_ao_sheet(r, &mut errors))
@@ -2641,7 +2685,7 @@ fn workbook_to_profile_with_name(
         .unwrap_or_default();
 
     let ctr = get_worksheet(&wb, Sheet::Ctr.as_str())
-        .map(load_ctr_sheet)
+        .map(|r| load_ctr_sheet(r, &mut errors))
         .transpose()?
         .unwrap_or_default();
 
