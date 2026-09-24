@@ -5,7 +5,7 @@
 # /app/backend and the workspace Cargo.{toml,lock} onto /app so the layout
 # inside the container matches the repo root.
 
-FROM rust:1.97.1-bookworm
+FROM rust:1.98.1-bookworm
 
 WORKDIR /app
 
