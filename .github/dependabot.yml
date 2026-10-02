@@ -4,34 +4,43 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "quarterly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/backend"
     schedule:
       interval: "quarterly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/frontend"
     schedule:
       interval: "quarterly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/infra"
     schedule:
       interval: "quarterly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "rust-toolchain"
     directory: "/"
     schedule:
-      interval: "quarterly"
+      interval: "semiannually"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "quarterly"
-
-ignore:
-  - dependency-type: "all"
-    update-types: ["version-update:semver-major"]
-
-open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
