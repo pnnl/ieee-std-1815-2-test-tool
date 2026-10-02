@@ -4,7 +4,8 @@
     {
       "label": "Start backend",
       "type": "shell",
-      "command": "cargo run -p web_server",
+      "command": "bacon run -- -p web_server",
+      "detail": "Requires bacon (cargo install bacon); restarts the API on saved changes.",
       "hide": true,
       "presentation": {
         "reveal": "always",
