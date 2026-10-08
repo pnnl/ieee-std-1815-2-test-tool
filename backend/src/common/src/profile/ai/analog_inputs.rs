@@ -1,8 +1,14 @@
+use std::cmp::min;
+
 use serde::{Deserialize, Serialize};
 
-use crate::profile::{
-    AiBattery, AiCurve, AiDer, AiInverter, AiMeter, AiPoint, AiSchedule, AiScheduleBC,
-    validation::ValidationErrors,
+use crate::{
+    profile::{
+        AiBattery, AiCurve, AiDer, AiInverter, AiMeter, AiPoint, AiSchedule, AiScheduleBC,
+        DEFAULT_MAX_DATABASE_ENTRIES,
+        validation::{ValidationError, ValidationErrors},
+    },
+    uids::ai_uid::AiUid,
 };
 
 /// All analog input points, grouped by base and functional/equipment type.
@@ -94,9 +100,32 @@ impl AnalogInputs {
             errors.extend(curve.collect_errors())
         }
 
+        // Schedules
+        if let Some(point) = self.point_by_uid(AiUid::Scheduling_FSCC_Schd) {
+            errors.extend(collect_index_errors(
+                point,
+                min(
+                    self.schedules.len() + 1,
+                    DEFAULT_MAX_DATABASE_ENTRIES.into(),
+                ),
+            ));
+        }
+
+        if let Some(point) = self.point_by_uid(AiUid::BC_Scheduling_BC_FSCC_Schd) {
+            errors.extend(collect_index_errors(
+                point,
+                min(
+                    self.schedules_bc.len() + 1,
+                    DEFAULT_MAX_DATABASE_ENTRIES.into(),
+                ),
+            ));
+        }
+
         for schedule in self.schedules.iter() {
             errors.extend(schedule.collect_validation_errors())
         }
+
+        // Meters
 
         for meter in self.meters.iter() {
             errors.extend(meter.collect_errors());
@@ -108,4 +137,27 @@ impl AnalogInputs {
 
         errors
     }
+
+    pub fn point_by_uid(&self, uid: AiUid) -> Option<&AiPoint> {
+        self.all_ai_points_full()
+            .into_iter()
+            .find(|point| point.point_index == uid as u16)
+    }
+}
+
+fn collect_index_errors(index_point: &AiPoint, max_index: usize) -> ValidationErrors {
+    let mut errors = ValidationErrors::new();
+    let selected_index = index_point.value().0;
+    // Example: there are 4 schedules. The index is one-based, and you can select
+    // a new schedule to edit, so the max index would be 5.
+    if selected_index as usize > max_index {
+        errors.push(ValidationError {
+            point: index_point.full_index(),
+            message: format!(
+                "Selected index {} is out of bounds. Max expected index is {}.",
+                selected_index, max_index
+            ),
+        });
+    }
+    errors
 }
