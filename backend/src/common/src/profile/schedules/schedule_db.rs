@@ -6,7 +6,8 @@ use crate::profile::validation::{Validated, ValidationErrors};
 use crate::profile::values::TransmissionI32;
 use crate::uids::ai_uid::AiUid;
 
-use crate::profile::indexed_db::{AiValue, DatabaseEntry, IndexedEntryDatabase};
+use crate::profile::DatabaseEntry;
+use crate::profile::indexed_db::{AiValue, IndexedEntryDatabase};
 use crate::profile::{AiSchedule, PicsProfile};
 
 /// Current values and AI indices for a single IEEE 1815.2 schedule.
@@ -109,8 +110,8 @@ impl DatabaseEntry for ScheduleEntry {
         out
     }
 
-    fn update_value(&mut self, ai_index: u16, new_value: TransmissionI32) -> bool {
-        for field in [
+    fn all_values_mut(&mut self) -> impl Iterator<Item = &mut AiValue> {
+        [
             &mut self.identity,
             &mut self.priority,
             &mut self.start_date,
@@ -122,27 +123,16 @@ impl DatabaseEntry for ScheduleEntry {
             &mut self.validation_state,
             &mut self.status,
             &mut self.number_of_points,
-        ] {
-            if field.index == ai_index {
-                field.value = new_value;
-                self.written.insert(ai_index);
-                return true;
-            }
-        }
-        for field in self
-            .time_offsets
-            .iter_mut()
-            .chain(self.action_types.iter_mut())
-            .chain(self.action_indexes.iter_mut())
-            .chain(self.values.iter_mut())
-        {
-            if field.index == ai_index {
-                field.value = new_value;
-                self.written.insert(ai_index);
-                return true;
-            }
-        }
-        false
+        ]
+        .into_iter()
+        .chain(self.time_offsets.iter_mut())
+        .chain(self.action_types.iter_mut())
+        .chain(self.action_indexes.iter_mut())
+        .chain(self.values.iter_mut())
+    }
+
+    fn mark_written(&mut self, ai_index: u16) {
+        self.written.insert(ai_index);
     }
 
     fn create_blank_instance(&self) -> Self {
@@ -316,7 +306,7 @@ impl ScheduleDatabase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::profile::indexed_db::DatabaseEntry;
+    use crate::profile::DatabaseEntry;
     use crate::profile::pics_profile::{
         AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs, EquipmentInfo, EquipmentPoints,
         EventClass, KeySheet, SectionInfo, SectionPoints,

@@ -51,6 +51,9 @@ mod enums;
 mod event_class;
 pub mod indexed_db;
 mod key_sheet;
+mod multiplexing {
+    pub mod database_entry;
+}
 #[allow(clippy::module_inception)]
 pub mod pics_profile;
 pub mod profile_index;
@@ -82,7 +85,8 @@ pub use bo::bo_point::BoPoint;
 pub use curves::curve_db::CurveDatabase;
 pub use curves::{curve, curve_db, scale_curve};
 pub use databases_config::{DEFAULT_MAX_DATABASE_ENTRIES, DatabasesConfig};
-pub use indexed_db::{AiValue, DatabaseEntry};
+pub use indexed_db::AiValue;
+pub use multiplexing::database_entry::DatabaseEntry;
 pub use pics_profile::{EquipmentInfo, EquipmentPoints, PicsProfile, SectionInfo, SectionPoints};
 pub use profile_index::ProfileIndex;
 pub use schedules::schedule_bc_db::ScheduleBCDatabase;
