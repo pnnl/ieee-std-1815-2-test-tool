@@ -2,50 +2,13 @@
 
 use std::collections::HashMap;
 
-use crate::profile::{validation::ValidationErrors, values::TransmissionI32};
+use crate::profile::{
+    AiValue,
+    multiplexing::point_value::{PointIndex, PointValue},
+    values::TransmissionI32,
+};
 
-use super::{AiPoint, DatabaseEntry};
-
-/// A single AI point: its DNP3 index paired with its raw transmitted integer value.
-///
-/// These are the values as transmitted over DNP3 (Group 30 Var 1, 32-bit signed integer).
-/// They must be scaled using the profile's multiplier and offset before being used
-/// for any functional control logic.
-///
-/// Primarily used as the value type for entries in an [`IndexedEntryDatabase`].
-#[derive(Debug, Clone, Copy)]
-pub struct AiValue {
-    /// The DNP3 AI point index.
-    pub index: u16,
-    /// The transmitted value for this point.
-    pub value: TransmissionI32,
-}
-
-impl AiValue {
-    pub fn new(index: u16, value: i32) -> Self {
-        Self {
-            index,
-            value: TransmissionI32(value),
-        }
-    }
-}
-
-impl TryFrom<&AiPoint> for AiValue {
-    /// Convert an `AiPoint` from the profile into a runtime `AiValue`.
-    /// The raw value is taken from `point.value`, cast to `i32`, defaulting to `0` if absent.
-    fn try_from(point: &AiPoint) -> Result<Self, ValidationErrors> {
-        Ok(Self {
-            index: point.point_index,
-            value: TransmissionI32::try_from_engineering(
-                point.value(),
-                point.multiplier(),
-                point.offset,
-            )?,
-        })
-    }
-
-    type Error = ValidationErrors;
-}
+use super::DatabaseEntry;
 
 /// Generic container for 1-based indexed database entries.
 ///
@@ -55,7 +18,7 @@ impl TryFrom<&AiPoint> for AiValue {
 /// `update_ai_value` are also reflected immediately.
 pub struct IndexedEntryDatabase<E: DatabaseEntry> {
     entries: HashMap<u16, E>,
-    entry_points: Vec<AiValue>,
+    entry_points: Vec<PointValue>,
     max_entries: u16,
 }
 
@@ -71,7 +34,7 @@ impl<E: DatabaseEntry> IndexedEntryDatabase<E> {
     }
 
     /// All AI values for the currently selected entry, kept in sync with any updates.
-    pub fn current_entry_points(&self) -> Vec<AiValue> {
+    pub fn current_entry_points(&self) -> Vec<PointValue> {
         self.entry_points.clone()
     }
 
@@ -105,8 +68,15 @@ impl<E: DatabaseEntry> IndexedEntryDatabase<E> {
         new_value: TransmissionI32,
     ) {
         if let Some(entry) = self.entries.get_mut(&entry_number) {
-            if entry.update_value(ai_index, new_value) {
-                if let Some(point) = self.entry_points.iter_mut().find(|p| p.index == ai_index) {
+            if entry.update_value(PointValue::Ai(AiValue {
+                index: ai_index,
+                value: new_value,
+            })) {
+                if let Some(PointValue::Ai(point)) = self
+                    .entry_points
+                    .iter_mut()
+                    .find(|p| p.key() == PointIndex::Ai(ai_index))
+                {
                     point.value = new_value;
                 }
             }
