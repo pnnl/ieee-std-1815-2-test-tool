@@ -62,7 +62,7 @@ The `PicsProfile` object schema:
 }
 ```
 
-Equipment groups (`meters`, `ders`, `inverters`, `batteries`) are only populated when the XLSX sheet contains the corresponding section header row. Profile files in `data/profiles/` are flat (no section headers) and load all points into the base `points` list.
+Equipment groups (`meters`, `ders`, `inverters`, `batteries`) are populated using point-index boundaries from the Key sheet. Section header rows are not required: flat spreadsheets such as the profiles in `data/profiles/` also load points into their corresponding equipment groups. Points in the experimental range remain in the base `points` list.
 
 ## Build
 
