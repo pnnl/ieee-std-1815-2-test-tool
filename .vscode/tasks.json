@@ -2,6 +2,15 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Regenerate all profiles",
+      "type": "shell",
+      "command": "cargo run -- ../../../data/profiles/full.xlsx ../../../data/profiles/full.json && cargo run -- ../../../data/profiles/mandatory_1547.xlsx ../../../data/profiles/mandatory_1547.json && cargo run -- ../../../data/profiles/mandatory_1815.xlsx ../../../data/profiles/mandatory_1815.json && cargo run -- ../../../data/profiles/minimal_1547.xlsx ../../../data/profiles/minimal_1547.json",
+      "options": {
+        "cwd": "${workspaceFolder}/backend/src/pics_validator"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Start backend",
       "type": "process",
       "command": "sh",
