@@ -583,21 +583,21 @@ where
     F: Fn(&P) -> Option<i64>,
 {
     let mut groups: Vec<Vec<P>> = Vec::new();
-    let mut current: Vec<P> = Vec::new();
-    let mut last_num: Option<i64> = None;
+    let mut current_group: Vec<P> = Vec::new();
+    let mut previous_point_index: Option<i64> = None;
 
     for point in points {
-        let num = get_index(&point);
-        if let (Some(last), Some(current_num)) = (last_num, num) {
-            if current_num > last + 1 && !current.is_empty() {
-                groups.push(std::mem::take(&mut current));
+        let point_index = get_index(&point);
+        if let (Some(last), Some(current_num)) = (previous_point_index, point_index) {
+            if current_num > last + 1 && !current_group.is_empty() {
+                groups.push(std::mem::take(&mut current_group));
             }
         }
-        last_num = num;
-        current.push(point);
+        previous_point_index = point_index;
+        current_group.push(point);
     }
-    if !current.is_empty() {
-        groups.push(current);
+    if !current_group.is_empty() {
+        groups.push(current_group);
     }
     groups
 }

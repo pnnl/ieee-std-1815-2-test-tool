@@ -57,7 +57,7 @@ pub trait DatabaseEntry: Clone {
     fn update_value(&mut self, ai_index: u16, new_value: TransmissionI32) -> bool;
     /// Return a blank copy of this entry: same vector structure and AI indices as `self`,
     /// all values zeroed to 0, and the written tracker empty.
-    fn blank(&self) -> Self;
+    fn create_blank_instance(&self) -> Self;
     /// Return only the AI values that have been explicitly written (via `update_value`).
     fn received_values(&self) -> Vec<AiValue>;
 }
@@ -138,7 +138,7 @@ impl<E: DatabaseEntry> IndexedEntryDatabase<E> {
             return None;
         }
         if !self.entries.contains_key(&number) {
-            let blank = self.entries.get(&1)?.blank();
+            let blank = self.entries.get(&1)?.create_blank_instance();
             self.entries.insert(number, blank);
         }
         self.entries.get(&number)

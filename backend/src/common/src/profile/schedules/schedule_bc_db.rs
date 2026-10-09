@@ -118,7 +118,7 @@ impl DatabaseEntry for ScheduleBCEntry {
         false
     }
 
-    fn blank(&self) -> Self {
+    fn create_blank_instance(&self) -> Self {
         Self {
             identity: AiValue::new(self.identity.index, 0),
             priority: AiValue::new(self.priority.index, 0),

@@ -88,7 +88,7 @@ impl DatabaseEntry for CurveEntry {
         false
     }
 
-    fn blank(&self) -> Self {
+    fn create_blank_instance(&self) -> Self {
         Self {
             curve_type: AiValue::new(self.curve_type.index, 0),
             number_of_points: AiValue::new(self.number_of_points.index, 0),
