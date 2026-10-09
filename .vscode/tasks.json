@@ -3,8 +3,16 @@
   "tasks": [
     {
       "label": "Start backend",
-      "type": "shell",
-      "command": "cargo run -p web_server",
+      "type": "process",
+      "command": "sh",
+      "args": [
+        "-c",
+        "set -e; if ! command -v bacon >/dev/null 2>&1; then cargo install bacon --locked; fi; exec bacon --headless run-long"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "detail": "Installs bacon if needed, then restarts the API on saved changes.",
       "hide": true,
       "presentation": {
         "reveal": "always",
