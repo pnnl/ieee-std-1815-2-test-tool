@@ -7,7 +7,7 @@ use calamine::{Data, Range, Reader, Xlsx, open_workbook};
 use common::profile::curve::float_to_curve_code;
 use common::profile::validation::{LoadError, Validated, ValidationError, ValidationErrors};
 use common::profile::values::{EngineeringF64, TransmissionI32};
-use common::profile::{ActionType, BiPoint, BoPoint, CurveType, ProfileIndex};
+use common::profile::{ActionType, BiPoint, BoPoint, CurveType, Point, ProfileIndex};
 use common::uids::bo_uid::BoUid;
 
 use crate::models::{
@@ -578,22 +578,19 @@ fn parse_point_index_u16(s: &str) -> Result<u16, ValidationErrors> {
 /// Each run where consecutive point indices differ by more than 1 starts a new group.
 /// Used for equipment sections (meters, inverters, batteries, DER units) where
 /// each gap indicates a missing/unconfigured equipment instance.
-fn group_by_index_gap<P, F>(points: Vec<P>, get_index: F) -> Vec<Vec<P>>
-where
-    F: Fn(&P) -> Option<i64>,
-{
-    let mut groups: Vec<Vec<P>> = Vec::new();
-    let mut current_group: Vec<P> = Vec::new();
-    let mut previous_point_index: Option<i64> = None;
+fn group_by_index_gap<PointType: Point>(points: Vec<PointType>) -> Vec<Vec<PointType>> {
+    let mut groups: Vec<Vec<PointType>> = Vec::new();
+    let mut current_group: Vec<PointType> = Vec::new();
+    let mut previous_point_index: Option<u16> = None;
 
     for point in points {
-        let point_index = get_index(&point);
-        if let (Some(last), Some(current_num)) = (previous_point_index, point_index) {
-            if current_num > last + 1 && !current_group.is_empty() {
+        let point_index = point.point_index();
+        if let Some(last) = previous_point_index {
+            if point_index > last + 1 && !current_group.is_empty() {
                 groups.push(std::mem::take(&mut current_group));
             }
         }
-        previous_point_index = point_index;
+        previous_point_index = Some(point_index);
         current_group.push(point);
     }
     if !current_group.is_empty() {
@@ -1818,6 +1815,30 @@ pub fn load_ctr_sheet(range: &Range<Data>, errors: &mut Vec<LoadError>) -> Resul
 // Key-based point reclassification
 // ---------------------------------------------------------------------------
 
+/// Separate points into equipment groups, keeping experimental and unmatched
+/// points in the base list. Start indices are checked in the order supplied.
+fn separate_equipment_points<PointType: Point, const EQ_CATEGORY_COUNT: usize>(
+    points: Vec<PointType>,
+    experimental_start: u16,
+    equipment_starts: [u16; EQ_CATEGORY_COUNT],
+) -> (Vec<PointType>, [Vec<PointType>; EQ_CATEGORY_COUNT]) {
+    let mut base = Vec::new();
+    let mut equipment = std::array::from_fn(|_| Vec::new());
+
+    for point in points {
+        let index = point.point_index();
+        if index >= experimental_start {
+            base.push(point);
+        } else if let Some(group) = equipment_starts.iter().position(|&start| index >= start) {
+            equipment[group].push(point);
+        } else {
+            base.push(point);
+        }
+    }
+
+    (base, equipment)
+}
+
 /// Log a warning when an equipment group has an unexpected number of points.
 fn warn_equipment_group_size(
     errors: &mut Vec<LoadError>,
@@ -1840,204 +1861,189 @@ fn warn_equipment_group_size(
     }
 }
 
+/// Build equipment records from groups of points separated by index gaps.
+/// Groups with unexpected point counts are recorded and dropped, keeping
+/// the original group numbering in error labels.
+fn build_equipment_records<PointType: Point, EquipmentType>(
+    points: Vec<PointType>,
+    sheet: &str,
+    equipment_type: &str,
+    expected_count: usize,
+    errors: &mut Vec<LoadError>,
+    mut build_record: impl FnMut(std::vec::IntoIter<PointType>) -> Option<EquipmentType>,
+) -> Vec<EquipmentType> {
+    group_by_index_gap(points)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(group_index, points)| {
+            if points.len() != expected_count {
+                warn_equipment_group_size(
+                    errors,
+                    sheet,
+                    equipment_type,
+                    group_index,
+                    points.len(),
+                    expected_count,
+                );
+                None
+            } else {
+                build_record(points.into_iter())
+            }
+        })
+        .collect()
+}
+
 /// Reclassify BI points from a flat list into equipment-specific groups.
 fn reclassify_bi(
     key: &KeySheet,
     points: Vec<BiPoint>,
     errors: &mut Vec<LoadError>,
 ) -> BinaryInputs {
-    let experimental_start = key.experimental.bi.start as i64;
-    let meter_start = key.meter.bi.start as i64;
-    let der_start = key.der.bi.start as i64;
-    let inv_start = key.inverter.bi.start as i64;
-    let bat_start = key.battery.bi.start as i64;
+    let (base, [batteries_flat, inverters_flat, ders_flat, meters_flat]) =
+        separate_equipment_points(
+            points,
+            key.experimental.bi.start,
+            [
+                key.battery.bi.start,
+                key.inverter.bi.start,
+                key.der.bi.start,
+                key.meter.bi.start,
+            ],
+        );
 
-    let mut base: Vec<BiPoint> = Vec::new();
-    let mut meters_flat: Vec<BiPoint> = Vec::new();
-    let mut ders_flat: Vec<BiPoint> = Vec::new();
-    let mut inverters_flat: Vec<BiPoint> = Vec::new();
-    let mut batteries_flat: Vec<BiPoint> = Vec::new();
-
-    for point in points {
-        let idx = point.point_index as i64;
-        if idx >= experimental_start {
-            base.push(point);
-        } else if idx >= bat_start {
-            batteries_flat.push(point);
-        } else if idx >= inv_start {
-            inverters_flat.push(point);
-        } else if idx >= der_start {
-            ders_flat.push(point);
-        } else if idx >= meter_start {
-            meters_flat.push(point);
-        } else {
-            base.push(point);
-        }
-    }
-
-    let get_num = |p: &BiPoint| Some(p.point_index as i64);
-
-    let meters = group_by_index_gap(meters_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 13 {
-                warn_equipment_group_size(errors, "BI", "meter", group_idx, pts.len(), 13);
-                return None;
-            }
-            let mut it = pts.into_iter();
-            Some(BiMeter {
-                active_power_too_high: it.next()?,
-                active_power_too_low: it.next()?,
-                reactive_power_too_high: it.next()?,
-                reactive_power_too_low: it.next()?,
-                power_factor_too_high: it.next()?,
-                power_factor_too_low: it.next()?,
-                phase_a_voltage_too_high: it.next()?,
-                phase_a_voltage_too_low: it.next()?,
-                phase_b_voltage_too_high: it.next()?,
-                phase_b_voltage_too_low: it.next()?,
-                phase_c_voltage_too_high: it.next()?,
-                phase_c_voltage_too_low: it.next()?,
-                communication_error: it.next()?,
-            })
+    let meters = build_equipment_records(meters_flat, "BI", "meter", 13, errors, |mut points| {
+        Some(BiMeter {
+            active_power_too_high: points.next()?,
+            active_power_too_low: points.next()?,
+            reactive_power_too_high: points.next()?,
+            reactive_power_too_low: points.next()?,
+            power_factor_too_high: points.next()?,
+            power_factor_too_low: points.next()?,
+            phase_a_voltage_too_high: points.next()?,
+            phase_a_voltage_too_low: points.next()?,
+            phase_b_voltage_too_high: points.next()?,
+            phase_b_voltage_too_low: points.next()?,
+            phase_c_voltage_too_high: points.next()?,
+            phase_c_voltage_too_low: points.next()?,
+            communication_error: points.next()?,
         })
-        .collect();
+    });
 
-    let ders = group_by_index_gap(ders_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 4 {
-                warn_equipment_group_size(errors, "BI", "DER unit", group_idx, pts.len(), 4);
-                return None;
-            }
-            let mut it = pts.into_iter();
-            Some(BiDer {
-                maintenance_operational_state: it.next()?,
-                has_p1_alarms: it.next()?,
-                has_p2_alarms: it.next()?,
-                has_p3_alarms: it.next()?,
-            })
+    let ders = build_equipment_records(ders_flat, "BI", "DER unit", 4, errors, |mut points| {
+        Some(BiDer {
+            maintenance_operational_state: points.next()?,
+            has_p1_alarms: points.next()?,
+            has_p2_alarms: points.next()?,
+            has_p3_alarms: points.next()?,
         })
-        .collect();
+    });
 
-    let inverters = group_by_index_gap(inverters_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 35 {
-                warn_equipment_group_size(errors, "BI", "inverter", group_idx, pts.len(), 35);
-                return None;
-            }
-            let mut it = pts.into_iter();
+    let inverters = build_equipment_records(
+        inverters_flat,
+        "BI",
+        "inverter",
+        35,
+        errors,
+        |mut points| {
             Some(BiInverter {
-                active_power_too_high: it.next()?,
-                active_power_too_low: it.next()?,
-                reactive_power_too_high: it.next()?,
-                reactive_power_too_low: it.next()?,
-                frequency_too_high: it.next()?,
-                frequency_too_low: it.next()?,
-                dc_input_power_too_high: it.next()?,
-                dc_input_power_too_low: it.next()?,
-                dc_current_too_high: it.next()?,
-                dc_current_too_low: it.next()?,
-                dc_voltage_too_high: it.next()?,
-                dc_voltage_too_low: it.next()?,
-                power_factor_excitation: it.next()?,
-                communication_error: it.next()?,
-                local_control_mode: it.next()?,
-                dc_contactor_closed: it.next()?,
-                ground_fault_alarm: it.next()?,
-                dc_over_voltage_alarm: it.next()?,
-                dc_under_voltage_alarm: it.next()?,
-                ac_disconnect_warning: it.next()?,
-                dc_disconnect_warning: it.next()?,
-                grid_disconnect_warning: it.next()?,
-                cabinet_open_warning: it.next()?,
-                manual_shutdown_warning: it.next()?,
-                over_temperature_alarm: it.next()?,
-                under_temperature_alarm: it.next()?,
-                over_frequency_alarm: it.next()?,
-                under_frequency_alarm: it.next()?,
-                ac_over_voltage_alarm: it.next()?,
-                ac_under_voltage_alarm: it.next()?,
-                blown_string_fuse_alarm: it.next()?,
-                memory_loss_alarm: it.next()?,
-                hardware_test_failure: it.next()?,
-                other_alarm: it.next()?,
-                other_warning: it.next()?,
+                active_power_too_high: points.next()?,
+                active_power_too_low: points.next()?,
+                reactive_power_too_high: points.next()?,
+                reactive_power_too_low: points.next()?,
+                frequency_too_high: points.next()?,
+                frequency_too_low: points.next()?,
+                dc_input_power_too_high: points.next()?,
+                dc_input_power_too_low: points.next()?,
+                dc_current_too_high: points.next()?,
+                dc_current_too_low: points.next()?,
+                dc_voltage_too_high: points.next()?,
+                dc_voltage_too_low: points.next()?,
+                power_factor_excitation: points.next()?,
+                communication_error: points.next()?,
+                local_control_mode: points.next()?,
+                dc_contactor_closed: points.next()?,
+                ground_fault_alarm: points.next()?,
+                dc_over_voltage_alarm: points.next()?,
+                dc_under_voltage_alarm: points.next()?,
+                ac_disconnect_warning: points.next()?,
+                dc_disconnect_warning: points.next()?,
+                grid_disconnect_warning: points.next()?,
+                cabinet_open_warning: points.next()?,
+                manual_shutdown_warning: points.next()?,
+                over_temperature_alarm: points.next()?,
+                under_temperature_alarm: points.next()?,
+                over_frequency_alarm: points.next()?,
+                under_frequency_alarm: points.next()?,
+                ac_over_voltage_alarm: points.next()?,
+                ac_under_voltage_alarm: points.next()?,
+                blown_string_fuse_alarm: points.next()?,
+                memory_loss_alarm: points.next()?,
+                hardware_test_failure: points.next()?,
+                other_alarm: points.next()?,
+                other_warning: points.next()?,
             })
-        })
-        .collect();
+        },
+    );
 
-    let batteries = group_by_index_gap(batteries_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 54 {
-                warn_equipment_group_size(errors, "BI", "battery", group_idx, pts.len(), 54);
-                return None;
-            }
-            let mut it = pts.into_iter();
+    let batteries =
+        build_equipment_records(batteries_flat, "BI", "battery", 54, errors, |mut points| {
             Some(BiBattery {
-                status_of_storage: it.next()?,
-                communication_error: it.next()?,
-                local_control_mode: it.next()?,
-                dc_contactor_closed: it.next()?,
-                is_charging: it.next()?,
-                is_discharging: it.next()?,
-                external_voltage_too_high: it.next()?,
-                external_voltage_too_low: it.next()?,
-                internal_voltage_too_high: it.next()?,
-                internal_voltage_too_low: it.next()?,
-                over_temperature_alarm: it.next()?,
-                under_temperature_alarm: it.next()?,
-                temperature_imbalance_alarm: it.next()?,
-                over_temperature_warning: it.next()?,
-                under_temperature_warning: it.next()?,
-                temperature_imbalance_warning: it.next()?,
-                over_charge_current_alarm: it.next()?,
-                over_discharge_current_alarm: it.next()?,
-                over_charge_current_warning: it.next()?,
-                over_discharge_current_warning: it.next()?,
-                voltage_imbalance_warning: it.next()?,
-                current_imbalance_warning: it.next()?,
-                over_voltage_alarm: it.next()?,
-                under_voltage_alarm: it.next()?,
-                over_voltage_warning: it.next()?,
-                under_voltage_warning: it.next()?,
-                over_soc_max_alarm: it.next()?,
-                under_soc_min_alarm: it.next()?,
-                over_soc_max_warning: it.next()?,
-                under_soc_min_warning: it.next()?,
-                contactor_failure: it.next()?,
-                fan_error: it.next()?,
-                ground_fault: it.next()?,
-                door_open_alarm: it.next()?,
-                configuration_error: it.next()?,
-                configuration_warning: it.next()?,
-                other_alarm: it.next()?,
-                other_warning: it.next()?,
-                fire_alarm: it.next()?,
-                fire_supervisory_warning: it.next()?,
-                fire_trouble_warning: it.next()?,
-                fire_power_fault_warning: it.next()?,
-                chiller_alarm: it.next()?,
-                chiller_warning: it.next()?,
-                air_handler_alarm: it.next()?,
-                air_handler_warning: it.next()?,
-                fluid_alarm: it.next()?,
-                fluid_warning: it.next()?,
-                gas_alarm: it.next()?,
-                gas_warning: it.next()?,
-                electrolyte_alarm: it.next()?,
-                electrolyte_warning: it.next()?,
-                electrical_alarm: it.next()?,
-                electrical_warning: it.next()?,
+                status_of_storage: points.next()?,
+                communication_error: points.next()?,
+                local_control_mode: points.next()?,
+                dc_contactor_closed: points.next()?,
+                is_charging: points.next()?,
+                is_discharging: points.next()?,
+                external_voltage_too_high: points.next()?,
+                external_voltage_too_low: points.next()?,
+                internal_voltage_too_high: points.next()?,
+                internal_voltage_too_low: points.next()?,
+                over_temperature_alarm: points.next()?,
+                under_temperature_alarm: points.next()?,
+                temperature_imbalance_alarm: points.next()?,
+                over_temperature_warning: points.next()?,
+                under_temperature_warning: points.next()?,
+                temperature_imbalance_warning: points.next()?,
+                over_charge_current_alarm: points.next()?,
+                over_discharge_current_alarm: points.next()?,
+                over_charge_current_warning: points.next()?,
+                over_discharge_current_warning: points.next()?,
+                voltage_imbalance_warning: points.next()?,
+                current_imbalance_warning: points.next()?,
+                over_voltage_alarm: points.next()?,
+                under_voltage_alarm: points.next()?,
+                over_voltage_warning: points.next()?,
+                under_voltage_warning: points.next()?,
+                over_soc_max_alarm: points.next()?,
+                under_soc_min_alarm: points.next()?,
+                over_soc_max_warning: points.next()?,
+                under_soc_min_warning: points.next()?,
+                contactor_failure: points.next()?,
+                fan_error: points.next()?,
+                ground_fault: points.next()?,
+                door_open_alarm: points.next()?,
+                configuration_error: points.next()?,
+                configuration_warning: points.next()?,
+                other_alarm: points.next()?,
+                other_warning: points.next()?,
+                fire_alarm: points.next()?,
+                fire_supervisory_warning: points.next()?,
+                fire_trouble_warning: points.next()?,
+                fire_power_fault_warning: points.next()?,
+                chiller_alarm: points.next()?,
+                chiller_warning: points.next()?,
+                air_handler_alarm: points.next()?,
+                air_handler_warning: points.next()?,
+                fluid_alarm: points.next()?,
+                fluid_warning: points.next()?,
+                gas_alarm: points.next()?,
+                gas_warning: points.next()?,
+                electrolyte_alarm: points.next()?,
+                electrolyte_warning: points.next()?,
+                electrical_alarm: points.next()?,
+                electrical_warning: points.next()?,
             })
-        })
-        .collect();
+        });
 
     BinaryInputs {
         points: base,
@@ -2054,102 +2060,66 @@ fn reclassify_ao(
     points: Vec<AoPoint>,
     errors: &mut Vec<LoadError>,
 ) -> AnalogOutputs {
-    let experimental_start = key.experimental.ao.start as i64;
-    let meter_start = key.meter.ao.start as i64;
-    let inv_start = key.inverter.ao.start as i64;
-    let bat_start = key.battery.ao.start as i64;
+    let (base, [batteries_flat, inverters_flat, meters_flat]) = separate_equipment_points(
+        points,
+        key.experimental.ao.start,
+        [
+            key.battery.ao.start,
+            key.inverter.ao.start,
+            key.meter.ao.start,
+        ],
+    );
 
-    let mut base: Vec<AoPoint> = Vec::new();
-    let mut meters_flat: Vec<AoPoint> = Vec::new();
-    let mut inverters_flat: Vec<AoPoint> = Vec::new();
-    let mut batteries_flat: Vec<AoPoint> = Vec::new();
-
-    for point in points {
-        let idx = point.point_index as i64;
-        if idx >= experimental_start {
-            base.push(point);
-        } else if idx >= bat_start {
-            batteries_flat.push(point);
-        } else if idx >= inv_start {
-            inverters_flat.push(point);
-        } else if idx >= meter_start {
-            meters_flat.push(point);
-        } else {
-            base.push(point);
-        }
-    }
-
-    let get_num = |p: &AoPoint| Some(p.point_index as i64);
-
-    let meters = group_by_index_gap(meters_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 12 {
-                warn_equipment_group_size(errors, "AO", "meter", group_idx, pts.len(), 12);
-                return None;
-            }
-            let mut it = pts.into_iter();
-            Some(AoMeter {
-                active_power_high_threshold: it.next()?,
-                active_power_low_threshold: it.next()?,
-                reactive_power_high_threshold: it.next()?,
-                reactive_power_low_threshold: it.next()?,
-                power_factor_high_threshold: it.next()?,
-                power_factor_low_threshold: it.next()?,
-                phase_a_volts_high_threshold: it.next()?,
-                phase_a_volts_low_threshold: it.next()?,
-                phase_b_volts_high_threshold: it.next()?,
-                phase_b_volts_low_threshold: it.next()?,
-                phase_c_volts_high_threshold: it.next()?,
-                phase_c_volts_low_threshold: it.next()?,
-            })
+    let meters = build_equipment_records(meters_flat, "AO", "meter", 12, errors, |mut points| {
+        Some(AoMeter {
+            active_power_high_threshold: points.next()?,
+            active_power_low_threshold: points.next()?,
+            reactive_power_high_threshold: points.next()?,
+            reactive_power_low_threshold: points.next()?,
+            power_factor_high_threshold: points.next()?,
+            power_factor_low_threshold: points.next()?,
+            phase_a_volts_high_threshold: points.next()?,
+            phase_a_volts_low_threshold: points.next()?,
+            phase_b_volts_high_threshold: points.next()?,
+            phase_b_volts_low_threshold: points.next()?,
+            phase_c_volts_high_threshold: points.next()?,
+            phase_c_volts_low_threshold: points.next()?,
         })
-        .collect();
+    });
 
-    let inverters = group_by_index_gap(inverters_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 12 {
-                warn_equipment_group_size(errors, "AO", "inverter", group_idx, pts.len(), 12);
-                return None;
-            }
-            let mut it = pts.into_iter();
+    let inverters = build_equipment_records(
+        inverters_flat,
+        "AO",
+        "inverter",
+        12,
+        errors,
+        |mut points| {
             Some(AoInverter {
-                active_power_high_threshold: it.next()?,
-                active_power_low_threshold: it.next()?,
-                reactive_power_high_threshold: it.next()?,
-                reactive_power_low_threshold: it.next()?,
-                frequency_high_threshold: it.next()?,
-                frequency_low_threshold: it.next()?,
-                dc_input_power_high_threshold: it.next()?,
-                dc_input_power_low_threshold: it.next()?,
-                dc_current_high_threshold: it.next()?,
-                dc_current_low_threshold: it.next()?,
-                dc_voltage_high_threshold: it.next()?,
-                dc_voltage_low_threshold: it.next()?,
+                active_power_high_threshold: points.next()?,
+                active_power_low_threshold: points.next()?,
+                reactive_power_high_threshold: points.next()?,
+                reactive_power_low_threshold: points.next()?,
+                frequency_high_threshold: points.next()?,
+                frequency_low_threshold: points.next()?,
+                dc_input_power_high_threshold: points.next()?,
+                dc_input_power_low_threshold: points.next()?,
+                dc_current_high_threshold: points.next()?,
+                dc_current_low_threshold: points.next()?,
+                dc_voltage_high_threshold: points.next()?,
+                dc_voltage_low_threshold: points.next()?,
             })
-        })
-        .collect();
+        },
+    );
 
-    let batteries = group_by_index_gap(batteries_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 4 {
-                warn_equipment_group_size(errors, "AO", "battery", group_idx, pts.len(), 4);
-                return None;
-            }
-            let mut it = pts.into_iter();
+    let batteries =
+        build_equipment_records(batteries_flat, "AO", "battery", 4, errors, |mut points| {
             Some(AoBattery {
-                external_voltage_high_threshold: it.next()?,
-                external_voltage_low_threshold: it.next()?,
-                internal_voltage_high_threshold: it.next()?,
-                internal_voltage_low_threshold: it.next()?,
+                external_voltage_high_threshold: points.next()?,
+                external_voltage_low_threshold: points.next()?,
+                internal_voltage_high_threshold: points.next()?,
+                internal_voltage_low_threshold: points.next()?,
             })
-        })
-        .collect();
+        });
 
     AnalogOutputs {
         points: base,
@@ -2240,177 +2210,147 @@ fn reclassify_ai(
         }
     }
 
-    let get_num = |p: &AiPoint| Some(p.point_index as i64);
-
-    let meters = group_by_index_gap(meters_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 37 {
-                warn_equipment_group_size(errors, "AI", "meter", group_idx, pts.len(), 37);
-                return None;
-            }
-            let mut it = pts.into_iter();
-            Some(AiMeter {
-                type_of_connection_point: it.next()?,
-                der_input_output_included: it.next()?,
-                type_of_circuit_phases: it.next()?,
-                apparent_power_calc_method: it.next()?,
-                frequency: it.next()?,
-                active_power: it.next()?,
-                active_power_a: it.next()?,
-                active_power_b: it.next()?,
-                active_power_c: it.next()?,
-                reactive_power: it.next()?,
-                reactive_power_a: it.next()?,
-                reactive_power_b: it.next()?,
-                reactive_power_c: it.next()?,
-                power_factor: it.next()?,
-                apparent_power: it.next()?,
-                phase_a_volts: it.next()?,
-                phase_a_angle: it.next()?,
-                phase_b_volts: it.next()?,
-                phase_b_angle: it.next()?,
-                phase_c_volts: it.next()?,
-                phase_c_angle: it.next()?,
-                avg_line_to_line_voltage: it.next()?,
-                current_a: it.next()?,
-                current_b: it.next()?,
-                current_c: it.next()?,
-                active_power_high_threshold: it.next()?,
-                active_power_low_threshold: it.next()?,
-                reactive_power_high_threshold: it.next()?,
-                reactive_power_low_threshold: it.next()?,
-                power_factor_high_threshold: it.next()?,
-                power_factor_low_threshold: it.next()?,
-                phase_a_volts_high_threshold: it.next()?,
-                phase_a_volts_low_threshold: it.next()?,
-                phase_b_volts_high_threshold: it.next()?,
-                phase_b_volts_low_threshold: it.next()?,
-                phase_c_volts_high_threshold: it.next()?,
-                phase_c_volts_low_threshold: it.next()?,
-            })
+    let meters = build_equipment_records(meters_flat, "AI", "meter", 37, errors, |mut points| {
+        Some(AiMeter {
+            type_of_connection_point: points.next()?,
+            der_input_output_included: points.next()?,
+            type_of_circuit_phases: points.next()?,
+            apparent_power_calc_method: points.next()?,
+            frequency: points.next()?,
+            active_power: points.next()?,
+            active_power_a: points.next()?,
+            active_power_b: points.next()?,
+            active_power_c: points.next()?,
+            reactive_power: points.next()?,
+            reactive_power_a: points.next()?,
+            reactive_power_b: points.next()?,
+            reactive_power_c: points.next()?,
+            power_factor: points.next()?,
+            apparent_power: points.next()?,
+            phase_a_volts: points.next()?,
+            phase_a_angle: points.next()?,
+            phase_b_volts: points.next()?,
+            phase_b_angle: points.next()?,
+            phase_c_volts: points.next()?,
+            phase_c_angle: points.next()?,
+            avg_line_to_line_voltage: points.next()?,
+            current_a: points.next()?,
+            current_b: points.next()?,
+            current_c: points.next()?,
+            active_power_high_threshold: points.next()?,
+            active_power_low_threshold: points.next()?,
+            reactive_power_high_threshold: points.next()?,
+            reactive_power_low_threshold: points.next()?,
+            power_factor_high_threshold: points.next()?,
+            power_factor_low_threshold: points.next()?,
+            phase_a_volts_high_threshold: points.next()?,
+            phase_a_volts_low_threshold: points.next()?,
+            phase_b_volts_high_threshold: points.next()?,
+            phase_b_volts_low_threshold: points.next()?,
+            phase_c_volts_high_threshold: points.next()?,
+            phase_c_volts_low_threshold: points.next()?,
         })
-        .collect();
+    });
 
-    let ders = group_by_index_gap(ders_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 15 {
-                warn_equipment_group_size(errors, "AI", "DER unit", group_idx, pts.len(), 15);
-                return None;
-            }
-            let mut it = pts.into_iter();
-            Some(AiDer {
-                unit_type: it.next()?,
-                nameplate_energy_capacity: it.next()?,
-                normal_operating_performance_category: it.next()?,
-                abnormal_operating_performance_category: it.next()?,
-                max_apparent_generation_power: it.next()?,
-                max_apparent_charging_power: it.next()?,
-                operational_time: it.next()?,
-                connection_time: it.next()?,
-                available_active_generation_power: it.next()?,
-                available_active_charging_power: it.next()?,
-                available_reactive_injection_power: it.next()?,
-                available_reactive_absorption_power: it.next()?,
-                non_impacting_injection_vars: it.next()?,
-                non_impacting_absorption_vars: it.next()?,
-                link_to_meter: it.next()?,
-            })
+    let ders = build_equipment_records(ders_flat, "AI", "DER unit", 15, errors, |mut points| {
+        Some(AiDer {
+            unit_type: points.next()?,
+            nameplate_energy_capacity: points.next()?,
+            normal_operating_performance_category: points.next()?,
+            abnormal_operating_performance_category: points.next()?,
+            max_apparent_generation_power: points.next()?,
+            max_apparent_charging_power: points.next()?,
+            operational_time: points.next()?,
+            connection_time: points.next()?,
+            available_active_generation_power: points.next()?,
+            available_active_charging_power: points.next()?,
+            available_reactive_injection_power: points.next()?,
+            available_reactive_absorption_power: points.next()?,
+            non_impacting_injection_vars: points.next()?,
+            non_impacting_absorption_vars: points.next()?,
+            link_to_meter: points.next()?,
         })
-        .collect();
+    });
 
-    let inverters = group_by_index_gap(inverters_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 34 {
-                warn_equipment_group_size(errors, "AI", "inverter", group_idx, pts.len(), 34);
-                return None;
-            }
-            let mut it = pts.into_iter();
+    let inverters = build_equipment_records(
+        inverters_flat,
+        "AI",
+        "inverter",
+        34,
+        errors,
+        |mut points| {
             Some(AiInverter {
-                apparent_power_calc_method: it.next()?,
-                active_power_target: it.next()?,
-                reactive_power_target: it.next()?,
-                active_power: it.next()?,
-                reactive_power: it.next()?,
-                power_factor: it.next()?,
-                apparent_power: it.next()?,
-                dc_input_power: it.next()?,
-                dc_voltage: it.next()?,
-                dc_current: it.next()?,
-                avg_line_to_neutral_voltage: it.next()?,
-                voltage_phase_a_to_b: it.next()?,
-                voltage_phase_b_to_c: it.next()?,
-                voltage_phase_c_to_a: it.next()?,
-                ac_current: it.next()?,
-                current_phase_a: it.next()?,
-                current_phase_b: it.next()?,
-                current_phase_c: it.next()?,
-                internal_temperature: it.next()?,
-                heat_sink_temperature: it.next()?,
-                transformer_temperature: it.next()?,
-                active_power_high_threshold: it.next()?,
-                active_power_low_threshold: it.next()?,
-                reactive_power_high_threshold: it.next()?,
-                reactive_power_low_threshold: it.next()?,
-                frequency_high_threshold: it.next()?,
-                frequency_low_threshold: it.next()?,
-                dc_input_power_high_threshold: it.next()?,
-                dc_input_power_low_threshold: it.next()?,
-                dc_current_high_threshold: it.next()?,
-                dc_current_low_threshold: it.next()?,
-                dc_voltage_high_threshold: it.next()?,
-                dc_voltage_low_threshold: it.next()?,
-                link_to_der_unit: it.next()?,
+                apparent_power_calc_method: points.next()?,
+                active_power_target: points.next()?,
+                reactive_power_target: points.next()?,
+                active_power: points.next()?,
+                reactive_power: points.next()?,
+                power_factor: points.next()?,
+                apparent_power: points.next()?,
+                dc_input_power: points.next()?,
+                dc_voltage: points.next()?,
+                dc_current: points.next()?,
+                avg_line_to_neutral_voltage: points.next()?,
+                voltage_phase_a_to_b: points.next()?,
+                voltage_phase_b_to_c: points.next()?,
+                voltage_phase_c_to_a: points.next()?,
+                ac_current: points.next()?,
+                current_phase_a: points.next()?,
+                current_phase_b: points.next()?,
+                current_phase_c: points.next()?,
+                internal_temperature: points.next()?,
+                heat_sink_temperature: points.next()?,
+                transformer_temperature: points.next()?,
+                active_power_high_threshold: points.next()?,
+                active_power_low_threshold: points.next()?,
+                reactive_power_high_threshold: points.next()?,
+                reactive_power_low_threshold: points.next()?,
+                frequency_high_threshold: points.next()?,
+                frequency_low_threshold: points.next()?,
+                dc_input_power_high_threshold: points.next()?,
+                dc_input_power_low_threshold: points.next()?,
+                dc_current_high_threshold: points.next()?,
+                dc_current_low_threshold: points.next()?,
+                dc_voltage_high_threshold: points.next()?,
+                dc_voltage_low_threshold: points.next()?,
+                link_to_der_unit: points.next()?,
             })
-        })
-        .collect();
+        },
+    );
 
-    let batteries = group_by_index_gap(batteries_flat, get_num)
-        .into_iter()
-        .enumerate()
-        .filter_map(|(group_idx, pts)| {
-            if pts.len() != 28 {
-                warn_equipment_group_size(errors, "AI", "battery", group_idx, pts.len(), 28);
-                return None;
-            }
-            let mut it = pts.into_iter();
+    let batteries =
+        build_equipment_records(batteries_flat, "AI", "battery", 28, errors, |mut points| {
             Some(AiBattery {
-                type_of_storage: it.next()?,
-                nameplate_actual_capacity: it.next()?,
-                effective_capacity: it.next()?,
-                minimum_reserve: it.next()?,
-                maximum_reserve: it.next()?,
-                battery_state: it.next()?,
-                actual_state_of_charge: it.next()?,
-                state_of_health: it.next()?,
-                external_voltage: it.next()?,
-                internal_voltage: it.next()?,
-                current: it.next()?,
-                power: it.next()?,
-                min_cell_voltage: it.next()?,
-                max_cell_voltage: it.next()?,
-                min_temperature: it.next()?,
-                max_temperature: it.next()?,
-                external_ambient_temperature: it.next()?,
-                internal_ambient_temperature: it.next()?,
-                charge_current_limit: it.next()?,
-                discharge_current_limit: it.next()?,
-                min_voltage_limit: it.next()?,
-                max_voltage_limit: it.next()?,
-                connected_string_count: it.next()?,
-                external_voltage_high_threshold: it.next()?,
-                external_voltage_low_threshold: it.next()?,
-                internal_voltage_high_threshold: it.next()?,
-                internal_voltage_low_threshold: it.next()?,
-                link_to_inverter: it.next()?,
+                type_of_storage: points.next()?,
+                nameplate_actual_capacity: points.next()?,
+                effective_capacity: points.next()?,
+                minimum_reserve: points.next()?,
+                maximum_reserve: points.next()?,
+                battery_state: points.next()?,
+                actual_state_of_charge: points.next()?,
+                state_of_health: points.next()?,
+                external_voltage: points.next()?,
+                internal_voltage: points.next()?,
+                current: points.next()?,
+                power: points.next()?,
+                min_cell_voltage: points.next()?,
+                max_cell_voltage: points.next()?,
+                min_temperature: points.next()?,
+                max_temperature: points.next()?,
+                external_ambient_temperature: points.next()?,
+                internal_ambient_temperature: points.next()?,
+                charge_current_limit: points.next()?,
+                discharge_current_limit: points.next()?,
+                min_voltage_limit: points.next()?,
+                max_voltage_limit: points.next()?,
+                connected_string_count: points.next()?,
+                external_voltage_high_threshold: points.next()?,
+                external_voltage_low_threshold: points.next()?,
+                internal_voltage_high_threshold: points.next()?,
+                internal_voltage_low_threshold: points.next()?,
+                link_to_inverter: points.next()?,
             })
-        })
-        .collect();
+        });
 
     let schedules_bc: Vec<AiScheduleBC> = if schedules_bc_flat.len() >= 12 {
         let mut it = schedules_bc_flat.into_iter();

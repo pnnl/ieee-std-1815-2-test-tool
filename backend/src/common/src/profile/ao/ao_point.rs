@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::profile::{
+    Point,
     validation::{ValidationError, ValidationErrors},
     values::{EngineeringF64, TransmissionI32},
 };
@@ -21,6 +22,12 @@ pub struct AoPoint {
     pub purpose: String,
     pub mandatory_1815: bool,
     pub mandatory_1547: bool,
+}
+
+impl Point for AoPoint {
+    fn point_index(&self) -> u16 {
+        self.point_index
+    }
 }
 
 impl AoPoint {

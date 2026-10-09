@@ -51,6 +51,7 @@ mod enums;
 mod event_class;
 pub mod indexed_db;
 mod key_sheet;
+mod point;
 mod multiplexing {
     pub mod database_entry;
 }
@@ -88,6 +89,7 @@ pub use databases_config::{DEFAULT_MAX_DATABASE_ENTRIES, DatabasesConfig};
 pub use indexed_db::AiValue;
 pub use multiplexing::database_entry::DatabaseEntry;
 pub use pics_profile::{EquipmentInfo, EquipmentPoints, PicsProfile, SectionInfo, SectionPoints};
+pub use point::Point;
 pub use profile_index::ProfileIndex;
 pub use schedules::schedule_bc_db::ScheduleBCDatabase;
 pub use schedules::schedule_db::ScheduleDatabase;
