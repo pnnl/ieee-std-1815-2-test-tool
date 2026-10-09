@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::profile::{validation::ValidationErrors, values::TransmissionI32};
 
-use super::AiPoint;
+use super::{AiPoint, DatabaseEntry};
 
 /// A single AI point: its DNP3 index paired with its raw transmitted integer value.
 ///
@@ -45,21 +45,6 @@ impl TryFrom<&AiPoint> for AiValue {
     }
 
     type Error = ValidationErrors;
-}
-
-/// Trait required for entries stored in an [`IndexedEntryDatabase`].
-pub trait DatabaseEntry: Clone {
-    /// Return all AI values for this entry (header fields + data slots).
-    /// Values are raw transmitted integers; apply scaling before use in control logic.
-    fn all_values(&self) -> Vec<AiValue>;
-    /// Update the stored raw transmitted value for `ai_index`. Returns `true` if the index was found.
-    /// Implementations must also mark the AI index as written in their internal tracker.
-    fn update_value(&mut self, ai_index: u16, new_value: TransmissionI32) -> bool;
-    /// Return a blank copy of this entry: same vector structure and AI indices as `self`,
-    /// all values zeroed to 0, and the written tracker empty.
-    fn create_blank_instance(&self) -> Self;
-    /// Return only the AI values that have been explicitly written (via `update_value`).
-    fn received_values(&self) -> Vec<AiValue>;
 }
 
 /// Generic container for 1-based indexed database entries.

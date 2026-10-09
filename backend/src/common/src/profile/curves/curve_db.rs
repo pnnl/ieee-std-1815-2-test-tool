@@ -6,7 +6,8 @@ use crate::profile::validation::{Validated, ValidationErrors};
 use crate::profile::values::TransmissionI32;
 use crate::uids::ai_uid::AiUid;
 
-use crate::profile::indexed_db::{AiValue, DatabaseEntry, IndexedEntryDatabase};
+use crate::profile::DatabaseEntry;
+use crate::profile::indexed_db::{AiValue, IndexedEntryDatabase};
 use crate::profile::{AiCurve, PicsProfile};
 
 /// Current values and AI indices for a single curve.
@@ -65,27 +66,20 @@ impl DatabaseEntry for CurveEntry {
         out
     }
 
-    fn update_value(&mut self, ai_index: u16, new_value: TransmissionI32) -> bool {
-        for field in [
+    fn all_values_mut(&mut self) -> impl Iterator<Item = &mut AiValue> {
+        [
             &mut self.curve_type,
             &mut self.number_of_points,
             &mut self.x_units,
             &mut self.y_units,
-        ] {
-            if field.index == ai_index {
-                field.value = new_value;
-                self.written.insert(ai_index);
-                return true;
-            }
-        }
-        for field in self.x_values.iter_mut().chain(self.y_values.iter_mut()) {
-            if field.index == ai_index {
-                field.value = new_value;
-                self.written.insert(ai_index);
-                return true;
-            }
-        }
-        false
+        ]
+        .into_iter()
+        .chain(self.x_values.iter_mut())
+        .chain(self.y_values.iter_mut())
+    }
+
+    fn mark_written(&mut self, ai_index: u16) {
+        self.written.insert(ai_index);
     }
 
     fn create_blank_instance(&self) -> Self {
