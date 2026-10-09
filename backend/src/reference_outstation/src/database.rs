@@ -26,12 +26,12 @@ fn to_dnp3_event_class(class: &ProfileEventClass) -> Option<EventClass> {
 pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<PicsProfile>) {
     let synced_zero = Time::Synchronized(Timestamp::new(0));
 
-    outstation.transaction(|db| {
+    outstation.transaction(|dnp3_db| {
         // Binary inputs from profile — initialized to true so conformance tests pass
         // before the control station issues its first BO sync.
         for bi in profile.bi.all_bi_points() {
             let event_class = to_dnp3_event_class(&bi.event_class);
-            db.add(
+            dnp3_db.add(
                 bi.point_index,
                 event_class,
                 BinaryInputConfig {
@@ -39,7 +39,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
                     e_var: EventBinaryInputVariation::Group2Var2,
                 },
             );
-            db.update(
+            dnp3_db.update(
                 bi.point_index,
                 &BinaryInput::new(true, Flags::ONLINE, synced_zero),
                 UpdateOptions::no_event(),
@@ -48,7 +48,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
 
         // Binary output status from profile
         for bo in &profile.bo.points {
-            db.add(
+            dnp3_db.add(
                 bo.point_index,
                 Some(EventClass::Class1),
                 BinaryOutputStatusConfig::default(),
@@ -58,7 +58,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
         // Analog inputs from profile (base + equipment, excluding curves/schedules)
         for ai in profile.ai.base_ai_points() {
             let event_class = to_dnp3_event_class(&ai.event_class);
-            db.add(
+            dnp3_db.add(
                 ai.point_index,
                 event_class,
                 AnalogInputConfig {
@@ -70,7 +70,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
 
             match TransmissionI32::try_from_engineering(ai.value(), ai.multiplier(), ai.offset) {
                 Ok(transmission_value) => {
-                    db.update(
+                    dnp3_db.update(
                         ai.point_index,
                         &AnalogInput::new(
                             f64::from(transmission_value.0),
@@ -103,7 +103,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
                 .iter()
                 .flat_map(|e| e.all_values())
             {
-                db.add(
+                dnp3_db.add(
                     point.index,
                     Some(EventClass::Class2),
                     AnalogInputConfig {
@@ -112,7 +112,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
                         deadband: 0.0,
                     },
                 );
-                db.update(
+                dnp3_db.update(
                     point.index,
                     &AnalogInput::new(point.value.0.into(), Flags::ONLINE, synced_zero),
                     UpdateOptions::no_event(),
@@ -132,7 +132,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
                 .iter()
                 .flat_map(|e| e.all_values())
             {
-                db.add(
+                dnp3_db.add(
                     point.index,
                     Some(EventClass::Class2),
                     AnalogInputConfig {
@@ -141,7 +141,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
                         deadband: 0.0,
                     },
                 );
-                db.update(
+                dnp3_db.update(
                     point.index,
                     &AnalogInput::new(point.value.0.into(), Flags::ONLINE, synced_zero),
                     UpdateOptions::no_event(),
@@ -161,7 +161,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
                 .iter()
                 .flat_map(|e| e.all_values())
             {
-                db.add(
+                dnp3_db.add(
                     point.index,
                     Some(EventClass::Class2),
                     AnalogInputConfig {
@@ -170,7 +170,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
                         deadband: 0.0,
                     },
                 );
-                db.update(
+                dnp3_db.update(
                     point.index,
                     &AnalogInput::new(point.value.0.into(), Flags::ONLINE, synced_zero),
                     UpdateOptions::no_event(),
@@ -180,7 +180,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
 
         // Analog outputs from profile
         for ao in profile.ao.all_ao_points() {
-            db.add(
+            dnp3_db.add(
                 ao.point_index,
                 Some(EventClass::Class2),
                 AnalogOutputStatusConfig {
@@ -193,7 +193,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
 
         // Counters and frozen counters from profile
         for ctr in &profile.ctr {
-            db.add(
+            dnp3_db.add(
                 ctr.point_index,
                 to_dnp3_event_class(&ctr.counter_event_class),
                 CounterConfig {
@@ -203,7 +203,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
                 },
             );
             if ctr.frozen_counter_exists {
-                db.add(
+                dnp3_db.add(
                     ctr.point_index,
                     to_dnp3_event_class(&ctr.frozen_counter_event_class),
                     FrozenCounterConfig {
