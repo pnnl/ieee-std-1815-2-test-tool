@@ -526,11 +526,11 @@ async fn stream_output<R: tokio::io::AsyncRead + Unpin>(
                             continue;
                         }
 
+                        log_subprocess_output(&source, &label, &clean);
+
                         if !forward_logs {
                             continue;
                         }
-
-                        log_subprocess_output(&source, &label, &clean);
 
                         let receiver_count = event_tx.receiver_count();
                         if line_count <= 5 || line_count.is_multiple_of(50) {
