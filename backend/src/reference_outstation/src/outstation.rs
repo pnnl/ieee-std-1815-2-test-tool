@@ -283,7 +283,7 @@ impl RefControlHandler {
                 return;
             };
             database.transaction(|dnp3_db| {
-                for curve_point in &curve_points {
+                for curve_point in curve_points.iter().filter_map(|point| point.as_ai()) {
                     tracing::debug!(
                         "Outstation curve {curve_number}: publishing stored AI{} = {} after selector AI{ai_index} changed",
                         curve_point.index,
@@ -302,7 +302,7 @@ impl RefControlHandler {
             });
         } else if db
             .template_entry()
-            .is_some_and(|s| s.all_values().iter().any(|v| v.index == ai_index))
+            .is_some_and(|s| s.all_ai_values().iter().any(|v| v.index == ai_index))
         {
             let curve_number = db.current_entry();
             tracing::debug!(
@@ -341,7 +341,7 @@ impl RefControlHandler {
                 return;
             };
             database.transaction(|dnp3_db| {
-                for point in &points {
+                for point in points.iter().filter_map(|point| point.as_ai()) {
                     dnp3_db.update(
                         point.index,
                         &StepFuncAnalogInput::new(
@@ -355,7 +355,7 @@ impl RefControlHandler {
             });
         } else if db
             .template_entry()
-            .is_some_and(|s| s.all_values().iter().any(|v| v.index == ai_index))
+            .is_some_and(|s| s.all_ai_values().iter().any(|v| v.index == ai_index))
         {
             drop(db);
             db_arc.write().unwrap().update_value(ai_index, value);
@@ -386,7 +386,7 @@ impl RefControlHandler {
                 return;
             };
             database.transaction(|dnp3_db| {
-                for point in &points {
+                for point in points.iter().filter_map(|point| point.as_ai()) {
                     dnp3_db.update(
                         point.index,
                         &StepFuncAnalogInput::new(
@@ -400,7 +400,7 @@ impl RefControlHandler {
             });
         } else if db
             .template_entry()
-            .is_some_and(|s| s.all_values().iter().any(|v| v.index == ai_index))
+            .is_some_and(|s| s.all_ai_values().iter().any(|v| v.index == ai_index))
         {
             drop(db);
             db_arc.write().unwrap().update_value(ai_index, value);

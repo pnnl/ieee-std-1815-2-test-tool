@@ -11,7 +11,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use common::profile::values::TransmissionI32;
+use common::profile::{AiValue, PointIndex, PointValue};
 use common::uids::{ai_uid::AiUid, ao_uid::AoUid, bi_uid::BiUid, bo_uid::BoUid};
 use common::{
     conformance_testing::{
@@ -155,20 +155,15 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                 });
             }
             Some(written) => {
-                let profile_values: Result<HashMap<u16, TransmissionI32>, ValidationErrors> = curve
-                    .iter_points()
-                    .into_iter()
-                    .map(|pt| {
-                        Ok((
-                            pt.point_index,
-                            TransmissionI32::try_from_engineering(
-                                pt.value(),
-                                pt.multiplier(),
-                                pt.offset,
-                            )?,
-                        ))
-                    })
-                    .collect();
+                let profile_values: Result<HashMap<PointIndex, PointValue>, ValidationErrors> =
+                    curve
+                        .iter_points()
+                        .into_iter()
+                        .map(|pt| {
+                            let point = PointValue::Ai(AiValue::try_from(pt)?);
+                            Ok((point.key(), point))
+                        })
+                        .collect();
 
                 let profile_values = match profile_values {
                     Ok(v) => v,
@@ -183,22 +178,22 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                     }
                 };
 
-                for ai_value in &written {
-                    if let Some(&expected) = profile_values.get(&ai_value.index) {
+                for point_value in &written {
+                    if let Some(expected) = profile_values.get(&point_value.key()) {
                         tracing::debug!(
-                            "Curve {entry_number}: validating outstation readback AI{} = {}; expected profile value is {}",
-                            ai_value.index,
-                            ai_value.value.0,
-                            expected.0
+                            "Curve {entry_number}: validating outstation readback {} = {}; expected profile value is {}",
+                            point_value.key(),
+                            point_value,
+                            expected
                         );
-                        if ai_value.value != expected {
+                        if point_value != expected {
                             comments.push(SunSpecComment {
                                     uid: format!("{selector_uid:?}"),
-                                    index: format!("Curve {entry_number} AI{}", ai_value.index),
-                                    value: format!("{}", ai_value.value.0),
+                                    index: format!("Curve {entry_number} {}", point_value.key()),
+                                    value: point_value.to_string(),
                                     issue: format!(
-                                        "For a control station curve point, the control station wrote that value to the outstation, but the outstation read back a different value. Curve #{}, Point AI{}: expected {}, got {}",
-                                        entry_number, ai_value.index, expected.0, ai_value.value.0
+                                        "For a control station curve point, the control station wrote that value to the outstation, but the outstation read back a different value. Curve #{}, Point {}: expected {}, got {}",
+                                        entry_number, point_value.key(), expected, point_value
                                     ),
                                 });
                         }
@@ -245,44 +240,39 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                 });
             }
             Some(written) => {
-                let profile_values: std::collections::HashMap<u16, TransmissionI32> = match schedule
-                    .iter_points()
-                    .into_iter()
-                    .filter(|point| point.assoc_ao.is_some())
-                    .map(|pt| -> Result<_, ValidationErrors> {
-                        Ok((
-                            pt.point_index,
-                            TransmissionI32::try_from_engineering(
-                                pt.value(),
-                                pt.multiplier(),
-                                pt.offset,
-                            )?,
-                        ))
-                    })
-                    .collect::<Result<_, _>>()
-                {
-                    Ok(v) => v,
-                    Err(err) => {
-                        comments.push(SunSpecComment {
-                            uid: selector_uid.clone(),
-                            index: format!("BC Schedule {entry_number}"),
-                            value: String::new(),
-                            issue: format!("BC Schedule {entry_number}: scaling error: {err}"),
-                        });
-                        continue;
-                    }
-                };
+                let profile_values: std::collections::HashMap<PointIndex, PointValue> =
+                    match schedule
+                        .iter_points()
+                        .into_iter()
+                        .filter(|point| point.assoc_ao.is_some())
+                        .map(|pt| -> Result<_, ValidationErrors> {
+                            let point = PointValue::Ai(AiValue::try_from(pt)?);
+                            Ok((point.key(), point))
+                        })
+                        .collect::<Result<_, _>>()
+                    {
+                        Ok(v) => v,
+                        Err(err) => {
+                            comments.push(SunSpecComment {
+                                uid: selector_uid.clone(),
+                                index: format!("BC Schedule {entry_number}"),
+                                value: String::new(),
+                                issue: format!("BC Schedule {entry_number}: scaling error: {err}"),
+                            });
+                            continue;
+                        }
+                    };
 
-                for ai_value in &written {
-                    if let Some(&expected) = profile_values.get(&ai_value.index) {
-                        if ai_value.value != expected {
+                for point_value in &written {
+                    if let Some(expected) = profile_values.get(&point_value.key()) {
+                        if point_value != expected {
                             comments.push(SunSpecComment {
                                     uid: selector_uid.clone(),
-                                    index: format!("BC Schedule {entry_number} AI{}", ai_value.index),
-                                    value: format!("{}", ai_value.value.0),
+                                    index: format!("BC Schedule {entry_number} {}", point_value.key()),
+                                    value: point_value.to_string(),
                                     issue: format!(
-                                        "BC Schedule {entry_number} AI{} readback {} does not match profile value {}",
-                                        ai_value.index, ai_value.value.0, expected.0
+                                        "BC Schedule {entry_number} {} readback {} does not match profile value {}",
+                                        point_value.key(), point_value, expected
                                     ),
                                 });
                         }
@@ -327,44 +317,39 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                 });
             }
             Some(written) => {
-                let profile_values: std::collections::HashMap<u16, TransmissionI32> = match schedule
-                    .iter_points()
-                    .into_iter()
-                    .filter(|point| point.assoc_ao.is_some())
-                    .map(|pt| -> Result<_, ValidationErrors> {
-                        Ok((
-                            pt.point_index,
-                            TransmissionI32::try_from_engineering(
-                                pt.value(),
-                                pt.multiplier(),
-                                pt.offset,
-                            )?,
-                        ))
-                    })
-                    .collect::<Result<_, _>>()
-                {
-                    Ok(v) => v,
-                    Err(err) => {
-                        comments.push(SunSpecComment {
-                            uid: selector_uid.clone(),
-                            index: format!("Schedule {entry_number}"),
-                            value: String::new(),
-                            issue: format!("Schedule {entry_number}: scaling error: {err}"),
-                        });
-                        continue;
-                    }
-                };
+                let profile_values: std::collections::HashMap<PointIndex, PointValue> =
+                    match schedule
+                        .iter_points()
+                        .into_iter()
+                        .filter(|point| point.assoc_ao.is_some())
+                        .map(|pt| -> Result<_, ValidationErrors> {
+                            let point = PointValue::Ai(AiValue::try_from(pt)?);
+                            Ok((point.key(), point))
+                        })
+                        .collect::<Result<_, _>>()
+                    {
+                        Ok(v) => v,
+                        Err(err) => {
+                            comments.push(SunSpecComment {
+                                uid: selector_uid.clone(),
+                                index: format!("Schedule {entry_number}"),
+                                value: String::new(),
+                                issue: format!("Schedule {entry_number}: scaling error: {err}"),
+                            });
+                            continue;
+                        }
+                    };
 
-                for ai_value in &written {
-                    if let Some(&expected) = profile_values.get(&ai_value.index) {
-                        if ai_value.value != expected {
+                for point_value in &written {
+                    if let Some(expected) = profile_values.get(&point_value.key()) {
+                        if point_value != expected {
                             comments.push(SunSpecComment {
                                     uid: selector_uid.clone(),
-                                    index: format!("Schedule {entry_number} AI{}", ai_value.index),
-                                    value: format!("{}", ai_value.value.0),
+                                    index: format!("Schedule {entry_number} {}", point_value.key()),
+                                    value: point_value.to_string(),
                                     issue: format!(
-                                        "Schedule {entry_number} AI{} readback {} does not match profile value {}",
-                                        ai_value.index, ai_value.value.0, expected.0
+                                        "Schedule {entry_number} {} readback {} does not match profile value {}",
+                                        point_value.key(), point_value, expected
                                     ),
                                 });
                         }

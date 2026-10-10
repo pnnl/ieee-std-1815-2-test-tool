@@ -101,7 +101,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
             for point in curve_db
                 .template_entry()
                 .iter()
-                .flat_map(|e| e.all_values())
+                .flat_map(|e| e.all_ai_values())
             {
                 dnp3_db.add(
                     point.index,
@@ -130,7 +130,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
             for point in schedule_bc_db
                 .template_entry()
                 .iter()
-                .flat_map(|e| e.all_values())
+                .flat_map(|e| e.all_ai_values())
             {
                 dnp3_db.add(
                     point.index,
@@ -159,7 +159,7 @@ pub(crate) fn init_database(outstation: &OutstationHandle, profile: &Validated<P
             for point in schedule_db
                 .template_entry()
                 .iter()
-                .flat_map(|e| e.all_values())
+                .flat_map(|e| e.all_ai_values())
             {
                 dnp3_db.add(
                     point.index,
@@ -280,7 +280,7 @@ pub(crate) fn reinit_database(
             for point in curve_db
                 .template_entry()
                 .iter()
-                .flat_map(|e| e.all_values())
+                .flat_map(|e| e.all_ai_values())
             {
                 <Database as Remove<AnalogInput>>::remove(db, point.index);
             }
@@ -296,7 +296,7 @@ pub(crate) fn reinit_database(
             for point in schedule_bc_db
                 .template_entry()
                 .iter()
-                .flat_map(|e| e.all_values())
+                .flat_map(|e| e.all_ai_values())
             {
                 <Database as Remove<AnalogInput>>::remove(db, point.index);
             }
@@ -312,7 +312,7 @@ pub(crate) fn reinit_database(
             for point in schedule_db
                 .template_entry()
                 .iter()
-                .flat_map(|e| e.all_values())
+                .flat_map(|e| e.all_ai_values())
             {
                 <Database as Remove<AnalogInput>>::remove(db, point.index);
             }

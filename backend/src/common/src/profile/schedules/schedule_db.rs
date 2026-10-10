@@ -6,9 +6,10 @@ use crate::profile::validation::{Validated, ValidationErrors};
 use crate::profile::values::TransmissionI32;
 use crate::uids::ai_uid::AiUid;
 
-use crate::profile::DatabaseEntry;
-use crate::profile::indexed_db::{AiValue, IndexedEntryDatabase};
-use crate::profile::{AiSchedule, PicsProfile};
+use crate::profile::indexed_db::IndexedEntryDatabase;
+use crate::profile::multiplexing::point_value::PointIndex;
+use crate::profile::{AiSchedule, AiValue, PicsProfile, PointValue};
+use crate::profile::{BiValue, DatabaseEntry};
 
 /// Current values and AI indices for a single IEEE 1815.2 schedule.
 #[derive(Debug, Clone)]
@@ -44,7 +45,7 @@ pub struct ScheduleEntry {
     /// AI index and value for value slots.
     pub values: Vec<AiValue>,
     /// AI indices that have been explicitly written via a control operation.
-    written: HashSet<u16>,
+    written: HashSet<PointIndex>,
 }
 
 impl TryFrom<AiSchedule> for ScheduleEntry {
@@ -89,7 +90,11 @@ impl TryFrom<AiSchedule> for ScheduleEntry {
 }
 
 impl DatabaseEntry for ScheduleEntry {
-    fn all_values(&self) -> Vec<AiValue> {
+    fn all_bi_values(&self) -> Vec<BiValue> {
+        Vec::new()
+    }
+
+    fn all_ai_values(&self) -> Vec<AiValue> {
         let mut out = vec![
             self.identity,
             self.priority,
@@ -110,7 +115,7 @@ impl DatabaseEntry for ScheduleEntry {
         out
     }
 
-    fn all_values_mut(&mut self) -> impl Iterator<Item = &mut AiValue> {
+    fn all_ai_values_mut(&mut self) -> impl Iterator<Item = &mut AiValue> {
         [
             &mut self.identity,
             &mut self.priority,
@@ -131,8 +136,12 @@ impl DatabaseEntry for ScheduleEntry {
         .chain(self.values.iter_mut())
     }
 
-    fn mark_written(&mut self, ai_index: u16) {
-        self.written.insert(ai_index);
+    fn all_bi_values_mut(&mut self) -> impl Iterator<Item = &mut BiValue> {
+        std::iter::empty()
+    }
+
+    fn mark_written(&mut self, point_key: PointIndex) {
+        self.written.insert(point_key);
     }
 
     fn create_blank_instance(&self) -> Self {
@@ -172,10 +181,10 @@ impl DatabaseEntry for ScheduleEntry {
         }
     }
 
-    fn received_values(&self) -> Vec<AiValue> {
+    fn received_values(&self) -> Vec<PointValue> {
         self.all_values()
             .into_iter()
-            .filter(|v| self.written.contains(&v.index))
+            .filter(|v| self.written.contains(&v.key()))
             .collect()
     }
 }
@@ -224,8 +233,8 @@ impl ScheduleDatabase {
         }
     }
 
-    /// All AI values for the currently selected schedule entry, kept in sync with any updates.
-    pub fn current_entry_points(&self) -> Vec<AiValue> {
+    /// All values for the currently selected schedule entry, kept in sync with any updates.
+    pub fn current_entry_points(&self) -> Vec<PointValue> {
         self.inner_db.current_entry_points()
     }
 
@@ -248,7 +257,7 @@ impl ScheduleDatabase {
     /// # TODO
     /// When schedule execution is implemented, action_type values within the entry will
     /// determine whether each action_index and value maps to an AI, BI, or other point type.
-    pub fn set_active_entry(&mut self, entry_number: u16) -> Option<Vec<AiValue>> {
+    pub fn set_active_entry(&mut self, entry_number: u16) -> Option<Vec<PointValue>> {
         let points = self
             .inner_db
             .get_or_create_entry(entry_number)
@@ -296,7 +305,7 @@ impl ScheduleDatabase {
     }
 
     /// Return only the AI values that have been explicitly written for the given schedule number.
-    pub fn written_values(&self, schedule_number: u16) -> Option<Vec<AiValue>> {
+    pub fn written_values(&self, schedule_number: u16) -> Option<Vec<PointValue>> {
         self.inner_db
             .get(schedule_number)
             .map(|e| e.received_values())
@@ -521,8 +530,8 @@ mod tests {
         let mut db = ScheduleDatabase::from_profile(&profile, 2, AiUid::Scheduling_FSCC_Schd);
         db.update_value(3002, TransmissionI32(3));
         let written = db.written_values(1).unwrap();
-        assert!(written.iter().any(|v| v.index == 3002));
-        assert!(!written.iter().any(|v| v.index == 3001));
+        assert!(written.iter().any(|v| v.key() == PointIndex::Ai(3002)));
+        assert!(!written.iter().any(|v| v.key() == PointIndex::Ai(3001)));
     }
 
     #[test]
@@ -530,7 +539,7 @@ mod tests {
         let profile = make_profile_with_schedule();
         let mut db = ScheduleDatabase::from_profile(&profile, 4, AiUid::Scheduling_FSCC_Schd);
         let points = db.set_active_entry(1).expect("entry 1 should exist");
-        assert!(points.iter().any(|v| v.index == 3001));
+        assert!(points.iter().any(|v| v.key() == PointIndex::Ai(3001)));
     }
 
     #[test]
@@ -550,11 +559,10 @@ mod tests {
             .expect("blank entry 2 should be created");
         assert_eq!(db.current_entry(), 2);
         assert_eq!(db.len(), 2);
-        assert!(
-            points
-                .iter()
-                .any(|v| v.index == 3001 && v.value == TransmissionI32(0))
-        );
+        assert!(points.iter().any(|v| {
+            v.as_ai()
+                .is_some_and(|ai| ai.index == 3001 && ai.value == TransmissionI32(0))
+        }));
         assert!(db.written_values(2).unwrap().is_empty());
     }
 
@@ -566,11 +574,10 @@ mod tests {
         db.update_value(3002, TransmissionI32(9));
         assert_eq!(db.get(2).unwrap().priority.value, TransmissionI32(9));
         let written = db.written_values(2).unwrap();
-        assert!(
-            written
-                .iter()
-                .any(|v| v.index == 3002 && v.value == TransmissionI32(9))
-        );
+        assert!(written.iter().any(|v| {
+            v.as_ai()
+                .is_some_and(|ai| ai.index == 3002 && ai.value == TransmissionI32(9))
+        }));
         // Entry 1 unaffected
         assert_eq!(db.get(1).unwrap().priority.value, TransmissionI32(0));
     }
@@ -613,7 +620,7 @@ mod tests {
                 .unwrap()
                 .all_values()
                 .iter()
-                .all(|v| v.value == TransmissionI32(0))
+                .all(|v| v.as_ai().unwrap().value == TransmissionI32(0))
         );
     }
 
