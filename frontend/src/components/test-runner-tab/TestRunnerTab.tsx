@@ -596,12 +596,12 @@ function TestRunnerTab({
                     key={log.id}
                     className={`${styles.logEntry} ${getSourceClass(log.source)}`}
                   >
-                    <span className={styles.logTimestamp}>{log.timestamp}</span>
+                    <span className={styles.logTimestamp}>{log.timestamp}</span>{' '}
                     <span
                       className={`${styles.logSource} ${getSourceClass(log.source)}`}
                     >
                       [{getSourceLabel(log.source)}]
-                    </span>
+                    </span>{' '}
                     <span
                       style={{ color: getLogMessageColor(log.message) }}
                       className={styles.logMessage}
