@@ -62,7 +62,7 @@ The `PicsProfile` object schema:
 }
 ```
 
-Equipment groups (`meters`, `ders`, `inverters`, `batteries`) are only populated when the XLSX sheet contains the corresponding section header row. Profile files in `data/profiles/` are flat (no section headers) and load all points into the base `points` list.
+Equipment groups (`meters`, `ders`, `inverters`, `batteries`) are populated using point-index boundaries from the Key sheet. Section header rows are not required: flat spreadsheets such as the profiles in `data/profiles/` also load points into their corresponding equipment groups. Points in the experimental range remain in the base `points` list.
 
 ## Build
 
@@ -81,4 +81,14 @@ cargo run -- ../../../data/profiles/full.xlsx ../../../data/profiles/full.json
 
 # Round-trip an existing JSON profile
 cargo run -- data/pics.json data/pics_out.json
+```
+
+## Utilities
+
+```sh
+# Regenerate all seed profiles
+cargo run -- ../../../data/profiles/full.xlsx ../../../data/profiles/full.json
+cargo run -- ../../../data/profiles/mandatory_1547.xlsx ../../../data/profiles/mandatory_1547.json
+cargo run -- ../../../data/profiles/mandatory_1815.xlsx ../../../data/profiles/mandatory_1815.json
+cargo run -- ../../../data/profiles/minimal_1547.xlsx ../../../data/profiles/minimal_1547.json
 ```

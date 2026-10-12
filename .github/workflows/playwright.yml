@@ -1,9 +1,9 @@
 name: Playwright Tests
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   test:
@@ -77,7 +77,7 @@ jobs:
 
       # Always tear down, even on test failure or cancellation, so the
       # runner is left clean for the next job. `down -v` drops the
-      # cargo-cache / cargo-registry volumes too — on ephemeral GitHub
+      # cargo-cache / cargo-registry volumes too - on ephemeral GitHub
       # runners they're throwaway anyway, and skipping --volumes here
       # would leave dangling state if the runner is ever reused.
       - name: Stop backend

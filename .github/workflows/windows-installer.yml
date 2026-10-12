@@ -94,6 +94,13 @@ jobs:
           $failed = $false
           foreach ($exe in $exes) {
             $deps = & $dumpbin /dependents $exe
+            if ($LASTEXITCODE -ne 0 -or -not $deps) {
+              Write-Error "$exe : dumpbin exited $LASTEXITCODE or produced no output"
+              $failed = $true
+              continue
+            }
+            Write-Host "$exe dependents:"
+            Write-Host ($deps | Out-String)
             if ($deps -match "VCRUNTIME140") {
               Write-Error "$exe imports a VCRUNTIME140 DLL: +crt-static did not take effect"
               $failed = $true

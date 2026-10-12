@@ -1,16 +1,17 @@
 /// Build script for the `common` crate.
 ///
-/// Reads `profile.json` and generates four typed index-enum files — one per DNP3 point type
+/// Reads `full.json` and generates four typed index-enum files — one per DNP3 point type
 /// (AI, BI, AO, BO) — into `OUT_DIR`. Each enum uses `#[repr(u16)]` so a variant's discriminant
 /// equals its raw DNP3 index; `uid as u16` retrieves the index with no runtime lookup.
 ///
-/// A `From<XxxUid> for UID` impl is also emitted so helpers can populate `SunSpecComment.uid`.
+/// Includes base points and points nested in equipment, curves, and schedules.
 use std::{fmt::Write as FmtWrite, fs, path::PathBuf};
 
 use serde_json::Value;
 
 fn main() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest_dir =
+        PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"));
     let profile_path = manifest_dir.join("../../../data/profiles/full.json");
     println!("cargo:rerun-if-changed={}", profile_path.display());
 
@@ -31,21 +32,49 @@ fn main() {
         ("AO", "AoUid"),
         ("BO", "BoUid"),
     ] {
-        let points = profile[collection_key]["points"]
+        profile[collection_key]["points"]
             .as_array()
             .unwrap_or_else(|| panic!("Expected {collection_key}.points to be an array"));
+        let mut points = Vec::new();
+        collect_points(&profile[collection_key], &mut points);
+        points.sort_by_key(|point| {
+            point["point_index"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("Missing/invalid point_index in point: {point}"))
+        });
 
-        let content = generate_typed_uid_enum(enum_name, points);
+        let content = generate_typed_uid_enum(enum_name, &points);
         let out_path = out_dir.join(format!("{}.rs", enum_name.to_lowercase()));
         fs::write(&out_path, &content)
             .unwrap_or_else(|err| panic!("Failed to write {}: {err}", out_path.display()));
     }
 }
 
+/// Find point objects at any depth within a single DNP3 point-type collection.
+fn collect_points<'a>(value: &'a Value, points: &mut Vec<&'a Value>) {
+    match value {
+        Value::Object(fields) => {
+            if fields.contains_key("point_index") || fields.contains_key("iec_61850_uid") {
+                points.push(value);
+            } else {
+                for child in fields.values() {
+                    collect_points(child, points);
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_points(item, points);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Generate a `#[repr(u16)]` enum file for one point type.
 ///
 /// Reads `point_index` (integer) and `iec_61850_uid` + `purpose` from each point in `full.json`.
-fn generate_typed_uid_enum(enum_name: &str, points: &[Value]) -> String {
+fn generate_typed_uid_enum(enum_name: &str, points: &[&Value]) -> String {
     let mut out = String::new();
 
     writeln!(

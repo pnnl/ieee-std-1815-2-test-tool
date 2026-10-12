@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::profile::EventClass;
+use crate::profile::{EventClass, Point};
 
 /// A binary input (BI) point defined in the PICS profile.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -16,4 +16,10 @@ pub struct BiPoint {
     pub purpose: String,
     pub mandatory_1815: bool,
     pub mandatory_1547: bool,
+}
+
+impl Point for BiPoint {
+    fn point_index(&self) -> u16 {
+        self.point_index
+    }
 }

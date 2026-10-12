@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "backend/src/common",
+    "backend/src/launcher",
     "backend/src/pics_validator",
     "backend/src/scenario_generator",
     "backend/src/web_server",

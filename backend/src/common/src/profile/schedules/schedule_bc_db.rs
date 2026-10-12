@@ -2,12 +2,14 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::profile::multiplexing::point_value::PointIndex;
 use crate::profile::validation::{Validated, ValidationErrors};
 use crate::profile::values::TransmissionI32;
 use crate::uids::ai_uid::AiUid;
 
-use crate::profile::indexed_db::{AiValue, DatabaseEntry, IndexedEntryDatabase};
+use crate::profile::indexed_db::IndexedEntryDatabase;
 use crate::profile::{AiScheduleBC, PicsProfile};
+use crate::profile::{AiValue, BiValue, DatabaseEntry, PointValue};
 
 /// Current values and AI indices for a single backward-compatible schedule.
 #[derive(Debug, Clone)]
@@ -37,7 +39,7 @@ pub struct ScheduleBCEntry {
     /// AI index and value for value slots.
     pub values: Vec<AiValue>,
     /// AI indices that have been explicitly written via a control operation.
-    written: HashSet<u16>,
+    written: HashSet<PointIndex>,
 }
 
 impl TryFrom<&AiScheduleBC> for ScheduleBCEntry {
@@ -71,7 +73,11 @@ impl TryFrom<&AiScheduleBC> for ScheduleBCEntry {
 }
 
 impl DatabaseEntry for ScheduleBCEntry {
-    fn all_values(&self) -> Vec<AiValue> {
+    fn all_bi_values(&self) -> Vec<BiValue> {
+        vec![]
+    }
+
+    fn all_ai_values(&self) -> Vec<AiValue> {
         let mut out = vec![
             self.identity,
             self.priority,
@@ -89,8 +95,8 @@ impl DatabaseEntry for ScheduleBCEntry {
         out
     }
 
-    fn update_value(&mut self, ai_index: u16, new_value: TransmissionI32) -> bool {
-        for field in [
+    fn all_ai_values_mut(&mut self) -> impl Iterator<Item = &mut AiValue> {
+        [
             &mut self.identity,
             &mut self.priority,
             &mut self.schedule_type,
@@ -101,24 +107,21 @@ impl DatabaseEntry for ScheduleBCEntry {
             &mut self.validation_status,
             &mut self.status,
             &mut self.number_of_points,
-        ] {
-            if field.index == ai_index {
-                field.value = new_value;
-                self.written.insert(ai_index);
-                return true;
-            }
-        }
-        for field in self.time_offsets.iter_mut().chain(self.values.iter_mut()) {
-            if field.index == ai_index {
-                field.value = new_value;
-                self.written.insert(ai_index);
-                return true;
-            }
-        }
-        false
+        ]
+        .into_iter()
+        .chain(self.time_offsets.iter_mut())
+        .chain(self.values.iter_mut())
     }
 
-    fn blank(&self) -> Self {
+    fn all_bi_values_mut(&mut self) -> impl Iterator<Item = &mut BiValue> {
+        std::iter::empty()
+    }
+
+    fn mark_written(&mut self, ai_index: PointIndex) {
+        self.written.insert(ai_index);
+    }
+
+    fn create_blank_instance(&self) -> Self {
         Self {
             identity: AiValue::new(self.identity.index, 0),
             priority: AiValue::new(self.priority.index, 0),
@@ -144,10 +147,10 @@ impl DatabaseEntry for ScheduleBCEntry {
         }
     }
 
-    fn received_values(&self) -> Vec<AiValue> {
+    fn received_values(&self) -> Vec<PointValue> {
         self.all_values()
             .into_iter()
-            .filter(|v| self.written.contains(&v.index))
+            .filter(|v| self.written.contains(&v.key()))
             .collect()
     }
 }
@@ -192,8 +195,8 @@ impl ScheduleBCDatabase {
         }
     }
 
-    /// All AI values for the currently selected schedule entry, kept in sync with any updates.
-    pub fn current_entry_points(&self) -> Vec<AiValue> {
+    /// All values for the currently selected schedule entry, kept in sync with any updates.
+    pub fn current_entry_points(&self) -> Vec<PointValue> {
         self.inner_db.current_entry_points()
     }
 
@@ -212,7 +215,7 @@ impl ScheduleBCDatabase {
     /// If the entry does not exist but is within `max_schedules`, a blank entry is created.
     /// Returns `None` if `entry_number` is out of range or no template entry exists.
     /// The returned values should be pushed into the DNP3 database.
-    pub fn set_active_entry(&mut self, entry_number: u16) -> Option<Vec<AiValue>> {
+    pub fn set_active_entry(&mut self, entry_number: u16) -> Option<Vec<PointValue>> {
         let points = self
             .inner_db
             .get_or_create_entry(entry_number)
@@ -260,7 +263,7 @@ impl ScheduleBCDatabase {
     }
 
     /// Return only the AI values that have been explicitly written for the given schedule number.
-    pub fn written_values(&self, schedule_number: u16) -> Option<Vec<AiValue>> {
+    pub fn written_values(&self, schedule_number: u16) -> Option<Vec<PointValue>> {
         self.inner_db
             .get(schedule_number)
             .map(|e| e.received_values())
@@ -490,8 +493,8 @@ mod tests {
             ScheduleBCDatabase::from_profile(&profile, 2, AiUid::BC_Scheduling_BC_FSCC_Schd);
         db.update_value(2003, TransmissionI32(5));
         let written = db.written_values(1).unwrap();
-        assert!(written.iter().any(|v| v.index == 2003));
-        assert!(!written.iter().any(|v| v.index == 2002));
+        assert!(written.iter().any(|v| v.key() == PointIndex::Ai(2003)));
+        assert!(!written.iter().any(|v| v.key() == PointIndex::Ai(2002)));
     }
 
     #[test]
@@ -500,7 +503,7 @@ mod tests {
         let mut db =
             ScheduleBCDatabase::from_profile(&profile, 4, AiUid::BC_Scheduling_BC_FSCC_Schd);
         let points = db.set_active_entry(1).expect("entry 1 should exist");
-        assert!(points.iter().any(|v| v.index == 2002));
+        assert!(points.iter().any(|v| v.key() == PointIndex::Ai(2002)));
     }
 
     #[test]
@@ -522,11 +525,9 @@ mod tests {
             .expect("blank entry 2 should be created");
         assert_eq!(db.current_entry(), 2);
         assert_eq!(db.len(), 2);
-        assert!(
-            points
-                .iter()
-                .any(|v| v.index == 2002 && v.value == TransmissionI32(0))
-        );
+        assert!(points.iter().any(|v| {
+            v.key() == PointIndex::Ai(2002) && v.as_ai().unwrap().value == TransmissionI32(0)
+        }));
         assert!(db.written_values(2).unwrap().is_empty());
     }
 
@@ -539,11 +540,9 @@ mod tests {
         db.update_value(2003, TransmissionI32(8));
         assert_eq!(db.get(2).unwrap().priority.value, TransmissionI32(8));
         let written = db.written_values(2).unwrap();
-        assert!(
-            written
-                .iter()
-                .any(|v| v.index == 2003 && v.value == TransmissionI32(8))
-        );
+        assert!(written.iter().any(|v| {
+            v.key() == PointIndex::Ai(2003) && v.as_ai().unwrap().value == TransmissionI32(8)
+        }));
         assert_eq!(db.get(1).unwrap().priority.value, TransmissionI32(0));
     }
 
@@ -578,7 +577,7 @@ mod tests {
                 .unwrap()
                 .all_values()
                 .iter()
-                .all(|v| v.value == TransmissionI32(0))
+                .all(|v| v.as_ai().unwrap().value == TransmissionI32(0))
         );
     }
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NumberInput } from '@/components/ui/number-input'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
-import { MAX_CURVES } from '../utils/curveUtils'
+import { getMaxCurves } from '../utils/curveUtils'
 import {
   getEquipmentCount,
   setCurveCount,
@@ -67,7 +67,10 @@ function EntitiesTab({
   }
 
   const handleCurveCountChange = (value: string | number) => {
-    const newCount = Math.max(0, Math.min(MAX_CURVES, Number(value) || 0))
+    const newCount = Math.max(
+      0,
+      Math.min(getMaxCurves(profileData), Number(value) || 0),
+    )
     setProfileData(setCurveCount(profileData, newCount))
   }
 
@@ -114,7 +117,7 @@ function EntitiesTab({
           </p>
           <NumberInput
             min={0}
-            max={MAX_CURVES}
+            max={getMaxCurves(profileData)}
             step={1}
             value={curveCount}
             onChange={(val) => handleCurveCountChange(val)}
