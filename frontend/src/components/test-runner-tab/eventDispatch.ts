@@ -1,11 +1,13 @@
 import {
   type ConformanceTestResult,
+  type PointCheckResult,
   type LogSource,
   type ProcessName,
   type ProcessStatus,
   type TestRunnerEvent,
   type TestRunnerScenarioStatusMessage,
   isConformanceTestResult,
+  isPointCheckResult,
   isScenarioStatusMessage,
   isStatusMessage,
 } from './types'
@@ -14,6 +16,7 @@ export interface EventDispatchCallbacks {
   addLog: (source: LogSource, message: string) => void
   setProcessStatus: (process: ProcessName, status: ProcessStatus) => void
   recordConformanceResult: (result: ConformanceTestResult) => void
+  recordPointCheckResult: (result: PointCheckResult) => void
   warnUnknown: (eventData: TestRunnerEvent) => void
 }
 
@@ -78,6 +81,11 @@ export function dispatchTestRunnerEvent(
 
   if (event_type === 'scenario_status' && isScenarioStatusMessage(message)) {
     callbacks.addLog('test_runner', formatScenarioStatusLog(message))
+    return
+  }
+
+  if (event_type === 'point_check_result' && isPointCheckResult(message)) {
+    callbacks.recordPointCheckResult(message)
     return
   }
 

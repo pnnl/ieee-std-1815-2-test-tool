@@ -19,11 +19,29 @@ use tracing::{debug, Event, Subscriber};
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
 use crate::conformance_testing::message_structure::{
-    SunSpecComment, SunSpecMessage, TestEvent, TestName,
+    PointCheckResult, SunSpecComment, SunSpecMessage, TestEvent, TestName,
 };
 
 pub const CONFORMANCE_TESTING_TARGET: &str = "conformance";
 pub const EVENT_FIELD_NAME: &str = "event_json";
+pub const POINT_CHECK_PREFIX: &str = "MESA_POINT_CHECK_EVENT:";
+
+/// Emit a self-contained point result using the subprocess event protocol.
+pub fn log_point_check_result(mut result: PointCheckResult) {
+    static SEQUENCE: Mutex<u64> = Mutex::new(0);
+    let mut sequence = SEQUENCE.lock().expect("point check sequence lock poisoned");
+    *sequence += 1;
+    result.sequence = *sequence;
+    result.timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_millis() as u64;
+    if let Ok(json) = serde_json::to_string(&result) {
+        let mut stdout = std::io::stdout().lock();
+        let _ = writeln!(stdout, "{POINT_CHECK_PREFIX}{json}");
+        let _ = stdout.flush();
+    }
+}
 
 /// Logs a conformance test result as a structured tracing event.
 pub fn log_conformance_result(pass: bool, comments: Vec<SunSpecComment>) {

@@ -1,0 +1,118 @@
+.section {
+  padding-block: 6px;
+}
+
+.disclosure {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.children {
+  padding-left: 20px;
+}
+
+.pointHeader {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.table .pointCell {
+  width: 40%;
+  min-width: 200px;
+  color: inherit;
+  font-size: 13px;
+  font-weight: normal;
+  vertical-align: top;
+}
+
+.pointIndex {
+  color: var(--gray-11);
+  font-size: 12px;
+}
+
+.uid {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--gray-11);
+  overflow-wrap: anywhere;
+}
+
+.tableContainer {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  margin-block: 6px;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.table th,
+.table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--gray-5);
+}
+
+.table th {
+  color: var(--gray-11);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.result {
+  min-width: 88px;
+  text-align: center;
+}
+
+.resultChecks {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resultButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.resultButton[data-passed='true'] {
+  color: var(--green-11);
+}
+
+.resultButton[data-passed='false'] {
+  color: var(--red-11);
+}
+
+.evidence {
+  color: var(--gray-11);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.evidence > div + div {
+  margin-top: 4px;
+}
+
+.empty {
+  margin-block: 8px;
+  color: var(--gray-11);
+  font-size: 13px;
+}

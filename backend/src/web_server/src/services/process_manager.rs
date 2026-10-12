@@ -11,7 +11,10 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
-use common::conformance_testing::message_structure::TestName;
+use common::conformance_testing::{
+    logging::POINT_CHECK_PREFIX,
+    message_structure::{PointCheckResult, TestName},
+};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{Mutex, broadcast};
@@ -560,6 +563,19 @@ async fn stream_output<R: tokio::io::AsyncRead + Unpin>(
 
                         // Check for conformance event prefix
                         if !skip_conformance {
+                            if let Some(json_str) = clean.strip_prefix(POINT_CHECK_PREFIX) {
+                                match serde_json::from_str::<PointCheckResult>(json_str) {
+                                    Ok(result) => {
+                                        let event = super::job_service::make_event(
+                                            "point_check_result", &source, &job_id,
+                                            serde_json::to_value(result).expect("point result is serializable"),
+                                        );
+                                        let _ = event_tx.send(event);
+                                    }
+                                    Err(err) => warn!("Invalid point check event: {err}"),
+                                }
+                                continue;
+                            }
                             if let Some(json_str) = clean.strip_prefix(CONFORMANCE_PREFIX) {
                                 info!(
                                     job_id = %job_id,

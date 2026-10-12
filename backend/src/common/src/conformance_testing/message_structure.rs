@@ -40,6 +40,44 @@ pub enum TestName {
     PSIG_001,
 }
 
+impl TestName {
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::MON_001 => "Monitoring",
+            Self::ALARM_001 => "Alarm Reporting",
+            Self::CONN_001 => "Connect and Disconnect",
+            Self::SERV_001 => "Cease to Energize and Return to Service",
+            Self::OP_001 => "Operation States",
+            Self::CURVE_001 => "Reference Indication",
+            Self::CURVE_002 => "Curve Locking",
+            Self::CURVE_003 => "Mode Type Mismatch",
+            Self::VRT_001 => "Voltage Ride-Through",
+            Self::FRT_001 => "Frequency Ride-Through",
+            Self::FW_001 => "Frequency-Watt",
+            Self::DRCS_001 => "Dynamic Reactive Current Support",
+            Self::DVW_001 => "Dynamic Volt-Watt",
+            Self::APL_001 => "Active Power Limit",
+            Self::CHG_001 => "Charge/Discharge Storage",
+            Self::CCM_001 => "Coordinates Charge/Discharge Management",
+            Self::APR1_001 => "Active Power Response 1",
+            Self::APR2_001 => "Active Power Response 2",
+            Self::APR3_001 => "Active Power Response 3",
+            Self::AGC_001 => "Automatic Generation Control",
+            Self::APS_001 => "Active Power Smoothing",
+            Self::VW_001 => "Volt-Watt",
+            Self::FWC_001 => "Frequency-Watt",
+            Self::CVAR_001 => "Constant VAR",
+            Self::FPF_001 => "Fixed Power Factor",
+            Self::VV_001 => "Volt-VAR Control",
+            Self::WV_001 => "Watt-VAR Control",
+            Self::PFC_001 => "Power Factor Correction",
+            Self::PSIG_001 => "Pricing Signal Control",
+            Self::SCHED_001 => "Backward-Compatible Scheduling",
+            Self::SCHED_002 => "Scheduling",
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SunSpecComment {
     pub uid: String,
@@ -65,4 +103,31 @@ pub struct SunSpecMessage {
 pub struct TestEvent {
     pub pass: bool,
     pub comments: Vec<SunSpecComment>,
+}
+
+/// Identity of a point whose behavior is being checked.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CheckPoint {
+    /// AI, BI, AO, or BO.
+    pub point_type: String,
+    pub index: u16,
+    pub uid: String,
+    pub name: Option<String>,
+}
+
+/// One completed check, streamed independently of the aggregate test result.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PointCheckResult {
+    pub scenario_id: String,
+    pub test: TestName,
+    pub group_name: String,
+    pub point: CheckPoint,
+    /// Increasing emission order within the subprocess.
+    pub sequence: u64,
+    /// Unix time in milliseconds.
+    pub timestamp: u64,
+    pub check_id: String,
+    pub expected_behavior: String,
+    pub passed: bool,
+    pub message: String,
 }

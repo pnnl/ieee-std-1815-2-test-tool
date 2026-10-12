@@ -15,6 +15,8 @@ function makeCallbacks(): MockedCallbacks {
     setProcessStatus: vi.fn<EventDispatchCallbacks['setProcessStatus']>(),
     recordConformanceResult:
       vi.fn<EventDispatchCallbacks['recordConformanceResult']>(),
+    recordPointCheckResult:
+      vi.fn<EventDispatchCallbacks['recordPointCheckResult']>(),
     warnUnknown: vi.fn<EventDispatchCallbacks['warnUnknown']>(),
   }
 }

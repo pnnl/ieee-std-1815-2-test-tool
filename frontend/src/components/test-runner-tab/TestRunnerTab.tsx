@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   ConformanceTestResult,
+  PointCheckResult,
   LogSource,
   TestRunnerEvent,
   ProcessName,
@@ -66,6 +67,7 @@ function TestRunnerTab({
   const [testResults, setTestResults] = useState<
     Record<string, ConformanceTestResult>
   >({})
+  const [pointChecks, setPointChecks] = useState<PointCheckResult[]>([])
   const [scenarios, setScenarios] = useState<Scenario[]>([])
   const [enabledScenarios, setEnabledScenarios] = useState<
     Record<string, boolean>
@@ -161,6 +163,7 @@ function TestRunnerTab({
     setLogs([])
     logIdCounterRef.current = 0
     setTestResults({})
+    setPointChecks([])
     setProcessStatus('test_runner', 'starting')
 
     try {
@@ -269,6 +272,9 @@ function TestRunnerTab({
           ...prev,
           [resultKey]: result,
         }))
+      },
+      recordPointCheckResult: (result: PointCheckResult) => {
+        setPointChecks((previous) => [...previous, result])
       },
       warnUnknown: (data) => {
         console.warn('Unknown event type or malformed message:', data)
@@ -488,6 +494,7 @@ function TestRunnerTab({
             <TestResultsTree
               scenarios={scenarios}
               results={testResults}
+              pointChecks={pointChecks}
               hasStarted={runnerActive}
               enabledScenarios={enabledScenarios}
               onToggleScenario={(id) =>

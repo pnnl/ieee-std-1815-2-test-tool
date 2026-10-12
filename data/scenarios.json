@@ -2,7 +2,7 @@
   {
     "id": "configuration",
     "name": "Configuration",
-    "description": "Use base PICS and verify the outstation has accurately ingested PICS.",
+    "description": "Use the prepared job PICS profile unchanged. This scenario changes no point values, bounds, curves, or schedules.",
     "expected_tests": [
       { "test_id": "MON_001", "should_pass": true },
       { "test_id": "ALARM_001", "should_pass": true },

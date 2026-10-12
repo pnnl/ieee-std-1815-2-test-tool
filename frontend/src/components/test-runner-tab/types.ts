@@ -72,16 +72,63 @@ export type SunSpecComment = {
   issue: string
 }
 
+export type PointCheckResult = {
+  event_type: 'point_check_result'
+  scenario_id: string
+  test: string
+  group_name: string
+  point: {
+    point_type: 'AI' | 'BI' | 'AO' | 'BO'
+    index: number
+    uid: string
+    name: string | null
+  }
+  sequence: number
+  timestamp: number // Unix milliseconds
+  check_id: string
+  expected_behavior: string
+  passed: boolean
+  message: string
+}
+
+export function isPointCheckResult(obj: unknown): obj is PointCheckResult {
+  if (typeof obj !== 'object' || obj === null) return false
+  const o = obj as Record<string, unknown>
+  if (typeof o.point !== 'object' || o.point === null) return false
+  const point = o.point as Record<string, unknown>
+  return (
+    o.event_type === 'point_check_result' &&
+    typeof o.scenario_id === 'string' &&
+    typeof o.test === 'string' &&
+    typeof o.group_name === 'string' &&
+    ['AI', 'BI', 'AO', 'BO'].includes(point.point_type as string) &&
+    Number.isInteger(point.index) &&
+    typeof point.uid === 'string' &&
+    (point.name === null || typeof point.name === 'string') &&
+    Number.isInteger(o.sequence) &&
+    typeof o.timestamp === 'number' &&
+    typeof o.check_id === 'string' &&
+    typeof o.expected_behavior === 'string' &&
+    typeof o.passed === 'boolean' &&
+    typeof o.message === 'string'
+  )
+}
+
 // General events
 export type TestRunnerEvent = {
   source: LogSource
   event_type:
-    'log' | 'status_update' | 'conformance_test_result' | 'scenario_status'
+    | 'log'
+    | 'status_update'
+    | 'conformance_test_result'
+    | 'scenario_status'
+    | 'point_check_result'
   message:
     | TestRunnerLogMessage
     | TestRunnerStatusMessage
     | ConformanceTestResult
     | TestRunnerScenarioStatusMessage
+    | PointCheckResult
 }
 
 export function isConformanceTestResult(

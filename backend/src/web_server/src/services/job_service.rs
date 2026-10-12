@@ -21,7 +21,8 @@ use crate::models::job::{
 use crate::models::scenario::Scenario;
 use crate::services::process_manager;
 
-const EVENT_CHANNEL_CAPACITY: usize = 256;
+// A complete check cycle now emits a result for every point/check, across all groups.
+const EVENT_CHANNEL_CAPACITY: usize = 4096;
 const DEFAULT_OUTSTATION_IP: &str = "127.0.0.1";
 const DEFAULT_OUTSTATION_PORT: u16 = 20000;
 const OUTSTATION_STARTUP_WAIT_SECS: u64 = 30;

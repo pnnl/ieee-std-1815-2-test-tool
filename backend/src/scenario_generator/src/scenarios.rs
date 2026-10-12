@@ -204,7 +204,7 @@ pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
         Scenario {
             id: ScenarioId::Configuration.as_str().to_string(),
             name: "Configuration".to_string(),
-            description: "Use base PICS and verify the outstation has accurately ingested PICS."
+            description: "Use the prepared job PICS profile unchanged. This scenario changes no point values, bounds, curves, or schedules."
                 .to_string(),
             expected_tests: all_pass(),
         },

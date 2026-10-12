@@ -1,12 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTree } from '@headless-tree/react'
 import { ItemInstance, syncDataLoaderFeature } from '@headless-tree/core'
 import {
   type ControlModeTest,
-  ImplementationStatus,
   testNameToControlModeTest,
 } from './expectedTests'
-import { ConformanceTestResult } from './types'
+import { ConformanceTestResult, type PointCheckResult } from './types'
+import PointChecksOutline from './PointChecksOutline'
 import { type Scenario } from './scenarios'
 import { Badge, Box, IconButton, Popover, Text } from '@radix-ui/themes'
 import { CheckCheck, InfoIcon, SquareX } from 'lucide-react'
@@ -157,6 +157,7 @@ function ScenarioSummary({
 type TestResultsTreeProps = {
   scenarios: Scenario[]
   results: Record<string, ConformanceTestResult>
+  pointChecks?: PointCheckResult[]
   hasStarted: boolean
   enabledScenarios: Record<Scenario['id'], boolean>
   onToggleScenario: (id: Scenario['id']) => void
@@ -174,11 +175,22 @@ function testShouldPass(scenario: Scenario, testId: string): boolean {
 export default function TestResultsTree({
   scenarios,
   results,
+  pointChecks = [],
   hasStarted,
   enabledScenarios,
   onToggleScenario,
   onSetAllScenarios,
 }: TestResultsTreeProps) {
+  const [expandDetails, setExpandDetails] = useState(false)
+  const [detailOverrides, setDetailOverrides] = useState<
+    Record<string, boolean>
+  >({})
+  const detailIsExpanded = (id: string) => detailOverrides[id] ?? expandDetails
+  const toggleDetail = (id: string) =>
+    setDetailOverrides((previous) => ({
+      ...previous,
+      [id]: !detailIsExpanded(id),
+    }))
   const { scenarioIdToTreeData, scenarioChildrenMap } = useMemo(() => {
     const items = new Map<string, TreeItemData>()
     const children = new Map<string, string[]>()
@@ -259,10 +271,40 @@ export default function TestResultsTree({
           style={{
             display: 'flex',
             justifyContent: 'flex-end',
+            flexWrap: 'wrap',
             gap: 8,
             paddingBottom: 4,
           }}
         >
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() => {
+              tree.applySubStateUpdate(
+                'expandedItems',
+                scenarios.map((scenario) => makeScenarioNodeId(scenario.id)),
+              )
+              tree.rebuildTree()
+              setExpandDetails(true)
+              setDetailOverrides({})
+            }}
+          >
+            Expand all
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={() => {
+              tree.applySubStateUpdate('expandedItems', [])
+              tree.rebuildTree()
+              setExpandDetails(false)
+              setDetailOverrides({})
+            }}
+          >
+            Collapse all
+          </Button>
           {hasEnabledScenarios && (
             <Button
               type="button"
@@ -322,9 +364,9 @@ export default function TestResultsTree({
                 >
                   {isExpanded ? '▾' : '▸'}
                 </span>
-                <Text size="3" style={{ opacity: scenarioEnabled ? 1 : 0.5 }}>
-                  {scenarioOrTest.scenario.name}
-                </Text>
+                <Box style={{ opacity: scenarioEnabled ? 1 : 0.5 }}>
+                  <Text size="3">{scenarioOrTest.scenario.name}</Text>
+                </Box>
                 <Popover.Root>
                   <Popover.Trigger onClick={(e) => e.stopPropagation()}>
                     <IconButton variant="ghost" color="gray" size="1" ml="1">
@@ -402,11 +444,18 @@ export default function TestResultsTree({
                 xfail
               </Badge>
             )
-            const partialTag =
-              scenarioOrTest.implemented ===
-              ImplementationStatus.Implemented ? null : (
-                <span style={{ opacity: 0.5 }}>partial</span>
-              )
+            const checks = pointChecks.filter(
+              (check) =>
+                check.scenario_id === scenarioOrTest.scenario.id &&
+                check.test === scenarioOrTest.testId,
+            )
+            const title = (
+              <>
+                {scenarioEnabled && <StatusIcon status={testStatus} />}{' '}
+                {scenarioOrTest.testId}:{' '}
+                {checks[0]?.group_name ?? scenarioOrTest.displayName}{' '}
+              </>
+            )
 
             return (
               <div
@@ -422,11 +471,13 @@ export default function TestResultsTree({
                 }}
               >
                 <Box style={{ flex: 1 }}>
-                  <Box>
-                    {scenarioEnabled && <StatusIcon status={testStatus} />}{' '}
-                    {scenarioOrTest.testId}: {scenarioOrTest.displayName}{' '}
-                    {partialTag}
-                  </Box>
+                  <PointChecksOutline
+                    checks={checks}
+                    groupId={item.getId()}
+                    label={title}
+                    isExpanded={detailIsExpanded}
+                    onToggle={toggleDetail}
+                  />
                   <Box>{xFailBadge}</Box>
                 </Box>
               </div>
