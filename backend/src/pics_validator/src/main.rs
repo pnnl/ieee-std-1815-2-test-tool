@@ -19,6 +19,12 @@ struct Cli {
 }
 
 fn main() {
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_file(true)
+        .with_line_number(true)
+        .init();
+
     if let Err(e) = run() {
         eprintln!("Error while running pics_validator: {:#}", e);
         process::exit(1);
@@ -34,6 +40,8 @@ fn run() -> Result<()> {
 
     let is_json = cli.input.extension().and_then(|e| e.to_str()) == Some("json");
 
+    tracing::info!(input = %cli.input.display(), "Loading and validating profile");
+
     let json = if is_json {
         let profile = load_json_profile(&cli.input)?;
         serde_json::to_string_pretty(&profile)?
@@ -41,8 +49,10 @@ fn run() -> Result<()> {
         let profile = match load_xlsx_profile(&cli.input) {
             Ok(profile) => profile,
             Err(errors) => {
-                eprintln!("{} validation error(s) found:", errors.len());
-                eprintln!("Errors: {}", errors);
+                tracing::error!(input = %cli.input.display(), count = errors.len(), "Profile validation failed");
+                for (index, error) in errors.errors.iter().enumerate() {
+                    tracing::error!(number = index + 1, point = %error.point, "{}", error.message);
+                }
                 std::process::exit(1);
             }
         };

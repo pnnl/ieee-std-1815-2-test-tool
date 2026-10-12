@@ -2,9 +2,26 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Start backend",
+      "label": "Regenerate all profiles",
       "type": "shell",
-      "command": "cargo run -p web_server",
+      "command": "cargo run -- ../../../data/profiles/full.xlsx ../../../data/profiles/full.json && cargo run -- ../../../data/profiles/mandatory_1547.xlsx ../../../data/profiles/mandatory_1547.json && cargo run -- ../../../data/profiles/mandatory_1815.xlsx ../../../data/profiles/mandatory_1815.json && cargo run -- ../../../data/profiles/minimal_1547.xlsx ../../../data/profiles/minimal_1547.json",
+      "options": {
+        "cwd": "${workspaceFolder}/backend/src/pics_validator"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start backend",
+      "type": "process",
+      "command": "sh",
+      "args": [
+        "-c",
+        "set -e; if ! command -v bacon >/dev/null 2>&1; then cargo install bacon --locked; fi; exec bacon --headless run-long"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "detail": "Installs bacon if needed, then restarts the API on saved changes.",
       "hide": true,
       "presentation": {
         "reveal": "always",

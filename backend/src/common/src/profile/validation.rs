@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Debug, fmt::Display, ops::Deref};
+use std::{collections::HashSet, error::Error, fmt::Debug, fmt::Display, ops::Deref};
 
 use crate::profile::AiPoint;
 use crate::profile::values::EngineeringF64;
@@ -232,6 +232,25 @@ impl From<Vec<LoadError>> for ValidationErrors {
 pub fn is_whole_number_in_range(value: EngineeringF64, min: i64, max: i64) -> bool {
     let int_value = value.0 as i64;
     (int_value as f64) == value.0 && int_value >= min && int_value <= max
+}
+
+/// Check for duplicate AI indices within the supplied group of points.
+pub(crate) fn collect_duplicate_ai_errors<'a>(
+    points: impl IntoIterator<Item = &'a AiPoint>,
+) -> ValidationErrors {
+    let mut errors = ValidationErrors::new();
+    let mut seen = HashSet::new();
+
+    for point in points {
+        if !seen.insert(point.point_index) {
+            errors.push(ValidationError {
+                point: point.full_index(),
+                message: "Duplicate AI point index".to_owned(),
+            });
+        }
+    }
+
+    errors
 }
 
 pub fn collect_low_high_threshold_errors(

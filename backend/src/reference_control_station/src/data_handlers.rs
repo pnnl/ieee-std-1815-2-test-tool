@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use common::profile::PointIndex;
 use common::profile::values::{EngineeringF64, TransmissionI32};
 use dnp3::app::measurement::*;
 use dnp3::app::{MaybeAsync, QualifierCode, ResponseHeader, Variation};
@@ -239,7 +240,7 @@ impl RefReadHandler {
             } else if db
                 .current_entry_points()
                 .iter()
-                .any(|v| v.index == ai_index)
+                .any(|v| v.key() == PointIndex::Ai(ai_index))
             {
                 tracing::debug!(
                     "Control station curve {}: received outstation readback AI{ai_index} = {}",
@@ -272,7 +273,7 @@ impl RefReadHandler {
             } else if db
                 .current_entry_points()
                 .iter()
-                .any(|v| v.index == ai_index)
+                .any(|v| v.key() == PointIndex::Ai(ai_index))
             {
                 db.update_value(ai_index, int_value);
             }
@@ -300,7 +301,7 @@ impl RefReadHandler {
             } else if db
                 .current_entry_points()
                 .iter()
-                .any(|v| v.index == ai_index)
+                .any(|v| v.key() == PointIndex::Ai(ai_index))
             {
                 db.update_value(ai_index, int_value);
             }

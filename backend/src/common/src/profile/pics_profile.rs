@@ -193,24 +193,10 @@ impl Validate for PicsProfile {
     fn collect_validation_errors(&self) -> ValidationErrors {
         let mut errors = ValidationErrors::new();
 
-        for curve in self.ai.curves.iter() {
-            errors.extend(curve.collect_errors())
-        }
-
-        for schedule in self.ai.schedules.iter() {
-            errors.extend(schedule.collect_validation_errors())
-        }
-
-        for meter in self.ai.meters.iter() {
-            errors.extend(meter.collect_errors());
-        }
+        errors.extend(self.ai.collect_validation_errors());
 
         // Validate individual points
         for point in self.ao.all_ao_points() {
-            errors.extend(point.collect_errors())
-        }
-
-        for point in self.ai.all_ai_points_full() {
             errors.extend(point.collect_errors())
         }
 

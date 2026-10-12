@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::profile::{
+    Point,
     pics_profile::EventClass,
     validation::{ValidationError, ValidationErrors},
     values::{EngineeringF64, TransmissionI32},
@@ -25,6 +26,12 @@ pub struct AiPoint {
     pub purpose: String,
     pub mandatory_1815: bool,
     pub mandatory_1547: bool,
+}
+
+impl Point for AiPoint {
+    fn point_index(&self) -> u16 {
+        self.point_index
+    }
 }
 
 impl AiPoint {

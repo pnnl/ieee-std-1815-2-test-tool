@@ -3,7 +3,9 @@ use tracing::error;
 use crate::profile::{
     AiCurve, AiPoint, CurveType,
     scale_curve::{DependentVariableUnit, IndependentVariableUnit, ScalingEntry},
-    validation::{ValidationError, ValidationErrors, is_whole_number_in_range},
+    validation::{
+        ValidationError, ValidationErrors, collect_duplicate_ai_errors, is_whole_number_in_range,
+    },
 };
 
 /// Convert a finite, whole-number f64 to a u8 curve code.
@@ -91,6 +93,8 @@ impl AiCurve {
     pub fn collect_errors(&self) -> ValidationErrors {
         let mut errors = ValidationErrors::new();
 
+        errors.extend(collect_duplicate_ai_errors(self.iter_points()));
+
         let _curve_type_enum = match CurveType::try_from(self.curve_type.value()) {
             Ok(curve_type) => curve_type,
             Err(_) => {
@@ -162,6 +166,50 @@ impl AiCurve {
         }
 
         errors.extend(self.collect_errors_ai_curve_scaling());
+
+        // Check consistency within each axis independently.
+        for (axis, values) in [("x", &self.x_values), ("y", &self.y_values)] {
+            let Some((first, rest)) = values.split_first() else {
+                continue;
+            };
+            let point = format!("{}: {axis}_values", self.display_name());
+
+            for current in rest {
+                let error_count = errors.len();
+
+                // Accept either a field (offset) or a getter (minimum()).
+                macro_rules! check_consistency {
+                    ($field_or_method:ident $($call_parens:tt)*) => {{
+                        let a = &first.$field_or_method $($call_parens)*;
+                        let b = &current.$field_or_method $($call_parens)*;
+                        if a != b {
+                            errors.push(ValidationError {
+                                point: point.clone(),
+                                message: format!(
+                                    "Inconsistency found in field '{}' among {axis}_values. First {axis} value:\n{:?},\nCurrent {axis} value:\n{:?}",
+                                    stringify!($field_or_method),
+                                    a,
+                                    b,
+                                ),
+                            });
+                        }
+                    }};
+                }
+
+                check_consistency!(minimum());
+                check_consistency!(maximum());
+                check_consistency!(multiplier());
+                check_consistency!(offset);
+                check_consistency!(units);
+                check_consistency!(event_class);
+                check_consistency!(purpose);
+
+                if errors.len() > error_count {
+                    break;
+                }
+            }
+        }
+
         errors
     }
 

@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import type { AiPoint, AiSchedule, PicsProfile } from '@/api/generated'
-import { setSchedulePoints } from './canonical'
+import {
+  getEquipmentCount,
+  setEquipmentCount,
+  setSchedulePoints,
+} from './canonical'
 import {
   applySchedulesToProfile,
   extractSchedulesFromProfile,
@@ -9,6 +13,70 @@ import {
 // reported the crash against. The `assert` is omitted because Vite handles
 // JSON natively.
 import fullProfileJson from '../../../data/profiles/full.json'
+
+describe('equipment clone templates', () => {
+  const defaults = fullProfileJson as PicsProfile
+
+  it.each(['meters', 'ders', 'inverters', 'batteries'] as const)(
+    'restores %s from zero with matching counts and independent records',
+    (group) => {
+      const profileWithEmptyEquipment = setEquipmentCount(defaults, group, 0)
+      const profileWithEquipment = setEquipmentCount(
+        profileWithEmptyEquipment,
+        group,
+        2,
+      )
+
+      expect(getEquipmentCount(profileWithEquipment, group)).toBe(2)
+      for (const section of ['AI', 'BI'] as const) {
+        expect(profileWithEmptyEquipment[section][group]).toEqual([])
+        expect(profileWithEquipment[section][group]).toEqual([
+          defaults[section][group][0],
+          defaults[section][group][0],
+        ])
+      }
+      if (group !== 'ders') {
+        expect(profileWithEmptyEquipment.AO[group]).toEqual([])
+        expect(profileWithEquipment.AO[group]).toEqual([
+          defaults.AO[group][0],
+          defaults.AO[group][0],
+        ])
+      }
+
+      // Editing a nested point must not affect another new record or defaults.
+      const original = Object.values(defaults.AI[group][0])[0]
+      const originalName = original.name
+      Object.values(profileWithEquipment.AI[group][0])[0].name = 'Edited clone'
+      expect(Object.values(profileWithEquipment.AI[group][1])[0].name).toBe(
+        originalName,
+      )
+      expect(original.name).toBe(originalName)
+    },
+  )
+
+  it('grows non-empty arrays by cloning the last existing record', () => {
+    const withTwoMeters = setEquipmentCount(defaults, 'meters', 2)
+    withTwoMeters.AI.meters[1].frequency.name = 'Custom frequency'
+    const withFourMeters = setEquipmentCount(withTwoMeters, 'meters', 4)
+
+    expect(withFourMeters.AI.meters[0]).toEqual(withTwoMeters.AI.meters[0])
+    expect(withFourMeters.AI.meters.slice(1)).toEqual([
+      withTwoMeters.AI.meters[1],
+      withTwoMeters.AI.meters[1],
+      withTwoMeters.AI.meters[1],
+    ])
+    expect(withFourMeters.AI.meters[2].frequency).not.toBe(
+      withFourMeters.AI.meters[1].frequency,
+    )
+    expect(withFourMeters.AI.meters[3].frequency).not.toBe(
+      withFourMeters.AI.meters[2].frequency,
+    )
+    expect(withTwoMeters.AI.meters).toHaveLength(2)
+    expect(setEquipmentCount(withFourMeters, 'meters', 2).AI.meters).toEqual(
+      withTwoMeters.AI.meters,
+    )
+  })
+})
 
 // --- Test fixtures ---------------------------------------------------------
 
