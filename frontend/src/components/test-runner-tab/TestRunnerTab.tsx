@@ -452,7 +452,7 @@ function TestRunnerTab({
         <Panel
           id="test-runner-results"
           defaultSize="400px"
-          minSize="320px"
+          minSize="250px"
           groupResizeBehavior="preserve-pixel-size"
         >
           <aside className={styles.testRunnerSidebar}>
@@ -529,7 +529,7 @@ function TestRunnerTab({
           aria-label="Resize test results and logs"
           title="Drag to resize test results and logs"
         />
-        <Panel id="test-runner-logs" minSize="320px">
+        <Panel id="test-runner-logs" minSize="250px">
           <div className={styles.testRunnerLogs}>
             <div className={styles.logControls}>
               <div className={styles.logFilterGroup}>
