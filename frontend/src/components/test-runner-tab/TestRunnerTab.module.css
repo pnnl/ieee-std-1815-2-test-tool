@@ -335,7 +335,7 @@ button.iconButton > span.iconContainer {
   overflow-y: auto;
   background-color: #1e1e1e;
   border-radius: 8px;
-  padding: 16px;
+  padding: 10px;
   font-family: Monaco, Consolas, 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.5;
@@ -355,9 +355,7 @@ button.iconButton > span.iconContainer {
 }
 
 .logEntry {
-  display: flex;
-  gap: 12px;
-  padding: 4px 0;
+  padding: 2px 0;
   border-bottom: 1px solid #2d2d2d;
 }
 
@@ -367,13 +365,11 @@ button.iconButton > span.iconContainer {
 
 .logTimestamp {
   color: #7f8c8d;
-  flex-shrink: 0;
-  min-width: 80px;
+  white-space: nowrap;
 }
 
 .logSource {
-  flex-shrink: 0;
-  min-width: 40px;
+  white-space: nowrap;
   font-weight: 600;
 }
 
@@ -398,11 +394,8 @@ button.iconButton > span.iconContainer {
 }
 
 .logMessage {
-  min-width: 0;
-  word-break: break-word;
-  flex: 1;
-  font-size: 0.85rem;
-  font-weight: 500;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .logControls {
