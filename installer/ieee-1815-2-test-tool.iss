@@ -17,7 +17,7 @@ AppName=IEEE 1815.2 Test Tool
 AppVersion={#AppVersion}
 VersionInfoVersion={#VersionInfoVersion}
 AppPublisher=Battelle Memorial Institute
-DefaultDirName={autopf}\IEEE 1815.2 Test Tool
+DefaultDirName=C:\IEEE-1815_2-Testtool
 DefaultGroupName=IEEE 1815.2 Test Tool
 DisableProgramGroupPage=yes
 ; Per-user by default; the admin override is available at install time
