@@ -16,6 +16,7 @@ import {
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { Theme } from '@radix-ui/themes'
+import type { ComponentProps } from 'react'
 import App from './App'
 import type {
   PicsProfile,
@@ -62,6 +63,21 @@ const getProfile = vi.fn()
 const listProfiles = vi.fn()
 const saveProfile = vi.fn()
 const validateProfile = vi.fn()
+
+// jsdom reports zero-size rectangles, so splitter hit testing can intercept
+// clicks on unrelated tabs. These tests exercise profile validation flows;
+// panel resizing is verified in a real browser.
+vi.mock('react-resizable-panels', async () => {
+  const actual = await vi.importActual<typeof import('react-resizable-panels')>(
+    'react-resizable-panels',
+  )
+  return {
+    ...actual,
+    Group: (props: ComponentProps<typeof actual.Group>) => (
+      <actual.Group {...props} disabled />
+    ),
+  }
+})
 
 vi.mock('@/api/generated', async () => {
   const actual =

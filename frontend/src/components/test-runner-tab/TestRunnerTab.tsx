@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { Group, Panel, Separator } from 'react-resizable-panels'
 import {
   ConformanceTestResult,
   LogSource,
@@ -447,145 +448,166 @@ function TestRunnerTab({
 
   return (
     <div className={styles.testRunnerTab}>
-      <div className={styles.testRunnerBody}>
-        <aside className={styles.testRunnerSidebar}>
-          <div className={styles.jobInfo}>
-            <div className={styles.statusList} aria-live="polite">
-              {renderedStatuses}
-            </div>
-          </div>
-
-          <div className={styles.dutSection}>
-            <span className={styles.dutLabel}>Device Under Test</span>
-            <ToggleGroup
-              value={deviceUnderTest}
-              onValueChange={(value) =>
-                handleDeviceUnderTestChange(value as DeviceUnderTest)
-              }
-              aria-label="Device under test"
-            >
-              <ToggleGroupItem value="control_station">
-                Control Station
-              </ToggleGroupItem>
-              <ToggleGroupItem value="outstation">Outstation</ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-
-          <div className={styles.testRunnerControls}>
-            <button
-              className={`${styles.btn} ${styles.startStopButton} ${runnerActive ? styles.btnDanger : styles.btnSuccess}`}
-              onClick={handleToggleTestRun}
-              disabled={isConnecting}
-              aria-label={runnerActive ? 'Stop test run' : 'Start test run'}
-              aria-pressed={runnerActive}
-            >
-              {startIcon}&nbsp;&nbsp;&nbsp;
-              {runnerActive ? 'Stop Test Run' : 'Start Test Run'}
-            </button>
-          </div>
-
-          {scenarios.length > 0 && (
-            <TestResultsTree
-              scenarios={scenarios}
-              results={testResults}
-              hasStarted={runnerActive}
-              enabledScenarios={enabledScenarios}
-              onToggleScenario={(id) =>
-                setEnabledScenarios((prev) => {
-                  const updated = { ...prev, [id]: !prev[id] }
-                  savePreferences({ ...preferences, enabledScenarios: updated })
-                  return updated
-                })
-              }
-              onSetAllScenarios={(enabled) =>
-                setEnabledScenarios(() => {
-                  const updated = Object.fromEntries(
-                    scenarios.map((scenario) => [scenario.id, enabled]),
-                  )
-                  savePreferences({ ...preferences, enabledScenarios: updated })
-                  return updated
-                })
-              }
-            />
-          )}
-        </aside>
-
-        <div className={styles.testRunnerLogs}>
-          <div className={styles.logControls}>
-            <div className={styles.logFilterGroup}>
-              <span className={styles.filterLabel}>Filter:</span>
-              {LOG_SOURCES.map((source) => (
-                <button
-                  key={source}
-                  className={`${styles.logFilterBtn} ${getSourceClass(source)} ${selectedSources.has(source) ? styles.active : ''}`}
-                  onClick={() => toggleSource(source)}
-                >
-                  {getSourceLabel(source)}
-                </button>
-              ))}
-            </div>
-            <span style={{ display: 'flex', gap: '8px' }}>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={handleCopyLogs}
-                disabled={filteredLogs.length === 0}
-              >
-                <Clipboard aria-hidden="true" /> Copy Logs
-              </Button>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={handleDownload}
-                disabled={!hasResults}
-              >
-                <Download aria-hidden="true" /> Download
-              </Button>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={handleClearLogs}
-                disabled={logs.length === 0}
-              >
-                <X aria-hidden="true" /> Clear Logs
-              </Button>
-            </span>
-          </div>
-          <div className={styles.logContainer} ref={logContainerRef}>
-            {logs.length === 0 ? (
-              <div className={styles.logEmpty}>
-                <p>
-                  No logs yet. Click &quot;Start&quot; to begin the test runner.
-                </p>
+      <Group className={styles.testRunnerBody} orientation="horizontal">
+        <Panel
+          id="test-runner-results"
+          defaultSize="400px"
+          minSize="250px"
+          groupResizeBehavior="preserve-pixel-size"
+        >
+          <aside className={styles.testRunnerSidebar}>
+            <div className={styles.jobInfo}>
+              <div className={styles.statusList} aria-live="polite">
+                {renderedStatuses}
               </div>
-            ) : filteredLogs.length === 0 ? (
-              <div className={styles.logEmpty}>
-                <p>No logs match the selected filters.</p>
-              </div>
-            ) : (
-              filteredLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className={`${styles.logEntry} ${getSourceClass(log.source)}`}
-                >
-                  <span className={styles.logTimestamp}>{log.timestamp}</span>
-                  <span
-                    className={`${styles.logSource} ${getSourceClass(log.source)}`}
-                  >
-                    [{getSourceLabel(log.source)}]
-                  </span>
-                  <span
-                    style={{ color: getLogMessageColor(log.message) }}
-                    className={styles.logMessage}
-                  >
-                    {log.message}
-                  </span>
-                </div>
-              ))
+            </div>
+
+            <div className={styles.dutSection}>
+              <span className={styles.dutLabel}>Device Under Test</span>
+              <ToggleGroup
+                value={deviceUnderTest}
+                onValueChange={(value) =>
+                  handleDeviceUnderTestChange(value as DeviceUnderTest)
+                }
+                aria-label="Device under test"
+              >
+                <ToggleGroupItem value="control_station">
+                  Control Station
+                </ToggleGroupItem>
+                <ToggleGroupItem value="outstation">Outstation</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+
+            <div className={styles.testRunnerControls}>
+              <button
+                className={`${styles.btn} ${styles.startStopButton} ${runnerActive ? styles.btnDanger : styles.btnSuccess}`}
+                onClick={handleToggleTestRun}
+                disabled={isConnecting}
+                aria-label={runnerActive ? 'Stop test run' : 'Start test run'}
+                aria-pressed={runnerActive}
+              >
+                {startIcon}&nbsp;&nbsp;&nbsp;
+                {runnerActive ? 'Stop Test Run' : 'Start Test Run'}
+              </button>
+            </div>
+
+            {scenarios.length > 0 && (
+              <TestResultsTree
+                scenarios={scenarios}
+                results={testResults}
+                hasStarted={runnerActive}
+                enabledScenarios={enabledScenarios}
+                onToggleScenario={(id) =>
+                  setEnabledScenarios((prev) => {
+                    const updated = { ...prev, [id]: !prev[id] }
+                    savePreferences({
+                      ...preferences,
+                      enabledScenarios: updated,
+                    })
+                    return updated
+                  })
+                }
+                onSetAllScenarios={(enabled) =>
+                  setEnabledScenarios(() => {
+                    const updated = Object.fromEntries(
+                      scenarios.map((scenario) => [scenario.id, enabled]),
+                    )
+                    savePreferences({
+                      ...preferences,
+                      enabledScenarios: updated,
+                    })
+                    return updated
+                  })
+                }
+              />
             )}
+          </aside>
+        </Panel>
+
+        <Separator
+          className={styles.resizeHandle}
+          aria-label="Resize test results and logs"
+          title="Drag to resize test results and logs"
+        />
+        <Panel id="test-runner-logs" minSize="250px">
+          <div className={styles.testRunnerLogs}>
+            <div className={styles.logControls}>
+              <div className={styles.logFilterGroup}>
+                <span className={styles.filterLabel}>Filter:</span>
+                {LOG_SOURCES.map((source) => (
+                  <button
+                    key={source}
+                    className={`${styles.logFilterBtn} ${getSourceClass(source)} ${selectedSources.has(source) ? styles.active : ''}`}
+                    onClick={() => toggleSource(source)}
+                  >
+                    {getSourceLabel(source)}
+                  </button>
+                ))}
+              </div>
+              <span style={{ display: 'flex', gap: '8px' }}>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={handleCopyLogs}
+                  disabled={filteredLogs.length === 0}
+                >
+                  <Clipboard aria-hidden="true" /> Copy Logs
+                </Button>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={handleDownload}
+                  disabled={!hasResults}
+                >
+                  <Download aria-hidden="true" /> Download
+                </Button>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={handleClearLogs}
+                  disabled={logs.length === 0}
+                >
+                  <X aria-hidden="true" /> Clear Logs
+                </Button>
+              </span>
+            </div>
+            <div className={styles.logContainer} ref={logContainerRef}>
+              {logs.length === 0 ? (
+                <div className={styles.logEmpty}>
+                  <p>
+                    No logs yet. Click &quot;Start&quot; to begin the test
+                    runner.
+                  </p>
+                </div>
+              ) : filteredLogs.length === 0 ? (
+                <div className={styles.logEmpty}>
+                  <p>No logs match the selected filters.</p>
+                </div>
+              ) : (
+                filteredLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className={`${styles.logEntry} ${getSourceClass(log.source)}`}
+                  >
+                    <span className={styles.logTimestamp}>{log.timestamp}</span>
+                    <span
+                      className={`${styles.logSource} ${getSourceClass(log.source)}`}
+                    >
+                      [{getSourceLabel(log.source)}]
+                    </span>
+                    <span
+                      style={{ color: getLogMessageColor(log.message) }}
+                      className={styles.logMessage}
+                    >
+                      {log.message}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
-      </div>
+        </Panel>
+      </Group>
     </div>
   )
 }
