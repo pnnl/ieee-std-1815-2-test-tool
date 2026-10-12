@@ -18,14 +18,40 @@ button.iconButton > span.iconContainer {
 }
 
 .testRunnerBody {
-  display: flex;
-  gap: 12px;
   align-items: stretch;
 }
 
+.resizeHandle {
+  width: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+}
+
+.resizeHandle::before {
+  content: '';
+  width: 4px;
+  height: 40px;
+  border-radius: 2px;
+  background-color: #b8c2d1;
+}
+
+.resizeHandle:hover::before,
+.resizeHandle[data-separator='active']::before,
+.resizeHandle:focus-visible::before {
+  background-color: #2980b9;
+}
+
+.resizeHandle:focus-visible {
+  outline: 2px solid #2980b9;
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
 .testRunnerSidebar {
-  width: 400px;
-  flex-shrink: 0;
+  min-width: 0;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -36,7 +62,8 @@ button.iconButton > span.iconContainer {
 }
 
 .testRunnerLogs {
-  flex: 1;
+  min-width: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -371,6 +398,7 @@ button.iconButton > span.iconContainer {
 }
 
 .logMessage {
+  min-width: 0;
   word-break: break-word;
   flex: 1;
   font-size: 0.85rem;
@@ -379,6 +407,8 @@ button.iconButton > span.iconContainer {
 
 .logControls {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
