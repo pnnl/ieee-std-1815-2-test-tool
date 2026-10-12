@@ -15,8 +15,8 @@ import {
 import {
   CURVE_X_UNITS,
   CURVE_Y_UNITS,
-  MAX_CURVES,
   MAX_CURVE_POINTS,
+  getMaxCurves,
   type Curve,
   type CurvePoint,
 } from '../../utils/curveUtils'
@@ -107,8 +107,10 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
   const currentCurveCount = curves.length
 
   const handleAddCurve = () => {
-    if (currentCurveCount >= MAX_CURVES) {
-      toast.error(`A profile can contain at most ${MAX_CURVES} curves`)
+    if (currentCurveCount >= getMaxCurves(profileData)) {
+      toast.error(
+        `A profile can contain at most ${getMaxCurves(profileData)} curves`,
+      )
       return
     }
     if (profileData.AI.curves.length === 0) {
@@ -202,12 +204,6 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
     )
   }
 
-  const activePointCount = curveConfig.number_of_points || 0
-  const activePoints = curvePoints.slice(
-    0,
-    Math.min(activePointCount, MAX_CURVE_POINTS),
-  )
-
   const curveSelectData = Array.from(
     { length: Math.max(1, currentCurveCount) },
     (_, i) => ({
@@ -266,7 +262,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
                   size="sm"
                   variant="outline"
                   onClick={handleAddCurve}
-                  disabled={currentCurveCount >= MAX_CURVES}
+                  disabled={currentCurveCount >= getMaxCurves(profileData)}
                 >
                   Add
                 </Button>
@@ -419,7 +415,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
 
           <div className="flex flex-col items-center justify-center flex-1 p-4">
             <CurveChart
-              points={activePoints}
+              points={curvePoints}
               xLabel={CURVE_X_UNITS[curveConfig.x_units]}
               yLabel={CURVE_Y_UNITS[curveConfig.y_units]}
               onPointMove={(pointIdx, x, y) => {

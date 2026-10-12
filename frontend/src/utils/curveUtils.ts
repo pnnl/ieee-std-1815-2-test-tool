@@ -2,10 +2,10 @@
 // canonical schema stores curve_type/x_units/y_units as raw integer codes on
 // AiPoint.value. The labels for those codes are presentation concerns.
 
-import { CurveTypeEntry } from '@/api/generated'
+import { CurveTypeEntry, PicsProfile } from '@/api/generated'
 
-export const MAX_CURVES = 10
 export const MAX_CURVE_POINTS = 100
+const CURVE_EDIT_SELECTOR_INDEX = 328
 
 export interface CurvePoint {
   x: number
@@ -57,4 +57,14 @@ export interface Curve {
   x_units: keyof typeof CURVE_X_UNITS
   y_units: keyof typeof CURVE_Y_UNITS
   points: CurvePoint[]
+}
+
+/**
+ *  Returns the maximum number of curves allowed for the given profile.
+ */
+export function getMaxCurves(profile: PicsProfile): number {
+  const editSelectorPoint = profile.AI.points.find(
+    (point) => point.point_index === CURVE_EDIT_SELECTOR_INDEX,
+  )
+  return editSelectorPoint?.maximum ?? 1000
 }
