@@ -55,10 +55,19 @@ Source: "..\data\*"; DestDir: "{app}\data"; Excludes: "working\*,README.md"; Fla
 Source: "launch.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\Disclaimer.txt"; DestDir: "{app}"; Flags: ignoreversion
+; Shortcut icon. A stable name keeps shortcuts valid if the source path changes.
+Source: "..\frontend\public\favicon.ico"; DestDir: "{app}"; DestName: "tool.ico"; Flags: ignoreversion
+
+[Tasks]
+; No Flags: unchecked, so the desktop shortcut is on by default and a silent
+; install creates it.
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Icons]
-Name: "{group}\IEEE 1815.2 Test Tool"; Filename: "{app}\launch.cmd"; WorkingDir: "{app}"
-Name: "{group}\Uninstall IEEE 1815.2 Test Tool"; Filename: "{uninstallexe}"
+Name: "{group}\IEEE 1815.2 Test Tool"; Filename: "{app}\launch.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\tool.ico"
+Name: "{group}\Uninstall IEEE 1815.2 Test Tool"; Filename: "{uninstallexe}"; IconFilename: "{app}\tool.ico"
+; {autodesktop} is the per-user desktop or the common desktop by install mode.
+Name: "{autodesktop}\IEEE 1815.2 Test Tool"; Filename: "{app}\launch.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\tool.ico"; Tasks: desktopicon
 
 [Run]
 ; skipifsilent keeps a silent (CI or scripted) install from auto-launching.
