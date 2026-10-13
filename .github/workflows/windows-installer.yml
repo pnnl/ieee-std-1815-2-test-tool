@@ -1,29 +1,9 @@
 name: Windows Installer
 
+# Builds only on release tags and manual runs; branch pushes and pull requests do not.
 on:
-  pull_request:
-    branches: ["develop", "main"]
-    paths:
-      - "installer/**"
-      - "backend/**"
-      - "frontend/**"
-      - "data/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - ".github/workflows/windows-installer.yml"
   push:
-    branches: ["develop", "main"]
     tags: ["v*"]
-    paths:
-      - "installer/**"
-      - "backend/**"
-      - "frontend/**"
-      - "data/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - ".github/workflows/windows-installer.yml"
   workflow_dispatch:
 
 permissions:
