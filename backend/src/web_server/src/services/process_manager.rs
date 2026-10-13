@@ -71,7 +71,7 @@ fn format_conformance_log(payload: &serde_json::Value, should_pass: Option<bool>
     let status = if passed { "PASS" } else { "FAIL" };
     let mut line = match should_pass {
         Some(expected) => {
-            let result_mark = if passed == expected { "✓" } else { "✗" };
+            let result_mark = if passed == expected { "[x]" } else { "[ ]" };
             if expected {
                 format!("{result_mark} {test}: {status}")
             } else {
@@ -88,7 +88,7 @@ fn format_conformance_log(payload: &serde_json::Value, should_pass: Option<bool>
             .and_then(|c| c.get("issue"))
             .and_then(|v| v.as_str())
         {
-            line = format!("{line} — {first_issue}");
+            line = format!("{line} - {first_issue}");
         }
     }
     line
@@ -664,63 +664,7 @@ fn handle_conformance_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{LazyLock, Mutex, MutexGuard};
-
-    /// Process-wide mutex serializing tests that mutate environment
-    /// variables. `std::env::set_var` / `remove_var` are unsafe under
-    /// edition 2024 because they are not thread-safe; cargo runs unit
-    /// tests in parallel by default, so we guard mutation here.
-    static ENV_MUTEX: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    /// RAII guard that sets an env var on construction and restores the
-    /// previous value (or removes it) on drop. Holds the env mutex for
-    /// the duration so concurrent env-mutating tests serialize.
-    struct ScopedTestEnvVar {
-        key: String,
-        previous: Option<String>,
-        _guard: MutexGuard<'static, ()>,
-    }
-
-    impl ScopedTestEnvVar {
-        /// Set `key` to `value` for the lifetime of the returned guard.
-        fn set(key: &str, value: &str) -> Self {
-            let guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-            let previous = std::env::var(key).ok();
-            // SAFETY: serialized via ENV_MUTEX; no other test in this
-            // process mutates env vars without acquiring the same lock.
-            unsafe { std::env::set_var(key, value) };
-            Self {
-                key: key.to_string(),
-                previous,
-                _guard: guard,
-            }
-        }
-
-        /// Ensure `key` is unset for the lifetime of the returned guard.
-        fn unset(key: &str) -> Self {
-            let guard = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-            let previous = std::env::var(key).ok();
-            // SAFETY: serialized via ENV_MUTEX.
-            unsafe { std::env::remove_var(key) };
-            Self {
-                key: key.to_string(),
-                previous,
-                _guard: guard,
-            }
-        }
-    }
-
-    impl Drop for ScopedTestEnvVar {
-        fn drop(&mut self) {
-            // SAFETY: we still hold ENV_MUTEX via _guard.
-            unsafe {
-                match self.previous.take() {
-                    Some(v) => std::env::set_var(&self.key, v),
-                    None => std::env::remove_var(&self.key),
-                }
-            }
-        }
-    }
+    use crate::services::test_env_lock::{ENV_MUTEX, ScopedEnvVar as ScopedTestEnvVar};
 
     #[test]
     fn test_strip_ansi_no_escapes() {
@@ -751,6 +695,10 @@ mod tests {
 
     #[test]
     fn test_find_binary_env_var() {
+        // No tokio runtime is running in a plain #[test] fn, so
+        // blocking_lock is safe here; job_service's tests hold the same
+        // lock via `.lock().await` instead (see test_env_lock).
+        let _lock = ENV_MUTEX.blocking_lock();
         let _env = ScopedTestEnvVar::set("TEST_BIN_PATH", "/custom/path/binary");
         let result = find_binary("test-binary", "TEST_BIN_PATH");
         assert_eq!(result, "/custom/path/binary");
@@ -758,6 +706,7 @@ mod tests {
 
     #[test]
     fn test_find_binary_fallback_to_name() {
+        let _lock = ENV_MUTEX.blocking_lock();
         // When no env var and no local files exist, should return the name itself
         let _env = ScopedTestEnvVar::unset("NONEXISTENT_BIN_VAR");
         let result = find_binary("nonexistent-binary-name", "NONEXISTENT_BIN_VAR");
@@ -927,7 +876,7 @@ mod tests {
         let payload = serde_json::json!({"test": "MON_001", "passed": true, "comments": []});
         assert_eq!(
             format_conformance_log(&payload, Some(true)),
-            "✓ MON_001: PASS"
+            "[x] MON_001: PASS"
         );
     }
 
@@ -936,7 +885,7 @@ mod tests {
         let payload = serde_json::json!({"test": "MON_001", "passed": false, "comments": []});
         assert_eq!(
             format_conformance_log(&payload, Some(true)),
-            "✗ MON_001: FAIL"
+            "[ ] MON_001: FAIL"
         );
     }
 
@@ -945,7 +894,7 @@ mod tests {
         let payload = serde_json::json!({"test": "CURVE_001", "passed": false, "comments": []});
         assert_eq!(
             format_conformance_log(&payload, Some(false)),
-            "✓ CURVE_001: actual: FAIL expected: FAIL"
+            "[x] CURVE_001: actual: FAIL expected: FAIL"
         );
     }
 
@@ -954,7 +903,7 @@ mod tests {
         let payload = serde_json::json!({"test": "CURVE_001", "passed": true, "comments": []});
         assert_eq!(
             format_conformance_log(&payload, Some(false)),
-            "✗ CURVE_001: actual: PASS expected: FAIL"
+            "[ ] CURVE_001: actual: PASS expected: FAIL"
         );
     }
 
@@ -1052,7 +1001,7 @@ mod tests {
         assert_eq!(e2.event_type, "log");
         assert_eq!(
             e2.message["message"].as_str(),
-            Some("✓ MON_001: PASS"),
+            Some("[x] MON_001: PASS"),
             "conformance log should show that the result matched the expectation"
         );
 
