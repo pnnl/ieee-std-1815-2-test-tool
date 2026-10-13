@@ -59,8 +59,8 @@ Source: "..\Disclaimer.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\frontend\public\favicon.ico"; DestDir: "{app}"; DestName: "tool.ico"; Flags: ignoreversion
 
 [Tasks]
-; No Flags: unchecked, so the desktop shortcut is on by default and a silent
-; install creates it.
+; No unchecked flag: the task starts checked, so a silent
+; install creates the desktop shortcut.
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Icons]
