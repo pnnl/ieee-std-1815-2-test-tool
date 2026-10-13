@@ -18,14 +18,40 @@ button.iconButton > span.iconContainer {
 }
 
 .testRunnerBody {
-  display: flex;
-  gap: 12px;
   align-items: stretch;
 }
 
+.resizeHandle {
+  width: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+}
+
+.resizeHandle::before {
+  content: '';
+  width: 4px;
+  height: 40px;
+  border-radius: 2px;
+  background-color: #b8c2d1;
+}
+
+.resizeHandle:hover::before,
+.resizeHandle[data-separator='active']::before,
+.resizeHandle:focus-visible::before {
+  background-color: #2980b9;
+}
+
+.resizeHandle:focus-visible {
+  outline: 2px solid #2980b9;
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
 .testRunnerSidebar {
-  width: 400px;
-  flex-shrink: 0;
+  min-width: 0;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -36,7 +62,8 @@ button.iconButton > span.iconContainer {
 }
 
 .testRunnerLogs {
-  flex: 1;
+  min-width: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -308,7 +335,7 @@ button.iconButton > span.iconContainer {
   overflow-y: auto;
   background-color: #1e1e1e;
   border-radius: 8px;
-  padding: 16px;
+  padding: 10px;
   font-family: Monaco, Consolas, 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.5;
@@ -328,9 +355,7 @@ button.iconButton > span.iconContainer {
 }
 
 .logEntry {
-  display: flex;
-  gap: 12px;
-  padding: 4px 0;
+  padding: 2px 0;
   border-bottom: 1px solid #2d2d2d;
 }
 
@@ -340,13 +365,11 @@ button.iconButton > span.iconContainer {
 
 .logTimestamp {
   color: #7f8c8d;
-  flex-shrink: 0;
-  min-width: 80px;
+  white-space: nowrap;
 }
 
 .logSource {
-  flex-shrink: 0;
-  min-width: 40px;
+  white-space: nowrap;
   font-weight: 600;
 }
 
@@ -371,14 +394,14 @@ button.iconButton > span.iconContainer {
 }
 
 .logMessage {
-  word-break: break-word;
-  flex: 1;
-  font-size: 0.85rem;
-  font-weight: 500;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .logControls {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
