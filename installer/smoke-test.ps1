@@ -7,9 +7,13 @@
     checks where it landed, stops every process it started, then uninstalls
     and checks the install is gone while the per-user data survives.
     Needs no admin rights: everything here uses the per-user install mode.
-    It refuses to run when any earlier install (per-user or machine-wide)
-    or the default install directory is already present, because it would
-    otherwise install over, stop and uninstall something it did not create.
+    If the tool is already installed (per-user or machine-wide), it first
+    stops that install's processes and runs its own uninstaller, reported as
+    the prior-uninstall check. A machine-wide prior install needs an elevated
+    PowerShell to remove; without one the check fails and nothing is
+    installed. Per-user data under %LOCALAPPDATA% is left alone. Anything
+    still present afterwards (a leftover directory or desktop shortcut, with
+    no uninstaller) makes the run refuse; remove it by hand.
 .PARAMETER SetupExe
     Path to the built ieee-1815-2-test-tool-setup.exe.
 .PARAMETER Port
@@ -163,8 +167,105 @@ function Get-ShortcutPaths {
     return $paths
 }
 
-# Every way a prior install can occupy the target, so a run never installs
-# over, stops or uninstalls something it did not create.
+function Test-Elevated {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# Registered installs only. HKCU is shared between the two registry views, so
+# entries are de-duplicated on hive, uninstall string and location.
+function Get-RegisteredInstalls {
+    $installs = @()
+    $seen = @{}
+    foreach ($hive in @([Microsoft.Win32.RegistryHive]::CurrentUser, [Microsoft.Win32.RegistryHive]::LocalMachine)) {
+        foreach ($view in @([Microsoft.Win32.RegistryView]::Registry64, [Microsoft.Win32.RegistryView]::Registry32)) {
+            $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, $view)
+            try {
+                $key = $base.OpenSubKey($script:UninstallSubKey)
+                if (-not $key) { continue }
+                try {
+                    $location = [string]$key.GetValue('InstallLocation')
+                    $uninstallString = [string]$key.GetValue('UninstallString')
+                }
+                finally {
+                    $key.Close()
+                }
+                $id = "$hive|$uninstallString|$location"
+                if ($seen.ContainsKey($id)) { continue }
+                $seen[$id] = $true
+                $installs += [pscustomobject]@{
+                    Hive            = $hive
+                    View            = $view
+                    Label           = "$hive, $view"
+                    InstallLocation = $location.TrimEnd('\')
+                    UninstallString = $uninstallString
+                }
+            }
+            finally {
+                $base.Close()
+            }
+        }
+    }
+    return $installs
+}
+
+# Inno writes UninstallString as a quoted path to unins000.exe.
+function Get-UninstallerPath {
+    param([string]$UninstallString)
+    $text = $UninstallString.Trim()
+    if ($text -match '^"([^"]+)"') { return $Matches[1] }
+    if ($text -match '\.exe$') { return $text }
+    return $null
+}
+
+function Invoke-PriorUninstall {
+    param([object[]]$Installs)
+    foreach ($install in $Installs) {
+        Write-Host "PRIOR INSTALL FOUND ($($install.Label)): location '$($install.InstallLocation)', uninstall command '$($install.UninstallString)'. It will be uninstalled before the smoke test runs."
+    }
+    if (-not (Test-Elevated)) {
+        $machineWide = @($Installs | Where-Object { $_.Hive -eq [Microsoft.Win32.RegistryHive]::LocalMachine })
+        if ($machineWide.Count -gt 0) {
+            return @{ Passed = $false; Reason = 'a machine-wide (all-users) install is present and removing it needs an elevated PowerShell; rerun as Administrator or remove it yourself' }
+        }
+    }
+    $index = 0
+    foreach ($install in $Installs) {
+        $index++
+        $uninstaller = Get-UninstallerPath -UninstallString $install.UninstallString
+        if (-not $uninstaller -or -not (Test-Path -LiteralPath $uninstaller)) {
+            return @{ Passed = $false; Reason = "no usable uninstaller for the install in $($install.Label) (uninstall command '$($install.UninstallString)'); remove it by hand" }
+        }
+        $location = $install.InstallLocation
+        if (-not $location) { $location = Split-Path -Parent $uninstaller }
+        Stop-ToolProcesses -InstallLocation $location -LauncherProcess $null
+        $stopped = Wait-Condition -MaxSeconds $script:StopWaitSeconds -Condition {
+            @(Get-ToolProcesses -InstallLocation $location).Count -eq 0
+        }
+        if (-not $stopped) {
+            return @{ Passed = $false; Reason = "tool processes under '$location' are still running after $($script:StopWaitSeconds) s" }
+        }
+        $logPath = Join-Path $env:TEMP "smoke-test-prior-uninstall-$($PID)-$index.log"
+        $uninstallArgs = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=`"$logPath`"")
+        $run = Invoke-BoundedProcess -FilePath $uninstaller -ArgumentList $uninstallArgs -MaxSeconds $script:UninstallTimeoutSeconds
+        if ($run.TimedOut) {
+            return @{ Passed = $false; Reason = "the prior uninstaller did not finish within $($script:UninstallTimeoutSeconds) s (log: $logPath)" }
+        }
+        # Inno's uninstaller can hand off to a temp copy and return early.
+        $gone = Wait-Condition -MaxSeconds $script:RemovalWaitSeconds -Condition {
+            (-not (Test-UninstallKey -Hive $install.Hive -View $install.View)) -and
+            (-not ($location -and (Test-Path -LiteralPath $location)))
+        }
+        if (-not $gone) {
+            return @{ Passed = $false; Reason = "after the prior uninstaller (exit $($run.ExitCode)) the key or '$location' is still present (log: $logPath)" }
+        }
+    }
+    return @{ Passed = $true; Reason = '' }
+}
+
+# Every way a prior install can occupy the target; whatever remains after the
+# prior uninstall has no uninstaller and is reported, never deleted.
 function Get-PriorInstallEvidence {
     $found = @()
     foreach ($hive in @('CurrentUser', 'LocalMachine')) {
@@ -334,10 +435,19 @@ function Invoke-SmokeTest {
         throw "SetupExe not found: $SetupExe"
     }
 
-    # Safety: never touch an install or a port this run did not create.
+    # Check 0: uninstall a registered prior install so the run starts clean.
+    $registered = @(Get-RegisteredInstalls)
+    if ($registered.Count -eq 0) {
+        Write-CheckResult -Name 'prior-uninstall' -Status 'SKIP' -Reason 'nothing was installed'
+    }
+    else {
+        $priorResult = Invoke-PriorUninstall -Installs $registered
+        Write-CheckResult -Name 'prior-uninstall' -Status (ConvertTo-Status $priorResult.Passed) -Reason $priorResult.Reason
+        if (-not $priorResult.Passed) { return }
+    }
     $prior = @(Get-PriorInstallEvidence)
     if ($prior.Count -gt 0) {
-        throw "A previous install of the tool is present: $($prior -join '; '). Refusing to run: remove it yourself first. This script never installs over, stops or uninstalls an install it did not create."
+        throw "Leftovers of a previous install remain and have no uninstaller: $($prior -join '; '). Refusing to run: remove each by hand, this script never deletes them."
     }
     if (Test-PortListening -TestPort $Port) {
         throw "Port $Port is already in use. Pass a different -Port."
@@ -530,6 +640,7 @@ function Invoke-Main {
     if ($script:FailCount -gt 0) {
         Write-Host "install log: $script:InstallLogPath"
         Write-Host "uninstall log: $script:UninstallLogPath"
+        Write-Host "prior-install uninstall logs: $env:TEMP\smoke-test-prior-uninstall-$($PID)-*.log"
         Write-Host "tool log directory: $script:LogDir"
         exit 1
     }
