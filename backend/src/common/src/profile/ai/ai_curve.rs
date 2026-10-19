@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::profile::AiPoint;
+use crate::profile::{AiPoint, PicsProfile};
 
 /// AI points belonging to a Curve functional group.
 /// The header fields capture the single per-curve metadata points.
@@ -64,5 +64,19 @@ impl AiCurve {
         out.extend(x_values.iter_mut());
         out.extend(y_values.iter_mut());
         out
+    }
+}
+
+impl Default for AiCurve {
+    fn default() -> Self {
+        Self {
+            curve_type: PicsProfile::full_ai_point_by_index(329).expect("AI point 329 must exist"),
+            number_of_points: PicsProfile::full_ai_point_by_index(330)
+                .expect("AI point 330 must exist"),
+            x_units: PicsProfile::full_ai_point_by_index(331).expect("AI point 331 must exist"),
+            y_units: PicsProfile::full_ai_point_by_index(332).expect("AI point 332 must exist"),
+            x_values: Vec::new(),
+            y_values: Vec::new(),
+        }
     }
 }
