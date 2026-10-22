@@ -210,7 +210,7 @@ impl PicsProfile {
         }
     }
 
-    /// Return an owned copy of the cached, validated full.json profile.
+    /// Return an owned copy of the cached, validated full.json profile embedded at build time.
     pub fn load_full_profile() -> Validated<PicsProfile> {
         Self::full_profile().clone()
     }
@@ -219,15 +219,15 @@ impl PicsProfile {
         static FULL_PROFILE: OnceLock<Validated<PicsProfile>> = OnceLock::new();
 
         FULL_PROFILE.get_or_init(|| {
-            let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../../data/profiles/full.json");
-            let text = std::fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+            // Installed binaries do not have access to the build machine's source tree.
+            let text = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../data/profiles/full.json"
+            ));
             PicsProfile::into_validated(
-                serde_json::from_str(&text)
-                    .unwrap_or_else(|e| panic!("failed to parse {}: {e}", path.display())),
+                serde_json::from_str(text).expect("failed to parse embedded full.json profile"),
             )
-            .expect("failed to validate full.json profile")
+            .expect("failed to validate embedded full.json profile")
         })
     }
 }
