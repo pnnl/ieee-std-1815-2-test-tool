@@ -31,12 +31,6 @@ function PreferencesModal({
   preferences,
   onPreferenceChange,
 }: PreferencesModalProps) {
-  const [controlStationIpInput, setControlStationIpInput] = useState(
-    preferences.controlStationIp || 'local',
-  )
-  const [controlStationPortInput, setControlStationPortInput] = useState<
-    number | string
-  >(preferences.controlStationPort || 20000)
   const [outstationIpInput, setOutstationIpInput] = useState(
     preferences.outstationIp || 'local',
   )
@@ -44,13 +38,9 @@ function PreferencesModal({
     number | string
   >(preferences.outstationPort || 20001)
 
-  const [controlStationIpError, setControlStationIpError] = useState('')
-  const [controlStationPortError, setControlStationPortError] = useState('')
   const [outstationIpError, setOutstationIpError] = useState('')
   const [outstationPortError, setOutstationPortError] = useState('')
 
-  const [controlStationTestStatus, setControlStationTestStatus] =
-    useState<TestStatus>(null)
   const [outstationTestStatus, setOutstationTestStatus] =
     useState<TestStatus>(null)
 
@@ -87,26 +77,20 @@ function PreferencesModal({
     }
   }
 
-  const testConnection = async (type: 'controlStation' | 'outstation') => {
-    const setStatus =
-      type === 'controlStation'
-        ? setControlStationTestStatus
-        : setOutstationTestStatus
-    const ip =
-      type === 'controlStation' ? controlStationIpInput : outstationIpInput
-    const port =
-      type === 'controlStation' ? controlStationPortInput : outstationPortInput
+  const testConnection = async () => {
+    const ip = outstationIpInput
+    const port = outstationPortInput
 
     if (!isValidIpOrLocal(ip) || !isValidPort(port)) {
       toast.error(
         'Please enter a valid IP address and port before testing the connection.',
       )
-      setStatus('failed')
-      setTimeout(() => setStatus(null), 2000)
+      setOutstationTestStatus('failed')
+      setTimeout(() => setOutstationTestStatus(null), 2000)
       return
     }
 
-    setStatus('testing')
+    setOutstationTestStatus('testing')
 
     try {
       const host = ip === 'local' ? '127.0.0.1' : ip
@@ -114,17 +98,17 @@ function PreferencesModal({
         `/api/health/test-connection?host=${encodeURIComponent(host)}&port=${encodeURIComponent(port)}`,
       )
       if (response.ok) {
-        setStatus('success')
+        setOutstationTestStatus('success')
       } else {
         toast.error('Error: ' + JSON.stringify(response.json()))
-        setStatus('failed')
+        setOutstationTestStatus('failed')
       }
     } catch {
       toast.error('Failed to test connection.')
-      setStatus('failed')
+      setOutstationTestStatus('failed')
     }
 
-    setTimeout(() => setStatus(null), 2000)
+    setTimeout(() => setOutstationTestStatus(null), 2000)
   }
 
   const getTestButtonLabel = (status: TestStatus) => {
@@ -193,62 +177,6 @@ function PreferencesModal({
             </div>
           </div>
 
-          {/* Control Station */}
-          <div className="flex flex-col gap-1.5">
-            <p className="font-semibold text-sm">Control Station</p>
-            <p className="text-xs text-muted-foreground">
-              IP address and port for the control station (DNP3 master)
-            </p>
-            <div className="flex items-start gap-1.5">
-              <div className="flex-1 flex flex-col gap-1">
-                <Input
-                  value={controlStationIpInput}
-                  onChange={(e) =>
-                    handleIpChange(
-                      'controlStationIp',
-                      e.target.value,
-                      setControlStationIpInput,
-                      setControlStationIpError,
-                    )
-                  }
-                  placeholder="IP or local"
-                  className={controlStationIpError ? 'border-danger' : ''}
-                />
-                {controlStationIpError && (
-                  <p className="text-xs text-danger">{controlStationIpError}</p>
-                )}
-              </div>
-              <span className="pt-2 text-sm">:</span>
-              <div className="flex flex-col gap-1">
-                <NumberInput
-                  className="w-[100px]"
-                  value={controlStationPortInput}
-                  onChange={(val) =>
-                    handlePortChange(
-                      'controlStationPort',
-                      val,
-                      setControlStationPortInput,
-                      setControlStationPortError,
-                    )
-                  }
-                  min={1}
-                  max={65535}
-                  hideControls
-                  error={controlStationPortError || undefined}
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className={getTestButtonClass(controlStationTestStatus)}
-                onClick={() => testConnection('controlStation')}
-                disabled={controlStationTestStatus === 'testing'}
-              >
-                {getTestButtonLabel(controlStationTestStatus)}
-              </Button>
-            </div>
-          </div>
-
           {/* Outstation */}
           <div className="flex flex-col gap-1.5">
             <p className="font-semibold text-sm">Outstation</p>
@@ -297,7 +225,7 @@ function PreferencesModal({
                 variant="outline"
                 size="sm"
                 className={getTestButtonClass(outstationTestStatus)}
-                onClick={() => testConnection('outstation')}
+                onClick={testConnection}
                 disabled={outstationTestStatus === 'testing'}
               >
                 {getTestButtonLabel(outstationTestStatus)}

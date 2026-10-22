@@ -119,8 +119,6 @@ class MockEventSource {
 const fakeProfile = {} as PicsProfile
 
 const fakePreferences: Preferences = {
-  controlStationIp: '127.0.0.1',
-  controlStationPort: 20000,
   outstationIp: '127.0.0.1',
   outstationPort: 20000,
   enabledScenarios: {},

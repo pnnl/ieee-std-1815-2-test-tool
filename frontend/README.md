@@ -19,7 +19,7 @@ A React-based web application for editing IEEE 1815.2 profile configuration file
   - Support for 10 curves with 10 points each
   - Configure curve type, units, and point values
 - **Preferences**: Configurable settings saved to browser localStorage
-  - Control station and outstation IP/port settings
+  - Outstation IP/port settings
   - Auto-expand sections on tab change
 - **File Operations**: Load existing profiles and save modified profiles
 - **Validation**: Warns when decreasing entity counts that may affect data
@@ -227,7 +227,8 @@ Curve editing interface:
 
 User preferences dialog:
 
-- Control station and outstation IP/port configuration
+- Outstation IP/port configuration and connection test
+- Test runs always use the local reference control station
 - Auto-expand sections toggle
 - Settings persisted to localStorage
 

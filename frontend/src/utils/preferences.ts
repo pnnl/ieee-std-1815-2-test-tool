@@ -4,8 +4,6 @@ export type DeviceUnderTest = 'control_station' | 'outstation'
 
 export interface Preferences {
   autoExpandSections: boolean
-  controlStationIp: string
-  controlStationPort: number
   outstationIp: string
   outstationPort: number
   enabledScenarios: Record<string, boolean>
@@ -14,8 +12,6 @@ export interface Preferences {
 
 const DEFAULT_PREFERENCES: Preferences = {
   autoExpandSections: false,
-  controlStationIp: '127.0.0.1',
-  controlStationPort: 20000,
   outstationIp: '127.0.0.1',
   outstationPort: 20001,
   enabledScenarios: {},
