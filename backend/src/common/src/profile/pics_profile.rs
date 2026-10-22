@@ -152,10 +152,6 @@ impl PicsProfile {
         Ok(())
     }
 
-    pub fn ai_point_by_index(&self, point_index: u16) -> Option<&AiPoint> {
-        self.ai.point_by_index(point_index)
-    }
-
     /// Append default curves and validate the entire profile, rolling back on failure.
     /// Returns the zero-based index of the first added curve.
     pub fn add_default_curves(&mut self, count: u16) -> Result<usize, ValidationErrors> {
@@ -214,13 +210,6 @@ impl PicsProfile {
         }
     }
 
-    /// Return an owned copy of the first matching AI point from the cached full.json profile.
-    /// Searches all AI sub-groups and returns `None` when the index is absent.
-    /// Multiplexed entries can share an index; the first entry is returned in that case.
-    pub fn full_ai_point_by_index(point_index: u16) -> Option<AiPoint> {
-        Self::full_profile().ai_point_by_index(point_index).cloned()
-    }
-
     /// Return an owned copy of the cached, validated full.json profile.
     pub fn load_full_profile() -> Validated<PicsProfile> {
         Self::full_profile().clone()
@@ -276,40 +265,6 @@ mod profile_index_tests {
             .expect_err("invalid profile must be rejected");
 
         assert_eq!(profile, original);
-    }
-
-    #[test]
-    fn test_full_ai_point_by_index_includes_all_groups() {
-        let profile = PicsProfile::load_full_profile();
-        let mut seen_indices = std::collections::HashSet::new();
-        for point in profile.ai.all_ai_points_full() {
-            // Multiplexed entries reuse indices; lookup returns the first entry.
-            if !seen_indices.insert(point.point_index) {
-                continue;
-            }
-            assert_eq!(
-                PicsProfile::full_ai_point_by_index(point.point_index),
-                Some(point.clone())
-            );
-        }
-        assert_eq!(PicsProfile::full_ai_point_by_index(u16::MAX), None);
-    }
-
-    #[test]
-    fn test_full_ai_point_by_index_returns_an_independent_copy() {
-        let profile = PicsProfile::load_full_profile();
-        let expected = &profile.ai.points[0];
-        let mut point = PicsProfile::full_ai_point_by_index(expected.point_index).unwrap();
-        point.name.push_str(" changed");
-
-        assert_eq!(
-            PicsProfile::full_ai_point_by_index(expected.point_index),
-            Some(expected.clone())
-        );
-        assert!(std::ptr::eq(
-            PicsProfile::full_profile(),
-            PicsProfile::full_profile()
-        ));
     }
 
     fn make_ai(index: u16, name: &str) -> AiPoint {

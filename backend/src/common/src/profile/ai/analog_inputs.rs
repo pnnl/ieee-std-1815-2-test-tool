@@ -144,12 +144,6 @@ impl AnalogInputs {
             .find(|point| point.point_index == uid as u16)
     }
 
-    pub fn point_by_index(&self, index: u16) -> Option<&AiPoint> {
-        self.all_ai_points_full()
-            .into_iter()
-            .find(|point| point.point_index == index)
-    }
-
     pub fn add_curve(&mut self) {
         let curve = AiCurve::default();
         self.curves.push(curve);
