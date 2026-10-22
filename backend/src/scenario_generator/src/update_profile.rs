@@ -104,7 +104,7 @@ pub fn prepare_base_profile_for_scenarios(
     }
 
     // Adjust base AI points
-    for ai in &mut unvalidated.ai.points {
+    for ai in unvalidated.ai.points_mut() {
         if is_multiplex_selector_ai(ai.point_index) {
             continue;
         }
@@ -306,8 +306,9 @@ fn generate_unsupported_profile(
     // Build point_index sets for each base section of the submitted profile.
     let submitted_ao: HashSet<u16> = profile.ao.points.iter().map(|p| p.point_index).collect();
     let submitted_bo: HashSet<u16> = profile.bo.points.iter().map(|p| p.point_index).collect();
-    let submitted_ai: HashSet<u16> = profile.ai.points.iter().map(|p| p.point_index).collect();
+    let submitted_ai: HashSet<u16> = profile.ai.points().iter().map(|p| p.point_index).collect();
     let submitted_bi: HashSet<u16> = profile.bi.points.iter().map(|p| p.point_index).collect();
+    let submitted_ctr: HashSet<u16> = profile.ctr.iter().map(|p| p.point_index).collect();
 
     // Build flat point_index sets covering ALL AI points inside submitted curves/schedules.
     // A curve/schedule is considered "present" in the submitted profile if ANY of its
@@ -338,7 +339,7 @@ fn generate_unsupported_profile(
         .collect();
 
     PicsProfile::new(
-        profile.key.clone(),
+        full_profile.key.clone(),
         BinaryOutputs {
             points: full_profile
                 .bo
@@ -416,16 +417,16 @@ fn generate_unsupported_profile(
                 .cloned()
                 .collect(),
         },
-        AnalogInputs {
-            points: full_profile
+        AnalogInputs::new(
+            full_profile
                 .ai
-                .points
+                .points()
                 .iter()
                 .filter(|p| !submitted_ai.contains(&p.point_index))
                 .cloned()
                 .collect(),
             // Curves/schedules: include if NONE of their AI point indices appear in submitted.
-            curves: full_profile
+            full_profile
                 .ai
                 .curves
                 .iter()
@@ -436,7 +437,7 @@ fn generate_unsupported_profile(
                 })
                 .cloned()
                 .collect(),
-            schedules_bc: full_profile
+            full_profile
                 .ai
                 .schedules_bc
                 .iter()
@@ -447,7 +448,7 @@ fn generate_unsupported_profile(
                 })
                 .cloned()
                 .collect(),
-            schedules: full_profile
+            full_profile
                 .ai
                 .schedules
                 .iter()
@@ -458,36 +459,41 @@ fn generate_unsupported_profile(
                 })
                 .cloned()
                 .collect(),
-            meters: full_profile
+            full_profile
                 .ai
                 .meters
                 .iter()
                 .skip(profile.ai.meters.len())
                 .cloned()
                 .collect(),
-            ders: full_profile
+            full_profile
                 .ai
                 .ders
                 .iter()
                 .skip(profile.ai.ders.len())
                 .cloned()
                 .collect(),
-            inverters: full_profile
+            full_profile
                 .ai
                 .inverters
                 .iter()
                 .skip(profile.ai.inverters.len())
                 .cloned()
                 .collect(),
-            batteries: full_profile
+            full_profile
                 .ai
                 .batteries
                 .iter()
                 .skip(profile.ai.batteries.len())
                 .cloned()
                 .collect(),
-        },
-        vec![],
+        )?,
+        full_profile
+            .ctr
+            .iter()
+            .filter(|p| !submitted_ctr.contains(&p.point_index))
+            .cloned()
+            .collect(),
     )
 }
 
@@ -565,7 +571,9 @@ mod tests {
             update_profile(&ScenarioId::ModifyPoints, profile.clone(), &profile).unwrap();
 
         // Every point's value should remain within its declared bounds.
-        for (original_pt, modified_pt) in profile.ai.points.iter().zip(modified.ai.points.iter()) {
+        for (original_pt, modified_pt) in
+            profile.ai.points().iter().zip(modified.ai.points().iter())
+        {
             let eng_val = modified_pt.value();
             assert!(
                 eng_val >= original_pt.eng_minimum() && eng_val <= original_pt.eng_maximum(),
@@ -580,9 +588,9 @@ mod tests {
         // At least one value with a non-degenerate range should have actually changed.
         let changed = profile
             .ai
-            .points
+            .points()
             .iter()
-            .zip(modified.ai.points.iter())
+            .zip(modified.ai.points().iter())
             .any(|(orig, modp)| orig.minimum() < orig.maximum() && orig.value() != modp.value());
         assert!(
             changed,
@@ -627,7 +635,9 @@ mod tests {
         let modified =
             update_profile(&ScenarioId::BelowLowerBounds, profile.clone(), &profile).unwrap();
         let mut modification_count = 0;
-        for (original_pt, modified_pt) in profile.ai.points.iter().zip(modified.ai.points.iter()) {
+        for (original_pt, modified_pt) in
+            profile.ai.points().iter().zip(modified.ai.points().iter())
+        {
             if modified_pt.value() < original_pt.eng_minimum() {
                 modification_count += 1;
             }
@@ -644,7 +654,9 @@ mod tests {
         let modified =
             update_profile(&ScenarioId::AboveUpperBounds, profile.clone(), &profile).unwrap();
         let mut modification_count = 0;
-        for (original_pt, modified_pt) in profile.ai.points.iter().zip(modified.ai.points.iter()) {
+        for (original_pt, modified_pt) in
+            profile.ai.points().iter().zip(modified.ai.points().iter())
+        {
             if modified_pt.value() > original_pt.eng_maximum() {
                 modification_count += 1;
             }
@@ -722,6 +734,42 @@ mod tests {
                 "Unsupported scenario should include base AO points not in submitted profile"
             );
         }
+    }
+
+    #[test]
+    fn test_unsupported_accounts_for_all_point_groups() {
+        let full_profile = load_full_profile();
+        let empty_profile = PicsProfile::new(
+            full_profile.key.clone(),
+            BinaryOutputs::default(),
+            BinaryInputs::default(),
+            AnalogOutputs::default(),
+            AnalogInputs::default(),
+            vec![],
+        )
+        .unwrap();
+
+        let unsupported = update_profile(
+            &ScenarioId::Unsupported,
+            empty_profile.clone(),
+            &full_profile,
+        )
+        .unwrap();
+        assert_eq!(
+            unsupported, full_profile,
+            "An empty submission should leave every point unsupported"
+        );
+
+        let unsupported = update_profile(
+            &ScenarioId::Unsupported,
+            full_profile.clone(),
+            &full_profile,
+        )
+        .unwrap();
+        assert_eq!(
+            unsupported, empty_profile,
+            "A full submission should leave no points unsupported"
+        );
     }
 
     #[test]

@@ -163,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "Profile loaded: {} BI, {} BO, {} AI, {} AO base points",
             p.bi.points.len(),
             p.bo.points.len(),
-            p.ai.points.len(),
+            p.ai.points().len(),
             p.ao.points.len(),
         );
         Arc::new(p)

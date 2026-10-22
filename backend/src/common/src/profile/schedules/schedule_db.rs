@@ -456,16 +456,17 @@ mod tests {
             BinaryOutputs::default(),
             BinaryInputs::default(),
             AnalogOutputs::default(),
-            AnalogInputs {
-                points: vec![],
-                curves: vec![],
-                schedules_bc: vec![],
+            AnalogInputs::new(
+                vec![],
+                vec![],
+                vec![],
                 schedules,
-                meters: vec![],
-                ders: vec![],
-                inverters: vec![],
-                batteries: vec![],
-            },
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+            )
+            .expect("test analog inputs must be valid"),
             vec![],
         )
         .expect("test PicsProfile must be valid")

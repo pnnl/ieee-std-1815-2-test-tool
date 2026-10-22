@@ -106,4 +106,4 @@ pub use action_type::ActionType;
 pub use counter_point::CtrPoint;
 pub use curves::curve_type::CurveType;
 pub use event_class::EventClass;
-pub use key_sheet::KeySheet;
+pub use key_sheet::{AiPointGroup, KeySheet};
