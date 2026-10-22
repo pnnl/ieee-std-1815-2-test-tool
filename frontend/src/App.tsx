@@ -891,8 +891,6 @@ function App() {
         error instanceof Error ? error.message : 'Failed to add curves.',
       )
       return null
-    } finally {
-      setIsAddingCurves(false)
     }
   }
 
