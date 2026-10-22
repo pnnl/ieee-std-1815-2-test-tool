@@ -119,7 +119,7 @@
         "start": 50000
       }
     },
-    "discovery": {
+    "start_index_points": {
       "bo": {
         "start": 60000
       },
