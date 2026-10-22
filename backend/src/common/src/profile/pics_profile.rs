@@ -156,6 +156,39 @@ impl PicsProfile {
         self.ai.point_by_index(point_index)
     }
 
+    /// Append default curves and validate the entire profile, rolling back on failure.
+    /// Returns the zero-based index of the first added curve.
+    pub fn add_default_curves(&mut self, count: u16) -> Result<usize, ValidationErrors> {
+        use crate::{profile::DEFAULT_MAX_DATABASE_ENTRIES, uids::ai_uid::AiUid};
+
+        let initial_count = self.ai.curves.len();
+        let maximum = self
+            .ai
+            .point_by_uid(AiUid::Curve_DGSMn_InCrv)
+            .map(|point| point.maximum().0)
+            .unwrap_or(DEFAULT_MAX_DATABASE_ENTRIES.into())
+            .min(DEFAULT_MAX_DATABASE_ENTRIES.into());
+        if count == 0
+            || initial_count + usize::from(count) > usize::try_from(maximum).unwrap_or_default()
+        {
+            return Err(ValidationErrors::from_error(ValidationError {
+                point: format!("AI{}", AiUid::Curve_DGSMn_InCrv as u16),
+                message: format!(
+                    "Must add at least one curve and keep the total at or below {maximum}"
+                ),
+            }));
+        }
+
+        for _ in 0..count {
+            self.ai.add_curve();
+        }
+        if let Err(errors) = self.validate() {
+            self.ai.curves.truncate(initial_count);
+            return Err(errors);
+        }
+        Ok(initial_count)
+    }
+
     /// For use with user-input data only. For internal construction, always use `PicsProfile::new()`.
     pub fn new_unsafe_for_collecting_errors(
         key: KeySheet,
@@ -193,7 +226,7 @@ impl PicsProfile {
         Self::full_profile().clone()
     }
 
-    fn full_profile() -> &'static Validated<PicsProfile> {
+    pub(super) fn full_profile() -> &'static Validated<PicsProfile> {
         static FULL_PROFILE: OnceLock<Validated<PicsProfile>> = OnceLock::new();
 
         FULL_PROFILE.get_or_init(|| {
@@ -229,6 +262,21 @@ impl Validate for PicsProfile {
 mod profile_index_tests {
     use super::*;
     use crate::profile::{profile_index::ProfileIndex, values::TransmissionI32};
+
+    #[test]
+    fn test_add_default_curves_restores_profile_on_validation_failure() {
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile.ai.curves[0]
+            .curve_type
+            .set_value_unsafe(EngineeringF64(99.0));
+        let original = profile.clone();
+
+        profile
+            .add_default_curves(1)
+            .expect_err("invalid profile must be rejected");
+
+        assert_eq!(profile, original);
+    }
 
     #[test]
     fn test_full_ai_point_by_index_includes_all_groups() {

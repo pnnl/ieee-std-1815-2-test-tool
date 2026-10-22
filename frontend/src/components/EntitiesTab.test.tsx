@@ -27,6 +27,7 @@ describe('EntitiesTab with a profile missing the AI key', () => {
           onEntityChange={() => true}
           profileData={profileMissingAi}
           setProfileData={() => {}}
+          onAddCurves={async () => null}
         />,
       ),
     ).toThrow(/Cannot read properties of undefined/)
@@ -41,14 +42,16 @@ describe('EntitiesTab with a profile missing the AI key', () => {
           onEntityChange={() => true}
           profileData={fullProfile}
           setProfileData={() => {}}
+          onAddCurves={async () => null}
         />,
       ),
     ).not.toThrow()
 
-    const spinbuttons = screen.getAllByRole('spinbutton')
-    expect(spinbuttons).toHaveLength(6)
-    // full.json's own real curve/schedule counts (per canonical.test.ts).
-    expect((spinbuttons[4] as HTMLInputElement).value).toBe('4')
-    expect((spinbuttons[5] as HTMLInputElement).value).toBe('4')
+    expect(screen.getByRole('spinbutton', { name: 'Curves' })).toHaveValue(
+      fullProfile.AI.curves.length,
+    )
+    expect(screen.getByRole('spinbutton', { name: 'Schedules' })).toHaveValue(
+      fullProfile.AI.schedules.length,
+    )
   })
 })

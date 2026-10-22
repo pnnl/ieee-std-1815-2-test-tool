@@ -1085,35 +1085,8 @@ export function setEquipmentCount(
 }
 
 // --------------------------------------------------------------------------
-// Curves — replace, add, remove, edit single x/y point.
+// Curves — remove and edit single x/y points. Defaults are added by the backend.
 // --------------------------------------------------------------------------
-
-export function setCurveCount(
-  profile: PicsProfile,
-  target: number,
-): PicsProfile {
-  const next = structuredClone(profile)
-  if (next.AI.curves.length === target) return next
-  if (next.AI.curves.length > target) {
-    next.AI.curves = next.AI.curves.slice(0, target)
-    return next
-  }
-  if (next.AI.curves.length === 0) {
-    // No template to clone from:
-    // a profile must seed at least one curve before counts can grow. The
-    // canonical seeds always ship with a curve.
-    return next
-  }
-  const last = next.AI.curves[next.AI.curves.length - 1]
-  while (next.AI.curves.length < target) {
-    next.AI.curves.push(structuredClone(last))
-  }
-  return next
-}
-
-export function addCurve(profile: PicsProfile): PicsProfile {
-  return setCurveCount(profile, profile.AI.curves.length + 1)
-}
 
 export function removeCurve(
   profile: PicsProfile,

@@ -8,7 +8,8 @@
 // `curveTypeRawValue`) in place of the fields that need a resolved entry.
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Theme } from '@radix-ui/themes'
 import CurvesTab from './CurvesTab'
 import { EnumDataContext } from '@/contexts/useEnumData'
@@ -88,6 +89,8 @@ const ENUMS_RESPONSE: EnumsResponse = {
 function renderCurvesTab(
   profileData: PicsProfile,
   errors: ValidationError[] = [],
+  onAddCurves = async (): Promise<number | null> => null,
+  setProfileData: (profile: PicsProfile) => void = () => {},
 ) {
   return render(
     <Theme>
@@ -96,7 +99,8 @@ function renderCurvesTab(
       >
         <CurvesTab
           profileData={profileData}
-          setProfileData={() => {}}
+          setProfileData={setProfileData}
+          onAddCurves={onAddCurves}
           errors={errors}
         />
       </EnumDataContext.Provider>
@@ -104,7 +108,48 @@ function renderCurvesTab(
   )
 }
 
+describe('CurvesTab number editing', () => {
+  it('waits for the complete point count before resizing the curve', async () => {
+    const user = userEvent.setup()
+    const profile = fullProfileJson as PicsProfile
+    const setProfileData = vi.fn()
+    renderCurvesTab(profile, [], undefined, setProfileData)
+    const input = screen.getByRole('spinbutton', { name: 'Number of Points' })
+
+    await user.clear(input)
+    await user.type(input, '14')
+
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue(14)
+    expect(setProfileData).not.toHaveBeenCalled()
+
+    await user.tab()
+
+    expect(setProfileData).toHaveBeenCalledOnce()
+    const curve = setProfileData.mock.calls[0][0].AI.curves[0]
+    expect(curve.number_of_points.value).toBe(14)
+    expect(curve.x_values).toHaveLength(14)
+    expect(
+      curve.x_values.slice(0, profile.AI.curves[0].x_values.length),
+    ).toEqual(profile.AI.curves[0].x_values)
+    expect(
+      curve.y_values.slice(0, profile.AI.curves[0].y_values.length),
+    ).toEqual(profile.AI.curves[0].y_values)
+  })
+})
+
 describe('CurvesTab with a structurally invalid curve_type', () => {
+  it('requests a default curve even when there are no existing curves', () => {
+    const profile = structuredClone(fullProfileJson) as PicsProfile
+    profile.AI.curves = []
+    const onAddCurves = vi.fn().mockResolvedValue(null)
+    renderCurvesTab(profile, [], onAddCurves)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Curve' }))
+
+    expect(onAddCurves).toHaveBeenCalledOnce()
+  })
+
   it('renders invalid_general.json (curve 0 has curve_type 99) without throwing, and shows the invalid-type error', () => {
     const profile = invalidGeneralJson as unknown as PicsProfile
 
@@ -162,6 +207,7 @@ describe('CurvesTab with a structurally invalid curve_type', () => {
           <CurvesTab
             profileData={profile}
             setProfileData={setProfileData}
+            onAddCurves={async () => null}
             errors={[]}
           />
         </EnumDataContext.Provider>
