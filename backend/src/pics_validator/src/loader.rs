@@ -518,7 +518,7 @@ pub fn load_key_sheet(range: &Range<Data>) -> Option<KeySheet> {
         extensions: load_section_points(range, schema::KEY_SECTION_ROWS[4].0),
         experimental: load_single_section_points(range, schema::KEY_EXPERIMENTAL_ROW, 30000),
         vendor: load_single_section_points(range, schema::KEY_VENDOR_ROW, 50000),
-        discovery: load_single_section_points(range, schema::KEY_AUTO_DISC_ROW, 60000),
+        start_index_points: load_single_section_points(range, schema::KEY_AUTO_DISC_ROW, 60000),
         schedules_bc: load_single_section_points(range, schema::KEY_SCHEDULE_BC_ROW, 2000),
         schedules_bc_status: load_single_section_points(
             range,
@@ -2144,7 +2144,15 @@ fn reclassify_ai(
 
     for point in points {
         match key.ai_point_group(point.point_index) {
-            AiPointGroup::Base => base.push(point),
+            AiPointGroup::ConfigAndControl
+            | AiPointGroup::Functions
+            | AiPointGroup::SystemMeter
+            | AiPointGroup::Extensions
+            | AiPointGroup::ScheduleBCStatus
+            | AiPointGroup::ScheduleStatus
+            | AiPointGroup::Experimental
+            | AiPointGroup::Vendor
+            | AiPointGroup::StartIndexPoints => base.push(point),
             AiPointGroup::Curve => curves_flat.push(point),
             AiPointGroup::ScheduleBC => schedules_bc_flat.push(point),
             AiPointGroup::Schedule => schedules_flat.push(point),

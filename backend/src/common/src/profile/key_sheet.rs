@@ -2,18 +2,27 @@ use serde::{Deserialize, Serialize};
 
 use crate::profile::{EquipmentPoints, SectionPoints};
 
-/// The group containing an AI point in a flat spreadsheet, before selectors
-/// are moved from functional groups into the base point collection.
+/// The Key sheet section containing an AI point, before the loader groups
+/// points for storage and moves functional selectors into the base collection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiPointGroup {
-    Base,
+    ConfigAndControl,
+    Functions,
     Curve,
+    SystemMeter,
+    Extensions,
     ScheduleBC,
+    ScheduleBCStatus,
     Schedule,
+    ScheduleStatus,
     Meter,
     Der,
     Inverter,
     Battery,
+    Experimental,
+    Vendor,
+    /// Start Index Points used for optional auto discovery.
+    StartIndexPoints,
 }
 
 /// Index and count metadata for all point groups in the profile.
@@ -27,7 +36,8 @@ pub struct KeySheet {
     pub extensions: SectionPoints,
     pub experimental: SectionPoints,
     pub vendor: SectionPoints,
-    pub discovery: SectionPoints,
+    /// Starting boundary of the Key sheet's Start Index Points section.
+    pub start_index_points: SectionPoints,
     pub schedules_bc: SectionPoints,
     pub schedules_bc_status: SectionPoints,
     pub schedules: SectionPoints,
@@ -42,18 +52,12 @@ pub struct KeySheet {
 impl KeySheet {
     /// Classify a flat AI point using this profile's section boundaries.
     pub fn ai_point_group(&self, index: u16) -> AiPointGroup {
-        if index >= self.experimental.ai.start {
-            AiPointGroup::Base
-        } else if (self.curves.ai.start..self.system_meter.ai.start).contains(&index) {
-            AiPointGroup::Curve
-        } else if (self.schedules_bc.ai.start..self.schedules_bc_status.ai.start).contains(&index) {
-            AiPointGroup::ScheduleBC
-        } else if (self.schedules_bc_status.ai.start..self.schedules.ai.start).contains(&index) {
-            AiPointGroup::Base
-        } else if (self.schedules.ai.start..self.schedules_status.ai.start).contains(&index) {
-            AiPointGroup::Schedule
-        } else if (self.schedules_status.ai.start..self.meter.ai.start).contains(&index) {
-            AiPointGroup::Base
+        if index >= self.start_index_points.ai.start {
+            AiPointGroup::StartIndexPoints
+        } else if index >= self.vendor.ai.start {
+            AiPointGroup::Vendor
+        } else if index >= self.experimental.ai.start {
+            AiPointGroup::Experimental
         } else if index >= self.battery.ai.start {
             AiPointGroup::Battery
         } else if index >= self.inverter.ai.start {
@@ -62,8 +66,24 @@ impl KeySheet {
             AiPointGroup::Der
         } else if index >= self.meter.ai.start {
             AiPointGroup::Meter
+        } else if index >= self.schedules_status.ai.start {
+            AiPointGroup::ScheduleStatus
+        } else if index >= self.schedules.ai.start {
+            AiPointGroup::Schedule
+        } else if index >= self.schedules_bc_status.ai.start {
+            AiPointGroup::ScheduleBCStatus
+        } else if index >= self.schedules_bc.ai.start {
+            AiPointGroup::ScheduleBC
+        } else if index >= self.extensions.ai.start {
+            AiPointGroup::Extensions
+        } else if index >= self.system_meter.ai.start {
+            AiPointGroup::SystemMeter
+        } else if index >= self.curves.ai.start {
+            AiPointGroup::Curve
+        } else if index >= self.functions.ai.start {
+            AiPointGroup::Functions
         } else {
-            AiPointGroup::Base
+            AiPointGroup::ConfigAndControl
         }
     }
 
@@ -71,13 +91,76 @@ impl KeySheet {
     /// schedule index, which the loader moves out of their functional groups.
     pub fn is_base_ai_point(&self, index: u16) -> bool {
         match self.ai_point_group(index) {
-            AiPointGroup::Base => true,
+            AiPointGroup::ConfigAndControl
+            | AiPointGroup::Functions
+            | AiPointGroup::SystemMeter
+            | AiPointGroup::Extensions
+            | AiPointGroup::ScheduleBCStatus
+            | AiPointGroup::ScheduleStatus
+            | AiPointGroup::Experimental
+            | AiPointGroup::Vendor
+            | AiPointGroup::StartIndexPoints => true,
             AiPointGroup::Curve => index == self.curves.ai.start,
             AiPointGroup::ScheduleBC => index
                 .checked_sub(self.schedules_bc.ai.start)
                 .is_some_and(|offset| offset <= 1),
             AiPointGroup::Schedule => index == self.schedules.ai.start,
-            _ => false,
+            AiPointGroup::Meter
+            | AiPointGroup::Der
+            | AiPointGroup::Inverter
+            | AiPointGroup::Battery => false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::PicsProfile;
+
+    #[test]
+    fn ai_groups_follow_key_sheet_sections() {
+        let key = &PicsProfile::load_full_profile().key;
+        // AI boundaries from the full workbook's Key tab, including the last
+        // index before each subsequent section starts.
+        for (start, end, group, base) in [
+            (0, 70, AiPointGroup::ConfigAndControl, true),
+            (71, 327, AiPointGroup::Functions, true),
+            (328, 532, AiPointGroup::Curve, false),
+            (533, 568, AiPointGroup::SystemMeter, true),
+            (569, 1999, AiPointGroup::Extensions, true),
+            (2000, 2299, AiPointGroup::ScheduleBC, false),
+            (2300, 2999, AiPointGroup::ScheduleBCStatus, true),
+            (3000, 3499, AiPointGroup::Schedule, false),
+            (3500, 4999, AiPointGroup::ScheduleStatus, true),
+            (5000, 9999, AiPointGroup::Meter, false),
+            (10000, 14999, AiPointGroup::Der, false),
+            (15000, 19999, AiPointGroup::Inverter, false),
+            (20000, 29999, AiPointGroup::Battery, false),
+            (30000, 49999, AiPointGroup::Experimental, true),
+            (50000, 59999, AiPointGroup::Vendor, true),
+            (60000, 65535, AiPointGroup::StartIndexPoints, true),
+        ] {
+            assert_eq!(key.ai_point_group(start), group, "AI{start}");
+            assert_eq!(key.ai_point_group(end), group, "AI{end}");
+            assert_eq!(key.is_base_ai_point(end), base, "AI{end}");
+        }
+    }
+
+    #[test]
+    fn functional_selectors_remain_base_points() {
+        let key = &PicsProfile::load_full_profile().key;
+        for (index, group) in [
+            (328, AiPointGroup::Curve),
+            (2000, AiPointGroup::ScheduleBC),
+            (2001, AiPointGroup::ScheduleBC),
+            (3000, AiPointGroup::Schedule),
+        ] {
+            assert_eq!(key.ai_point_group(index), group, "AI{index}");
+            assert!(key.is_base_ai_point(index), "AI{index}");
+        }
+        for index in [329, 2002, 3001] {
+            assert!(!key.is_base_ai_point(index), "AI{index}");
         }
     }
 }

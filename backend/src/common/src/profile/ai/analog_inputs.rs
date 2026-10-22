@@ -295,6 +295,7 @@ mod tests {
         let mut profile = PicsProfile::load_full_profile().into_unvalidated();
         profile.key.curves.ai.start = 400;
         profile.key.system_meter.ai.start = 600;
+        profile.key.extensions.ai.start = 650;
         profile.key.schedules_bc.ai.start = 2100;
         profile.key.schedules.ai.start = 3100;
         profile.ai.points = [399, 400, 600, 2100, 2101, 3100]

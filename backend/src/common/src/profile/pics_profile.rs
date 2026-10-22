@@ -337,7 +337,7 @@ mod profile_index_tests {
                 extensions: empty_section.clone(),
                 experimental: empty_section.clone(),
                 vendor: empty_section.clone(),
-                discovery: empty_section.clone(),
+                start_index_points: empty_section.clone(),
                 schedules_bc: empty_section.clone(),
                 schedules_bc_status: empty_section.clone(),
                 schedules: empty_section.clone(),

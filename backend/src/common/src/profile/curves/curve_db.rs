@@ -355,7 +355,7 @@ mod tests {
                 extensions: make_empty_section(),
                 experimental: make_empty_section(),
                 vendor: make_empty_section(),
-                discovery: make_empty_section(),
+                start_index_points: make_empty_section(),
                 schedules_bc: make_empty_section(),
                 schedules_bc_status: make_empty_section(),
                 schedules: make_empty_section(),
