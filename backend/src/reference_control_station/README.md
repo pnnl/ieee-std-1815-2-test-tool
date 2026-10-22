@@ -5,7 +5,7 @@ DNP3 Reference Control Station application. Connects to an outstation over TCP/I
 ## Running
 
 ```sh
-cargo run -- --outstation-ip 127.0.0.1 --outstation-port 20000
+cargo run -- --outstation-ip 127.0.0.1 --outstation-port 20000 --profile ../../../data/profiles/full.json
 ```
 
 CLI options:
