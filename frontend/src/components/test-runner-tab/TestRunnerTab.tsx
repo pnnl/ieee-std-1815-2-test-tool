@@ -165,15 +165,12 @@ function TestRunnerTab({
     setProcessStatus('test_runner', 'starting')
 
     try {
-      // Build configs based on preferences
-      // "local" means use the reference implementation, otherwise connect to external endpoint
+      // Automated scenarios run through the local reference control station.
       const controlStationConfig = {
-        use_reference_control_station:
-          preferences.controlStationIp === '127.0.0.1',
-        ip_address: preferences.controlStationIp,
-        port: preferences.controlStationPort,
+        use_reference_control_station: true,
       }
 
+      // Loopback selects the reference outstation; other IPs select an external one.
       const outstationConfig = {
         use_reference_outstation: preferences.outstationIp === '127.0.0.1',
         ip_address: preferences.outstationIp,
