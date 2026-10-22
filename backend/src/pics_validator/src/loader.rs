@@ -7,7 +7,7 @@ use calamine::{Data, Range, Reader, Xlsx, open_workbook};
 use common::profile::curve::float_to_curve_code;
 use common::profile::validation::{LoadError, Validated, ValidationError, ValidationErrors};
 use common::profile::values::{EngineeringF64, TransmissionI32};
-use common::profile::{ActionType, BiPoint, BoPoint, CurveType, Point, ProfileIndex};
+use common::profile::{ActionType, AiPointGroup, BiPoint, BoPoint, CurveType, Point, ProfileIndex};
 use common::uids::bo_uid::BoUid;
 
 use crate::models::{
@@ -518,7 +518,7 @@ pub fn load_key_sheet(range: &Range<Data>) -> Option<KeySheet> {
         extensions: load_section_points(range, schema::KEY_SECTION_ROWS[4].0),
         experimental: load_single_section_points(range, schema::KEY_EXPERIMENTAL_ROW, 30000),
         vendor: load_single_section_points(range, schema::KEY_VENDOR_ROW, 50000),
-        discovery: load_single_section_points(range, schema::KEY_AUTO_DISC_ROW, 60000),
+        start_index_points: load_single_section_points(range, schema::KEY_AUTO_DISC_ROW, 60000),
         schedules_bc: load_single_section_points(range, schema::KEY_SCHEDULE_BC_ROW, 2000),
         schedules_bc_status: load_single_section_points(
             range,
@@ -862,7 +862,7 @@ pub fn load_ao_sheet(range: &Range<Data>, errors: &mut Vec<LoadError>) -> Result
 pub fn load_ai_sheet(
     range: &Range<Data>,
     errors: &mut Vec<LoadError>,
-) -> Result<AnalogInputs, ValidationErrors> {
+) -> Result<Vec<AiPoint>, ValidationErrors> {
     let mut ai_points = Vec::new();
     let (row_count, _) = range.get_size();
 
@@ -1001,16 +1001,7 @@ pub fn load_ai_sheet(
         ai_points.push(point);
     }
 
-    Ok(AnalogInputs {
-        points: ai_points,
-        curves: vec![],
-        schedules_bc: vec![],
-        schedules: vec![],
-        meters: vec![],
-        ders: vec![],
-        inverters: vec![],
-        batteries: vec![],
-    })
+    Ok(ai_points)
 }
 
 const RIDE_THROUGH_PROFILE_NAMES: &[&str] =
@@ -2136,18 +2127,11 @@ fn reclassify_ai(
     points: Vec<AiPoint>,
     errors: &mut Vec<LoadError>,
     ao_points_by_index: &HashMap<u16, AoPoint>,
-) -> AnalogInputs {
-    let experimental_start = key.experimental.ai.start as i64;
-    let curves_start = key.curves.ai.start as i64;
-    let system_meter_start = key.system_meter.ai.start as i64;
-    let schedule_bc_start = key.schedules_bc.ai.start as i64;
+) -> Result<AnalogInputs, ValidationErrors> {
     let schedule_bc_status_start = key.schedules_bc_status.ai.start as i64;
     let schedule_start = key.schedules.ai.start as i64;
     let schedule_status_start = key.schedules_status.ai.start as i64;
     let meter_start = key.meter.ai.start as i64;
-    let der_start = key.der.ai.start as i64;
-    let inv_start = key.inverter.ai.start as i64;
-    let bat_start = key.battery.ai.start as i64;
 
     let mut base: Vec<AiPoint> = Vec::new();
     let mut curves_flat: Vec<AiPoint> = Vec::new();
@@ -2159,29 +2143,23 @@ fn reclassify_ai(
     let mut batteries_flat: Vec<AiPoint> = Vec::new();
 
     for point in points {
-        let idx = point.point_index as i64;
-        if idx >= experimental_start {
-            base.push(point);
-        } else if idx >= curves_start && idx < system_meter_start {
-            curves_flat.push(point);
-        } else if idx >= schedule_bc_start && idx < schedule_bc_status_start {
-            schedules_bc_flat.push(point);
-        } else if idx >= schedule_bc_status_start && idx < schedule_start {
-            base.push(point);
-        } else if idx >= schedule_start && idx < schedule_status_start {
-            schedules_flat.push(point);
-        } else if idx >= schedule_status_start && idx < meter_start {
-            base.push(point);
-        } else if idx >= bat_start {
-            batteries_flat.push(point);
-        } else if idx >= inv_start {
-            inverters_flat.push(point);
-        } else if idx >= der_start {
-            ders_flat.push(point);
-        } else if idx >= meter_start {
-            meters_flat.push(point);
-        } else {
-            base.push(point);
+        match key.ai_point_group(point.point_index) {
+            AiPointGroup::ConfigAndControl
+            | AiPointGroup::Functions
+            | AiPointGroup::SystemMeter
+            | AiPointGroup::Extensions
+            | AiPointGroup::ScheduleBCStatus
+            | AiPointGroup::ScheduleStatus
+            | AiPointGroup::Experimental
+            | AiPointGroup::Vendor
+            | AiPointGroup::StartIndexPoints => base.push(point),
+            AiPointGroup::Curve => curves_flat.push(point),
+            AiPointGroup::ScheduleBC => schedules_bc_flat.push(point),
+            AiPointGroup::Schedule => schedules_flat.push(point),
+            AiPointGroup::Meter => meters_flat.push(point),
+            AiPointGroup::Der => ders_flat.push(point),
+            AiPointGroup::Inverter => inverters_flat.push(point),
+            AiPointGroup::Battery => batteries_flat.push(point),
         }
     }
 
@@ -2474,8 +2452,8 @@ fn reclassify_ai(
         vec![]
     };
 
-    AnalogInputs {
-        points: base,
+    AnalogInputs::new(
+        base,
         curves,
         schedules_bc,
         schedules,
@@ -2483,13 +2461,14 @@ fn reclassify_ai(
         ders,
         inverters,
         batteries,
-    }
+    )
 }
 
 /// Reclassify all points from flat `points` lists into their correct structured groups
 /// using the Key sheet boundaries. Called after all sheets are loaded flat.
 fn reclassify_by_key(
     profile: Validated<PicsProfile>,
+    ai_points: Vec<AiPoint>,
     errors: &mut Vec<LoadError>,
     profile_name: Option<&str>,
 ) -> Result<Validated<PicsProfile>, ValidationErrors> {
@@ -2505,7 +2484,7 @@ fn reclassify_by_key(
         .map(|point| (point.point_index, point.clone()))
         .collect();
 
-    profile.ai = reclassify_ai(&key, profile.ai.points, errors, &ao_points_by_index);
+    profile.ai = reclassify_ai(&key, ai_points, errors, &ao_points_by_index)?;
 
     // Propagate scaling from AI curves to their associated AO points
     let temp_validated = profile.clone().into_validated()?;
@@ -2619,7 +2598,7 @@ fn workbook_to_profile_with_name(
         .transpose()?
         .unwrap_or_default();
 
-    let ai = get_worksheet(&wb, Sheet::Ai.as_str())
+    let all_ai_points = get_worksheet(&wb, Sheet::Ai.as_str())
         .map(|r| load_ai_sheet(r, &mut errors))
         .transpose()?
         .unwrap_or_default();
@@ -2629,8 +2608,8 @@ fn workbook_to_profile_with_name(
         .transpose()?
         .unwrap_or_default();
 
-    let pre_reclassify = PicsProfile::new(key, bo, bi, ao, ai, ctr)?;
-    let reclassified = reclassify_by_key(pre_reclassify, &mut errors, profile_name)?;
+    let pre_reclassify = PicsProfile::new(key, bo, bi, ao, AnalogInputs::default(), ctr)?;
+    let reclassified = reclassify_by_key(pre_reclassify, all_ai_points, &mut errors, profile_name)?;
 
     if !errors.is_empty() {
         Err(ValidationErrors::from(errors))

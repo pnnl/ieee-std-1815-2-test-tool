@@ -195,6 +195,19 @@ impl Validate for PicsProfile {
 
         errors.extend(self.ai.collect_validation_errors());
 
+        for point in self.ai.points() {
+            if !self.key.is_base_ai_point(point.point_index) {
+                errors.push(ValidationError {
+                    point: point.full_index(),
+                    message: format!(
+                        "Point index {} is not a basic point according to the Key sheet; move it into the {:?} group",
+                        point.point_index,
+                        self.key.ai_point_group(point.point_index),
+                    ),
+                });
+            }
+        }
+
         // Validate individual points
         for point in self.ao.all_ao_points() {
             errors.extend(point.collect_errors())
@@ -324,7 +337,7 @@ mod profile_index_tests {
                 extensions: empty_section.clone(),
                 experimental: empty_section.clone(),
                 vendor: empty_section.clone(),
-                discovery: empty_section.clone(),
+                start_index_points: empty_section.clone(),
                 schedules_bc: empty_section.clone(),
                 schedules_bc_status: empty_section.clone(),
                 schedules: empty_section.clone(),
@@ -355,9 +368,9 @@ mod profile_index_tests {
                 inverters: vec![],
                 batteries: vec![],
             },
-            AnalogInputs {
-                points: vec![make_ai(20, "AI20"), make_ai(328, "AI328")],
-                curves: vec![AiCurve {
+            AnalogInputs::new(
+                vec![make_ai(20, "AI20"), make_ai(328, "AI328")],
+                vec![AiCurve {
                     curve_type: make_ai(329, "AI329"),
                     number_of_points: make_ai(330, "AI330"),
                     x_units: make_ai(331, "AI331"),
@@ -365,13 +378,14 @@ mod profile_index_tests {
                     x_values: vec![],
                     y_values: vec![],
                 }],
-                schedules_bc: vec![],
-                schedules: vec![],
-                meters: vec![],
-                ders: vec![],
-                inverters: vec![],
-                batteries: vec![],
-            },
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+            )
+            .expect("test analog inputs must be valid"),
             vec![],
         )
         .expect("test profile must be valid")
@@ -436,13 +450,13 @@ mod profile_index_tests {
     #[test]
     fn test_set_ai_point_accepts_a_valid_update() {
         let mut profile = make_minimal_profile().into_unvalidated();
-        let point = profile.ai.points[0].clone();
+        let point = profile.ai.points()[0].clone();
 
         profile
             .set_ai_point(&point, |point| point.set_value(EngineeringF64(50.0)))
             .expect("the profile must accept a value in the permitted range");
 
-        assert_eq!(profile.ai.points[0].value(), EngineeringF64(50.0));
+        assert_eq!(profile.ai.points()[0].value(), EngineeringF64(50.0));
     }
 
     #[test]

@@ -355,7 +355,7 @@ mod tests {
                 extensions: make_empty_section(),
                 experimental: make_empty_section(),
                 vendor: make_empty_section(),
-                discovery: make_empty_section(),
+                start_index_points: make_empty_section(),
                 schedules_bc: make_empty_section(),
                 schedules_bc_status: make_empty_section(),
                 schedules: make_empty_section(),
@@ -369,16 +369,17 @@ mod tests {
             BinaryOutputs::default(),
             BinaryInputs::default(),
             AnalogOutputs::default(),
-            AnalogInputs {
-                points: vec![],
+            AnalogInputs::new(
+                vec![],
                 curves,
-                schedules_bc: vec![],
-                schedules: vec![],
-                meters: vec![],
-                ders: vec![],
-                inverters: vec![],
-                batteries: vec![],
-            },
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+            )
+            .expect("test analog inputs must be valid"),
             vec![],
         )
         .expect("test PicsProfile must be valid")

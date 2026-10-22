@@ -2386,7 +2386,7 @@
           "extensions",
           "experimental",
           "vendor",
-          "discovery",
+          "start_index_points",
           "schedules_bc",
           "schedules_bc_status",
           "schedules",
@@ -2409,9 +2409,6 @@
           },
           "der": {
             "$ref": "#/components/schemas/EquipmentPoints"
-          },
-          "discovery": {
-            "$ref": "#/components/schemas/SectionPoints"
           },
           "experimental": {
             "$ref": "#/components/schemas/SectionPoints"
@@ -2444,6 +2441,10 @@
           },
           "schedules_status": {
             "$ref": "#/components/schemas/SectionPoints"
+          },
+          "start_index_points": {
+            "$ref": "#/components/schemas/SectionPoints",
+            "description": "Starting boundary of the Key sheet's Start Index Points section."
           },
           "system_meter": {
             "$ref": "#/components/schemas/SectionPoints"
