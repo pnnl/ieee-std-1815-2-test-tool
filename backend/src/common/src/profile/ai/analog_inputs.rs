@@ -143,6 +143,11 @@ impl AnalogInputs {
             .into_iter()
             .find(|point| point.point_index == uid as u16)
     }
+
+    pub fn add_curve(&mut self) {
+        let curve = AiCurve::default();
+        self.curves.push(curve);
+    }
 }
 
 fn collect_index_errors(index_point: &AiPoint, max_index: usize) -> ValidationErrors {

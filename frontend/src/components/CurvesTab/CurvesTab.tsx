@@ -23,7 +23,6 @@ import {
 import { toast } from 'sonner'
 import CurveChart from './CurveChart'
 import {
-  addCurve,
   removeCurve,
   updateCurveHeader,
   updateCurvePointValue,
@@ -42,6 +41,7 @@ import ValidationErrorCallout from '../ValidationErrorCallout'
 interface CurvesTabProps {
   profileData: PicsProfile
   setProfileData: (data: PicsProfile) => void
+  onAddCurves: (count?: number) => Promise<number | null>
   // Curve-structural errors bucketed to this tab. No point rows or offset
   // groups here like PointsTab, so no group-badge or row-highlight
   // treatment: a tab badge plus this panel listing is the full scope.
@@ -92,7 +92,12 @@ function constructCurveView(
   }
 }
 
-function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
+function CurvesTab({
+  profileData,
+  setProfileData,
+  onAddCurves,
+  errors,
+}: CurvesTabProps) {
   const { enumsResponse } = useEnumData()
 
   const curves = useMemo(() => {
@@ -100,28 +105,19 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
       constructCurveView.bind(null, enumsResponse),
     )
   }, [enumsResponse, profileData.AI.curves])
-  const [selectedCurveIndex, setSelectedCurveIndex] = useState<number | null>(
+  const [requestedCurveIndex, setSelectedCurveIndex] = useState<number | null>(
     curves.length > 0 ? 0 : null,
   )
 
   const currentCurveCount = curves.length
+  const selectedCurveIndex =
+    currentCurveCount === 0
+      ? null
+      : Math.min(requestedCurveIndex ?? 0, currentCurveCount - 1)
 
-  const handleAddCurve = () => {
-    if (currentCurveCount >= getMaxCurves(profileData)) {
-      toast.error(
-        `A profile can contain at most ${getMaxCurves(profileData)} curves`,
-      )
-      return
-    }
-    if (profileData.AI.curves.length === 0) {
-      toast.error(
-        'No template curve to clone: load a profile with at least one curve first.',
-      )
-      return
-    }
-    const next = addCurve(profileData)
-    setProfileData(next)
-    setSelectedCurveIndex(next.AI.curves.length - 1)
+  const handleAddCurve = async () => {
+    const addedIndex = await onAddCurves()
+    if (addedIndex !== null) setSelectedCurveIndex(addedIndex)
   }
 
   const handleDeleteCurve = () => {
@@ -140,7 +136,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
 
   if (selectedCurveIndex === null || currentCurveCount === 0) {
     return (
-      <div className="flex flex-col gap-4 p-4">
+      <fieldset className="flex flex-col gap-4 p-4">
         <ValidationErrorCallout errors={errors} />
         <div className="flex flex-col items-center justify-center h-full gap-4">
           <h3 className="text-lg font-semibold">No curves configured</h3>
@@ -151,7 +147,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
             Add Curve
           </Button>
         </div>
-      </div>
+      </fieldset>
     )
   }
 
@@ -227,7 +223,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
   }))
 
   return (
-    <>
+    <fieldset>
       {errors.length > 0 && (
         <div className="px-4 pt-4">
           <ValidationErrorCallout errors={errors} />
@@ -307,6 +303,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
                     </p>
                   )}
                   <NumberInput
+                    commitOnBlur
                     label="Number of Points"
                     value={curveConfig.number_of_points}
                     onChange={(val) =>
@@ -367,6 +364,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
                           </TableCell>
                           <TableCell>
                             <NumberInput
+                              commitOnBlur
                               size="xs"
                               step={1}
                               value={point.x}
@@ -378,6 +376,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
                           </TableCell>
                           <TableCell>
                             <NumberInput
+                              commitOnBlur
                               size="xs"
                               step={1}
                               value={point.y}
@@ -442,7 +441,7 @@ function CurvesTab({ profileData, setProfileData, errors }: CurvesTabProps) {
           </div>
         </div>
       </div>
-    </>
+    </fieldset>
   )
 }
 

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::profile::AiPoint;
+use crate::profile::{AiPoint, PicsProfile};
 
 /// AI points belonging to a Curve functional group.
 /// The header fields capture the single per-curve metadata points.
@@ -64,5 +64,16 @@ impl AiCurve {
         out.extend(x_values.iter_mut());
         out.extend(y_values.iter_mut());
         out
+    }
+}
+
+impl Default for AiCurve {
+    fn default() -> Self {
+        PicsProfile::full_profile()
+            .ai
+            .curves
+            .first()
+            .expect("full.json must contain a default curve")
+            .clone()
     }
 }
