@@ -36,6 +36,7 @@ import { toast } from 'sonner'
 import TestResultsTree from './TestResultsTree'
 import { type Scenario, fetchScenarios } from './scenarios'
 import { Button } from '../ui/button'
+import { Input } from '../ui/input'
 
 interface TestRunnerTabProps {
   profileData: PicsProfile
@@ -57,6 +58,7 @@ function TestRunnerTab({
   )
   const [jobId, setJobId] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const [logFilter, setLogFilter] = useState('')
   const [selectedSources, setSelectedSources] = useState<Set<LogSource>>(
     new Set(),
   )
@@ -99,8 +101,11 @@ function TestRunnerTab({
     setSelectedSources(newSelected)
   }
 
+  const normalizedLogFilter = logFilter.toLowerCase()
   const filteredLogs = logs.filter(
-    (log) => selectedSources.size === 0 || selectedSources.has(log.source),
+    (log) =>
+      (selectedSources.size === 0 || selectedSources.has(log.source)) &&
+      log.message.toLowerCase().includes(normalizedLogFilter),
   )
 
   function setProcessStatus(process: ProcessName, status: ProcessStatus) {
@@ -425,6 +430,18 @@ function TestRunnerTab({
   )
 
   const getLogMessageColor = (message: string) => {
+    // The runner's marker accounts for expected failures; honor it before
+    // checking status words or diagnostic text in the message.
+    if (message.startsWith('[x] ')) {
+      return '#83d45a'
+    }
+    if (message.startsWith('[ ] ')) {
+      return '#fc7173'
+    }
+    if (/^[A-Z][A-Z0-9_]*: PASS\b/.test(message)) {
+      return '#83d45a'
+    }
+
     if (message.includes('✓')) {
       return '#83d45a' // Green for success
     } else if (
@@ -541,6 +558,14 @@ function TestRunnerTab({
                   </button>
                 ))}
               </div>
+              <Input
+                type="search"
+                aria-label="Filter log messages"
+                placeholder="Filter messages (case-insensitive)…"
+                className="h-8 w-full sm:w-72"
+                value={logFilter}
+                onChange={(event) => setLogFilter(event.target.value)}
+              />
               <span style={{ display: 'flex', gap: '8px' }}>
                 <Button
                   variant="outline"
