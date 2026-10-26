@@ -38,6 +38,11 @@ impl<E: DatabaseEntry> IndexedEntryDatabase<E> {
         self.entry_points.clone()
     }
 
+    /// Clear the current entry's point list without removing stored entries.
+    pub(super) fn clear_current_entry_points(&mut self) {
+        self.entry_points.clear();
+    }
+
     /// Look up an entry by its 1-based number.
     pub fn get(&self, number: u16) -> Option<&E> {
         self.entries.get(&number)

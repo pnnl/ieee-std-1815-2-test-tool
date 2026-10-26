@@ -125,8 +125,9 @@ pub struct CurveDatabase {
     inner_db: IndexedEntryDatabase<CurveEntry>,
     /// UID of the curve-edit-selector readback point.
     selector_ai_uid: AiUid,
-    /// Currently selected curve number (1-based). Defaults to 1.
-    current_entry: u16,
+    /// Currently selected curve number (1-based), or 0 when no entry is selected.
+    /// Defaults to 1.
+    current_entry_number: u16,
 }
 
 impl CurveDatabase {
@@ -162,7 +163,7 @@ impl CurveDatabase {
         Self {
             inner_db: db,
             selector_ai_uid,
-            current_entry: 1,
+            current_entry_number: 1,
         }
     }
 
@@ -193,20 +194,27 @@ impl CurveDatabase {
             .get_or_create_entry(entry_number)
             .map(|e| e.all_values())?;
         self.inner_db.set_current_entry_points(entry_number);
-        self.current_entry = entry_number;
+        self.current_entry_number = entry_number;
         Some(points)
+    }
+
+    /// Clear the active selection while preserving all stored entries.
+    /// Updates are ignored until a valid entry is selected again.
+    pub fn clear_active_entry(&mut self) {
+        self.current_entry_number = 0;
+        self.inner_db.clear_current_entry_points();
     }
 
     /// Update the stored raw transmitted value for `ai_index` in the currently active curve entry.
     /// Does nothing if the AI index is not found in the active entry.
     pub fn update_value(&mut self, ai_index: u16, new_value: TransmissionI32) {
         self.inner_db
-            .update_ai_value(self.current_entry, ai_index, new_value);
+            .update_ai_value(self.current_entry_number, ai_index, new_value);
     }
 
-    /// Currently active curve number (1-based).
-    pub fn current_entry(&self) -> u16 {
-        self.current_entry
+    /// Currently active curve number (1-based), or 0 when no entry is selected.
+    pub fn current_entry_number(&self) -> u16 {
+        self.current_entry_number
     }
 
     /// Return curve 1, used as the template for creating blank entries with matching AI indices.
@@ -456,6 +464,31 @@ mod tests {
     }
 
     #[test]
+    fn test_clear_selection_preserves_entries_and_stops_updates_until_reselected() {
+        let profile = make_profile_with_two_curves();
+        let mut db = CurveDatabase::from_profile(&profile, 4, AiUid::Curve_DGSMn_InCrv);
+        db.set_active_entry(2).unwrap();
+        db.update_value(333, TransmissionI32(42));
+        let entry_1_value = db.get(1).unwrap().x_values[0].value;
+        let written_before = db.received_values(2).unwrap();
+
+        db.clear_active_entry();
+        assert_eq!(db.current_entry_number(), 0);
+        assert!(db.current_entry_points().is_empty());
+        assert_eq!(db.len(), 2);
+        assert!(db.get(0).is_none());
+        db.update_value(333, TransmissionI32(99));
+        assert_eq!(db.get(1).unwrap().x_values[0].value, entry_1_value);
+        assert_eq!(db.get(2).unwrap().x_values[0].value, TransmissionI32(42));
+        assert_eq!(db.received_values(2).unwrap(), written_before);
+
+        assert!(!db.set_active_entry(2).unwrap().is_empty());
+        assert_eq!(db.current_entry_number(), 2);
+        db.update_value(333, TransmissionI32(77));
+        assert_eq!(db.get(2).unwrap().x_values[0].value, TransmissionI32(77));
+    }
+
+    #[test]
     fn test_set_active_entry_returns_points() {
         let profile = make_profile_with_curve();
         let mut db = CurveDatabase::from_profile(&profile, 4, AiUid::Curve_DGSMn_InCrv);
@@ -479,7 +512,7 @@ mod tests {
         let points = db
             .set_active_entry(2)
             .expect("blank entry 2 should be created");
-        assert_eq!(db.current_entry(), 2);
+        assert_eq!(db.current_entry_number(), 2);
         assert_eq!(db.len(), 2);
         // Blank entry has same AI indices as the template entry but value 0
         assert!(points.iter().any(|v| {
@@ -514,7 +547,7 @@ mod tests {
     fn test_current_entry_defaults_to_1() {
         let profile = make_profile_with_curve();
         let db = CurveDatabase::from_profile(&profile, 4, AiUid::Curve_DGSMn_InCrv);
-        assert_eq!(db.current_entry(), 1);
+        assert_eq!(db.current_entry_number(), 1);
     }
 
     #[test]

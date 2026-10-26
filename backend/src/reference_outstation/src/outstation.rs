@@ -304,7 +304,7 @@ impl RefControlHandler {
             .template_entry()
             .is_some_and(|s| s.all_ai_values().iter().any(|v| v.index == ai_index))
         {
-            let curve_number = db.current_entry();
+            let curve_number = db.current_entry_number();
             tracing::debug!(
                 "Outstation curve {curve_number}: storing AO feedback as AI{ai_index} = {}",
                 value.0

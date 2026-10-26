@@ -213,7 +213,8 @@ impl RefReadHandler {
     ///
     /// The selector AI readback sets the active local entry. Other AI values are then
     /// stored in that entry. All entries share the same data-point AI indices, so the
-    /// database's `all_points()` list provides the membership test.
+    /// database's `current_entry_points()` list provides the membership test.
+    /// A zero curve selector clears curve routing and preserves the cached curves.
     fn update_mux_database_single_point(&self, ai_index: u16, raw_value: f64) {
         let int_value = TransmissionI32(raw_value as i32);
 
@@ -228,7 +229,12 @@ impl RefReadHandler {
                     );
                     return;
                 };
-                if db.set_active_entry(curve_number).is_some() {
+                if curve_number == 0 {
+                    db.clear_active_entry();
+                    tracing::debug!(
+                        "Control station received selector AI{ai_index} = 0; local curve readback routing cleared"
+                    );
+                } else if db.set_active_entry(curve_number).is_some() {
                     tracing::debug!(
                         "Control station received selector AI{ai_index} = {curve_number}; local readback database now routes curve AI points to entry {curve_number}"
                     );
@@ -244,7 +250,7 @@ impl RefReadHandler {
             {
                 tracing::debug!(
                     "Control station curve {}: received outstation readback AI{ai_index} = {}",
-                    db.current_entry(),
+                    db.current_entry_number(),
                     int_value.0
                 );
                 db.update_value(ai_index, int_value);
