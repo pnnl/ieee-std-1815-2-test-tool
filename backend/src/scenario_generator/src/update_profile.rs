@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use common::profile::validation::{Validated, ValidationError, ValidationErrors};
 use common::profile::values::{EngineeringF64, TransmissionI32};
 use common::profile::{
-    AiPoint, AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs, PicsProfile,
+    AiPoint, AnalogInputs, AnalogOutputs, AoPoint, BinaryInputs, BinaryOutputs, PicsProfile,
+    ProfileIndex,
 };
 use common::uids::ai_uid::AiUid;
 use common::uids::ao_uid::AoUid;
@@ -31,7 +32,7 @@ pub fn is_multiplex_selector_ao(point_index: u16) -> bool {
 ///
 /// Each scenario requires a different profile to send to the outstation:
 /// - `Configuration` / `Functional` / `FunctionalRepeat`: return the profile unchanged.
-/// - `ModifyPoints`: randomize every AI point value within its `[minimum, maximum]` range.
+/// - `ModifyPoints`: randomize AI values within their limits and those of associated AOs.
 /// - `Unsupported`: return a profile containing only the points present in `full_profile` but
 ///   absent from the submitted profile.
 /// - `LowerBounds`: set every AI point value to `minimum - 1`.
@@ -137,11 +138,14 @@ pub fn prepare_base_profile_for_scenarios(
 // ---------------------------------------------------------------------------
 // ModifyPoints
 // ---------------------------------------------------------------------------
-/// Set each AI point to a random value within its engineering limits.
+/// Choose transmitted integers within both the AI and associated AO limits, then
+/// convert to the AI's engineering units. Profile validation preserves group constraints.
 fn modify_points(
     profile: Validated<PicsProfile>,
 ) -> Result<Validated<PicsProfile>, ValidationErrors> {
     let mut random_number_generator = rand::thread_rng();
+    // Use the same association map as the control loop that writes these values.
+    let profile_index = ProfileIndex::from_profile(&profile);
     // TODO: BoPoint has no value field. To change BO and BI values, add a value
     // field to BiPoint, which is the BI readback point.
     let mut unvalidated_profile = profile.into_unvalidated();
@@ -160,8 +164,12 @@ fn modify_points(
             );
             continue;
         }
+        let associated_ao = profile_index
+            .ai_to_ao
+            .get(&point.point_index)
+            .and_then(|index| profile_index.ao_points.get(index));
         match unvalidated_profile.set_ai_point(&point, |point| {
-            set_random_ai_value(point, &mut random_number_generator)
+            set_random_ai_value(point, associated_ao, &mut random_number_generator)
         }) {
             Ok(_) => {
                 modified_point_count += 1;
@@ -189,11 +197,37 @@ fn modify_points(
 
 fn set_random_ai_value(
     point: &mut AiPoint,
+    associated_ao: Option<&AoPoint>,
     random_number_generator: &mut impl Rng,
 ) -> Result<(), ValidationErrors> {
-    let random_engineering_value =
-        random_number_generator.gen_range(point.eng_minimum().0..=point.eng_maximum().0);
-    point.set_value(EngineeringF64(random_engineering_value))
+    // The control loop scales the AI value to a raw integer and sends that same
+    // integer to the AO, so intersect transmitted bounds before applying scaling.
+    let mut minimum = point.minimum();
+    let mut maximum = point.maximum();
+    if let Some(ao) = associated_ao {
+        minimum = minimum.max(ao.minimum());
+        maximum = maximum.min(ao.maximum());
+        if minimum > maximum {
+            return Err(ValidationErrors::from_error(ValidationError {
+                point: point.full_index(),
+                message: format!(
+                    "No common transmitted range with AO{}: AI [{}, {}], AO [{}, {}]",
+                    ao.point_index,
+                    point.minimum(),
+                    point.maximum(),
+                    ao.minimum(),
+                    ao.maximum()
+                ),
+            }));
+        }
+    }
+    let transmitted_value =
+        TransmissionI32(random_number_generator.gen_range(minimum.0..=maximum.0));
+    point.set_value(EngineeringF64::from_transmitted(
+        transmitted_value,
+        point.multiplier(),
+        point.offset,
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -537,6 +571,108 @@ fn append_clones_of_last_schedules(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::{SeedableRng, rngs::StdRng};
+
+    fn ai_point(minimum: i32, maximum: i32, multiplier: f64, offset: f64) -> AiPoint {
+        AiPoint::new(
+            42,
+            "Test AI".into(),
+            common::profile::EventClass::None,
+            minimum.into(),
+            maximum.into(),
+            multiplier,
+            EngineeringF64(offset),
+            String::new(),
+            "Test.AI".into(),
+            EngineeringF64::from_transmitted(minimum.into(), multiplier, EngineeringF64(offset)),
+            Some("AO43".into()),
+            String::new(),
+            false,
+            false,
+        )
+        .unwrap()
+    }
+
+    fn ao_point(minimum: i32, maximum: i32) -> AoPoint {
+        AoPoint::new(
+            43,
+            "Test AO".into(),
+            minimum.into(),
+            maximum.into(),
+            1.0,
+            EngineeringF64(0.0),
+            String::new(),
+            "Test.AO".into(),
+            Some("AI42".into()),
+            String::new(),
+            false,
+            false,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn random_values_use_the_intersection_of_transmitted_bounds() {
+        let mut rng = StdRng::seed_from_u64(42);
+        for (ai_min, ai_max, ao_min, ao_max, expected_min, expected_max) in [
+            (0, i32::MAX, 0, 100, 0, 100),
+            (5, 8, 0, 100, 5, 8),
+            (-100, 100, -20, -10, -20, -10),
+            (0, 10, 10, 100, 10, 10),
+        ] {
+            let mut point = ai_point(ai_min, ai_max, 1.0, 0.0);
+            let ao = ao_point(ao_min, ao_max);
+            for _ in 0..64 {
+                set_random_ai_value(&mut point, Some(&ao), &mut rng).unwrap();
+                let raw = TransmissionI32::try_from_engineering(
+                    point.value(),
+                    point.multiplier(),
+                    point.offset,
+                )
+                .unwrap();
+                assert!((expected_min..=expected_max).contains(&raw.0));
+            }
+        }
+    }
+
+    #[test]
+    fn random_values_apply_ai_scaling_after_intersecting_raw_bounds() {
+        let mut rng = StdRng::seed_from_u64(42);
+        let mut point = ai_point(0, 100, 0.1, 5.0);
+        let ao = ao_point(10, 10);
+        set_random_ai_value(&mut point, Some(&ao), &mut rng).unwrap();
+        assert_eq!(point.value(), EngineeringF64(6.0));
+        assert_eq!(
+            TransmissionI32::try_from_engineering(point.value(), point.multiplier(), point.offset,)
+                .unwrap(),
+            TransmissionI32(10)
+        );
+    }
+
+    #[test]
+    fn random_values_without_an_ao_stay_in_ai_bounds() {
+        let mut rng = StdRng::seed_from_u64(42);
+        let mut point = ai_point(10, 20, 0.1, 5.0);
+        for _ in 0..64 {
+            set_random_ai_value(&mut point, None, &mut rng).unwrap();
+            assert!((6.0..=7.0).contains(&point.value().0));
+        }
+    }
+
+    #[test]
+    fn disjoint_bounds_return_an_error_without_changing_the_point() {
+        let mut rng = StdRng::seed_from_u64(42);
+        let mut point = ai_point(0, 10, 1.0, 0.0);
+        let original = point.clone();
+        let ao = ao_point(20, 30);
+        let errors = set_random_ai_value(&mut point, Some(&ao), &mut rng).unwrap_err();
+        assert!(
+            errors
+                .to_string()
+                .contains("No common transmitted range with AO43")
+        );
+        assert_eq!(point, original);
+    }
 
     fn load_full_profile() -> Validated<PicsProfile> {
         let _ = tracing_subscriber::fmt().with_test_writer().try_init();
@@ -588,6 +724,51 @@ mod tests {
             changed,
             "modify_points should change at least one AI point value"
         );
+    }
+
+    #[test]
+    fn modify_points_keeps_writes_in_both_ranges_and_bc_counts_consistent() {
+        let profile = load_full_profile();
+        let index = ProfileIndex::from_profile(&profile);
+        let modified =
+            update_profile(&ScenarioId::ModifyPoints, profile.clone(), &profile).unwrap();
+        for point in modified.ai.all_ai_points_full() {
+            let Some(ao) = index
+                .ai_to_ao
+                .get(&point.point_index)
+                .and_then(|i| index.ao_points.get(i))
+            else {
+                continue;
+            };
+            let raw = TransmissionI32::try_from_engineering(
+                point.value(),
+                point.multiplier(),
+                point.offset,
+            )
+            .unwrap();
+            assert!(
+                raw >= point.minimum() && raw <= point.maximum(),
+                "{} = {raw} exceeds its AI bounds",
+                point.full_index()
+            );
+            assert!(
+                raw >= ao.minimum() && raw <= ao.maximum(),
+                "{} would write {raw} to AO{} outside [{}, {}]",
+                point.full_index(),
+                ao.point_index,
+                ao.minimum(),
+                ao.maximum(),
+            );
+        }
+        assert!(!modified.ai.schedules_bc.is_empty());
+        for schedule in &modified.ai.schedules_bc {
+            assert_eq!(
+                schedule.number_of_points.value().0,
+                schedule.values.len() as f64
+            );
+            assert_eq!(schedule.values.len(), schedule.time_offsets.len());
+            assert!(schedule.values.len() <= 100);
+        }
     }
 
     #[test]

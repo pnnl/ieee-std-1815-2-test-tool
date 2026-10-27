@@ -314,7 +314,7 @@ mod tests {
             repeat_interval_units: make_ai_point(2008, 0.0),
             validation_status: make_ai_point(2009, 0.0),
             status: make_ai_point(2010, 0.0),
-            number_of_points: make_ai_point(2011, 0.0),
+            number_of_points: make_ai_point(2011, 2.0),
             time_offsets: vec![make_ai_point(2012, 0.0), make_ai_point(2014, 0.0)],
             values: vec![make_ai_point(2013, 0.0), make_ai_point(2015, 0.0)],
         }
@@ -331,7 +331,7 @@ mod tests {
             repeat_interval_units: make_ai_point(2008, 0.0),
             validation_status: make_ai_point(2009, 0.0),
             status: make_ai_point(2010, 0.0),
-            number_of_points: make_ai_point(2011, 1.0),
+            number_of_points: make_ai_point(2011, 2.0),
             time_offsets: vec![make_ai_point(2012, 60.0), make_ai_point(2014, 0.0)],
             values: vec![make_ai_point(2013, 5.0), make_ai_point(2015, 0.0)],
         }

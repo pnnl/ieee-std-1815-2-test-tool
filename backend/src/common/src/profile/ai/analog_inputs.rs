@@ -121,6 +121,10 @@ impl AnalogInputs {
             ));
         }
 
+        for schedule in &self.schedules_bc {
+            errors.extend(schedule.collect_validation_errors())
+        }
+
         for schedule in self.schedules.iter() {
             errors.extend(schedule.collect_validation_errors())
         }
