@@ -195,6 +195,18 @@ impl Validate for PicsProfile {
 
         errors.extend(self.ai.collect_validation_errors());
 
+        for point in &self.ai.points {
+            if !self.key.is_base_ai_point(point.point_index) {
+                errors.push(ValidationError {
+                    point: point.full_index(),
+                    message: format!(
+                        "Point index {} is not a basic point according to the Key sheet; move it into its functional or equipment group",
+                        point.point_index,
+                    ),
+                });
+            }
+        }
+
         // Validate individual points
         for point in self.ao.all_ao_points() {
             errors.extend(point.collect_errors())

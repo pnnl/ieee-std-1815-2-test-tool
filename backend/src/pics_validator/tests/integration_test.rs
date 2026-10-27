@@ -3,6 +3,62 @@ use pics_validator::{load_json_profile, load_xlsx_profile};
 use std::path::Path;
 
 #[test]
+fn test_workbook_uses_key_experimental_boundary() {
+    use calamine::Data;
+    use pics_validator::{loader::load_workbook, schema, workbook_to_profile};
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../data/profiles/full.xlsx");
+    let mut workbook = load_workbook(&path).expect("should load full.xlsx workbook");
+    let key = workbook.sheets.get_mut("Key").expect("Key sheet");
+    let (start_row, start_col) = key.start().expect("nonempty Key sheet");
+    key.set_value(
+        (
+            start_row + schema::KEY_EXPERIMENTAL_ROW,
+            start_col + schema::KEY_START_COL,
+        ),
+        Data::Int(29000),
+    );
+
+    let ai = workbook.sheets.get_mut("AI").expect("AI sheet");
+    let row = ai
+        .rows()
+        .position(|row| row.first() == Some(&Data::String("AI30000".to_string())))
+        .expect("experimental AI30000 must exist in the fixture");
+    let (start_row, start_col) = ai.start().expect("nonempty AI sheet");
+    ai.set_value(
+        (start_row + row as u32, start_col),
+        Data::String("AI29000".to_string()),
+    );
+
+    let profile =
+        workbook_to_profile(workbook).expect("experimental points must use the Key sheet boundary");
+    assert_eq!(profile.key.experimental.ai.start, 29000);
+    assert!(profile.ai.points.iter().any(|p| p.point_index == 29000));
+    assert!(!profile.ai.points.iter().any(|p| p.point_index == 30000));
+
+    let json = serde_json::to_string(&profile).expect("should serialize profile");
+    let round_trip: PicsProfile = serde_json::from_str(&json).expect("should deserialize profile");
+    let round_trip = round_trip
+        .into_validated()
+        .expect("JSON profiles must use the same Key sheet boundary");
+    assert_eq!(round_trip, profile);
+}
+
+#[test]
+fn test_json_rejects_base_points_in_key_equipment_range() {
+    let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+    // AI30000 is a base point in the seed; moving the experimental boundary
+    // above it places it in the battery range instead.
+    profile.key.experimental.ai.start = 31000;
+    let json = serde_json::to_string(&profile).expect("should serialize profile");
+    let parsed: PicsProfile = serde_json::from_str(&json).expect("should deserialize profile");
+    let errors = parsed
+        .into_validated()
+        .expect_err("equipment points cannot be stored in the base collection");
+    assert!(errors.errors.iter().any(|error| error.point == "AI30000"));
+}
+
+#[test]
 fn test_load_full_xlsx() {
     let profile = PicsProfile::load_full_profile();
 

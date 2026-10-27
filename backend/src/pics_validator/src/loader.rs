@@ -2490,6 +2490,7 @@ fn reclassify_ai(
 /// using the Key sheet boundaries. Called after all sheets are loaded flat.
 fn reclassify_by_key(
     profile: Validated<PicsProfile>,
+    ai_points: Vec<AiPoint>,
     errors: &mut Vec<LoadError>,
     profile_name: Option<&str>,
 ) -> Result<Validated<PicsProfile>, ValidationErrors> {
@@ -2505,7 +2506,7 @@ fn reclassify_by_key(
         .map(|point| (point.point_index, point.clone()))
         .collect();
 
-    profile.ai = reclassify_ai(&key, profile.ai.points, errors, &ao_points_by_index);
+    profile.ai = reclassify_ai(&key, ai_points, errors, &ao_points_by_index);
 
     // Propagate scaling from AI curves to their associated AO points
     let temp_validated = profile.clone().into_validated()?;
@@ -2629,8 +2630,10 @@ fn workbook_to_profile_with_name(
         .transpose()?
         .unwrap_or_default();
 
-    let pre_reclassify = PicsProfile::new(key, bo, bi, ao, ai, ctr)?;
-    let reclassified = reclassify_by_key(pre_reclassify, &mut errors, profile_name)?;
+    // The AI worksheet is flat; validate AI placement only after its points
+    // have been classified into base, functional, and equipment groups.
+    let pre_reclassify = PicsProfile::new(key, bo, bi, ao, AnalogInputs::default(), ctr)?;
+    let reclassified = reclassify_by_key(pre_reclassify, ai.points, &mut errors, profile_name)?;
 
     if !errors.is_empty() {
         Err(ValidationErrors::from(errors))
