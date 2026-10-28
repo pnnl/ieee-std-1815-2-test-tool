@@ -466,14 +466,15 @@ fn test_load_profile_mandatory_1547() {
     );
 
     // AI: base ([0,328), [533,2000)); curves populated but no schedules or equipment groups
-    // + 1 curve edit selector moved to base points
+    // + 1 curve edit selector in base points
     assert_eq!(profile.ai.points.len(), 55, "expected 55 base AI points");
     assert_eq!(
         profile.ai.points[0].point_index, 2u16,
         "expected first AI point at index 2"
     );
     assert_eq!(
-        profile.ai.points[53].point_index, 621u16,
+        profile.ai.points.iter().map(|p| p.point_index).max(),
+        Some(621u16),
         "expected last base AI point at index 621"
     );
     assert_eq!(profile.ai.curves.len(), 4, "expected 4 AI curves");
@@ -609,14 +610,14 @@ fn test_load_profile_mandatory_1815() {
     );
 
     // AI: base ([0,328), [533,2000)); curves populated but no schedules or equipment groups
-    // + 1 curve edit selector moved to base points
+    // + 1 curve edit selector in base points
     assert_eq!(profile.ai.points.len(), 434, "expected 434 base AI points");
     assert_eq!(
         profile.ai.points[0].point_index, 0u16,
         "expected first AI point at index 0"
     );
-    assert_eq!(
-        profile.ai.points[288].point_index, 621u16,
+    assert!(
+        profile.ai.points.iter().any(|p| p.point_index == 621),
         "expected base AI point at index 621"
     );
     assert_eq!(profile.ai.curves.len(), 4, "expected 4 AI curves");
@@ -709,14 +710,15 @@ fn test_load_profile_minimal_1547() {
     assert_eq!(profile.ao.batteries.len(), 0);
 
     // AI: base ([0,328), [533,2000)); curves populated with 1 curve of 10 x/y pairs
-    // + 1 curve edit selector moved to base points
+    // + 1 curve edit selector in base points
     assert_eq!(profile.ai.points.len(), 55, "expected 55 base AI points");
     assert_eq!(
         profile.ai.points[0].point_index, 2u16,
         "expected first AI point at index 2"
     );
     assert_eq!(
-        profile.ai.points[53].point_index, 621u16,
+        profile.ai.points.iter().map(|p| p.point_index).max(),
+        Some(621u16),
         "expected last base AI point at index 621"
     );
     assert_eq!(profile.ai.curves.len(), 4, "expected 4 AI curves");

@@ -2137,7 +2137,6 @@ fn reclassify_ai(
     errors: &mut Vec<LoadError>,
     ao_points_by_index: &HashMap<u16, AoPoint>,
 ) -> AnalogInputs {
-    let experimental_start = key.experimental.ai.start as i64;
     let curves_start = key.curves.ai.start as i64;
     let system_meter_start = key.system_meter.ai.start as i64;
     let schedule_bc_start = key.schedules_bc.ai.start as i64;
@@ -2160,18 +2159,14 @@ fn reclassify_ai(
 
     for point in points {
         let idx = point.point_index as i64;
-        if idx >= experimental_start {
+        if key.is_base_ai_point(point.point_index) {
             base.push(point);
         } else if idx >= curves_start && idx < system_meter_start {
             curves_flat.push(point);
         } else if idx >= schedule_bc_start && idx < schedule_bc_status_start {
             schedules_bc_flat.push(point);
-        } else if idx >= schedule_bc_status_start && idx < schedule_start {
-            base.push(point);
         } else if idx >= schedule_start && idx < schedule_status_start {
             schedules_flat.push(point);
-        } else if idx >= schedule_status_start && idx < meter_start {
-            base.push(point);
         } else if idx >= bat_start {
             batteries_flat.push(point);
         } else if idx >= inv_start {
@@ -2352,24 +2347,20 @@ fn reclassify_ai(
             })
         });
 
-    let schedules_bc: Vec<AiScheduleBC> = if schedules_bc_flat.len() >= 12 {
+    let schedules_bc: Vec<AiScheduleBC> = if schedules_bc_flat.len() >= 10 {
         let mut it = schedules_bc_flat.into_iter();
-        let running_schedule_index = it.next().expect("len >= 12 verified");
-        base.push(running_schedule_index);
-        let schedule_bc_edit_selector = it.next().expect("len >= 12 verified");
-        base.push(schedule_bc_edit_selector);
-        let identity = it.next().expect("len >= 12 verified");
-        let priority = it.next().expect("len >= 12 verified");
-        let schedule_type = it.next().expect("len >= 12 verified");
-        let start_date = it.next().expect("len >= 12 verified");
-        let start_time = it.next().expect("len >= 12 verified");
-        let repeat_interval = it.next().expect("len >= 12 verified");
-        let repeat_interval_units = it.next().expect("len >= 12 verified");
-        let mut validation_status = it.next().expect("len >= 12 verified");
+        let identity = it.next().expect("len >= 10 verified");
+        let priority = it.next().expect("len >= 10 verified");
+        let schedule_type = it.next().expect("len >= 10 verified");
+        let start_date = it.next().expect("len >= 10 verified");
+        let start_time = it.next().expect("len >= 10 verified");
+        let repeat_interval = it.next().expect("len >= 10 verified");
+        let repeat_interval_units = it.next().expect("len >= 10 verified");
+        let mut validation_status = it.next().expect("len >= 10 verified");
         let _ = validation_status.set_value(EngineeringF64(1.0));
-        let mut status = it.next().expect("len >= 12 verified");
+        let mut status = it.next().expect("len >= 10 verified");
         let _ = status.set_value(EngineeringF64(1.0));
-        let number_of_points = it.next().expect("len >= 12 verified");
+        let number_of_points = it.next().expect("len >= 10 verified");
         let mut time_offsets = Vec::new();
         let mut values = Vec::new();
         while let (Some(t), Some(v)) = (it.next(), it.next()) {
@@ -2394,23 +2385,21 @@ fn reclassify_ai(
         vec![]
     };
 
-    let schedules: Vec<AiSchedule> = if schedules_flat.len() >= 12 {
+    let schedules: Vec<AiSchedule> = if schedules_flat.len() >= 11 {
         let mut it = schedules_flat.into_iter();
-        let schedule_edit_selector = it.next().expect("len >= 12 verified");
-        base.push(schedule_edit_selector);
-        let identity = it.next().expect("len >= 12 verified");
-        let priority = it.next().expect("len >= 12 verified");
-        let start_date = it.next().expect("len >= 12 verified");
-        let start_time = it.next().expect("len >= 12 verified");
-        let stop_date = it.next().expect("len >= 12 verified");
-        let stop_time = it.next().expect("len >= 12 verified");
-        let repeat_interval = it.next().expect("len >= 12 verified");
-        let repeat_interval_units = it.next().expect("len >= 12 verified");
-        let mut validation_state = it.next().expect("len >= 12 verified");
+        let identity = it.next().expect("len >= 11 verified");
+        let priority = it.next().expect("len >= 11 verified");
+        let start_date = it.next().expect("len >= 11 verified");
+        let start_time = it.next().expect("len >= 11 verified");
+        let stop_date = it.next().expect("len >= 11 verified");
+        let stop_time = it.next().expect("len >= 11 verified");
+        let repeat_interval = it.next().expect("len >= 11 verified");
+        let repeat_interval_units = it.next().expect("len >= 11 verified");
+        let mut validation_state = it.next().expect("len >= 11 verified");
         let _ = validation_state.set_value(EngineeringF64(1.0));
-        let mut status = it.next().expect("len >= 12 verified");
+        let mut status = it.next().expect("len >= 11 verified");
         let _ = status.set_value(EngineeringF64(1.0));
-        let number_of_points = it.next().expect("len >= 12 verified");
+        let number_of_points = it.next().expect("len >= 11 verified");
         let mut time_offsets = Vec::new();
         let mut action_types = Vec::new();
         let mut action_indexes = Vec::new();
@@ -2446,14 +2435,12 @@ fn reclassify_ai(
         vec![]
     };
 
-    let curves: Vec<AiCurve> = if curves_flat.len() >= 5 {
+    let curves: Vec<AiCurve> = if curves_flat.len() >= 4 {
         let mut it = curves_flat.into_iter();
-        let curve_edit_selector = it.next().expect("len >= 5 verified");
-        base.push(curve_edit_selector);
-        let curve_type = it.next().expect("len >= 5 verified");
-        let number_of_points = it.next().expect("len >= 5 verified");
-        let x_units = it.next().expect("len >= 5 verified");
-        let y_units = it.next().expect("len >= 5 verified");
+        let curve_type = it.next().expect("len >= 4 verified");
+        let number_of_points = it.next().expect("len >= 4 verified");
+        let x_units = it.next().expect("len >= 4 verified");
+        let y_units = it.next().expect("len >= 4 verified");
         let mut x_values = Vec::new();
         let mut y_values = Vec::new();
         while let (Some(x), Some(y)) = (it.next(), it.next()) {
@@ -2660,6 +2647,106 @@ pub fn load_json_profile(path: &Path) -> Result<Validated<PicsProfile>, Validati
 mod tests {
     use super::*;
     use calamine::{Data, Range};
+
+    #[test]
+    fn test_base_ai_classification_matches_key_for_every_index() {
+        use std::collections::HashSet;
+
+        let full = PicsProfile::load_full_profile();
+        let mut custom_key = full.key.clone();
+        custom_key.curves.ai.start = 400;
+        custom_key.system_meter.ai.start = 600;
+        custom_key.schedules_bc.ai.start = 2100;
+        custom_key.schedules.ai.start = 3100;
+        custom_key.experimental.ai.start = 29000;
+        let point = |index| {
+            let mut point = full.ai.points[0].clone();
+            point.point_index = index;
+            point
+        };
+
+        for key in [&full.key, &custom_key] {
+            for index in 0..=u16::MAX {
+                let ai = reclassify_ai(key, vec![point(index)], &mut vec![], &HashMap::new());
+                assert_eq!(
+                    !ai.points.is_empty(),
+                    key.is_base_ai_point(index),
+                    "singleton AI{index}"
+                );
+            }
+
+            for reversed in [false, true] {
+                let mut points: Vec<_> = (0..=u16::MAX).map(point).collect();
+                if reversed {
+                    points.reverse();
+                }
+                let ai = reclassify_ai(key, points, &mut vec![], &HashMap::new());
+                let base: HashSet<_> = ai.points.iter().map(|p| p.point_index).collect();
+                for index in 0..=u16::MAX {
+                    assert_eq!(
+                        base.contains(&index),
+                        key.is_base_ai_point(index),
+                        "AI{index}, reversed={reversed}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_functional_headers_do_not_depend_on_selectors() {
+        let full = PicsProfile::load_full_profile();
+        let curve = &full.ai.curves[0];
+        let schedule_bc = &full.ai.schedules_bc[0];
+        let schedule = &full.ai.schedules[0];
+        let selector_indices = [
+            full.key.schedules.ai.start,
+            full.key.curves.ai.start,
+            full.key.schedules_bc.ai.start + 1,
+            full.key.schedules_bc.ai.start,
+        ];
+
+        for include_selectors in [false, true] {
+            let mut points: Vec<_> = curve
+                .iter_points()
+                .into_iter()
+                .take(4)
+                .chain(schedule_bc.iter_points().into_iter().take(10))
+                .chain(schedule.iter_points().into_iter().take(11))
+                .cloned()
+                .collect();
+            if include_selectors {
+                for index in selector_indices {
+                    points.push(
+                        full.ai
+                            .points
+                            .iter()
+                            .find(|p| p.point_index == index)
+                            .unwrap()
+                            .clone(),
+                    );
+                }
+            }
+
+            let ai = reclassify_ai(&full.key, points, &mut vec![], &HashMap::new());
+            assert_eq!(ai.points.len(), if include_selectors { 4 } else { 0 });
+            assert_eq!(ai.curves.len(), 1);
+            assert_eq!(ai.schedules_bc.len(), 1);
+            assert_eq!(ai.schedules.len(), 1);
+            assert_eq!(
+                ai.curves[0].curve_type.point_index,
+                curve.curve_type.point_index
+            );
+            assert_eq!(
+                ai.schedules_bc[0].identity.point_index,
+                schedule_bc.identity.point_index
+            );
+            assert_eq!(
+                ai.schedules[0].identity.point_index,
+                schedule.identity.point_index
+            );
+        }
+    }
 
     #[test]
     fn test_cell_i32_required_overflow() {
