@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     profile::{
         AiBattery, AiCurve, AiDer, AiInverter, AiMeter, AiPoint, AiSchedule, AiScheduleBC,
-        DEFAULT_MAX_DATABASE_ENTRIES,
+        DEFAULT_MAX_DATABASE_ENTRIES, MultiplexerNumber,
         validation::{ValidationError, ValidationErrors},
     },
     uids::ai_uid::AiUid,
@@ -66,6 +66,95 @@ impl AnalogInputs {
         out
     }
 
+    /// Whether the point index belongs to a curve or schedule entry.
+    /// Selector readbacks and equipment points are non-multiplexed.
+    pub fn is_point_multiplexed(&self, point_index: u16) -> bool {
+        self.all_ai_points_with_multiplexer_numbers()
+            .into_iter()
+            .any(|(multiplexer, point)| multiplexer.is_some() && point.point_index == point_index)
+    }
+
+    /// Collect every AI point with its family and 1-based entry number, if multiplexed.
+    /// Base points, equipment points, and selector readbacks have no multiplexer number.
+    pub fn all_ai_points_with_multiplexer_numbers(
+        &self,
+    ) -> Vec<(Option<MultiplexerNumber>, &AiPoint)> {
+        let mut out: Vec<_> = self
+            .base_ai_points()
+            .into_iter()
+            .map(|p| (None, p))
+            .collect();
+        for (curve_index, curve) in self.curves.iter().enumerate() {
+            let number =
+                u16::try_from(curve_index + 1).expect("curve entry number must fit in u16");
+            out.extend(
+                curve
+                    .iter_points()
+                    .into_iter()
+                    .map(|p| (Some(MultiplexerNumber::Curve(number)), p)),
+            );
+        }
+        for (bc_schedule_index, bc_schedule) in self.schedules_bc.iter().enumerate() {
+            let number = u16::try_from(bc_schedule_index + 1)
+                .expect("schedule entry number must fit in u16");
+            out.extend(
+                bc_schedule
+                    .iter_points()
+                    .into_iter()
+                    .map(|p| (Some(MultiplexerNumber::ScheduleBC(number)), p)),
+            );
+        }
+        for (schedule_index, schedule) in self.schedules.iter().enumerate() {
+            let number =
+                u16::try_from(schedule_index + 1).expect("schedule entry number must fit in u16");
+            out.extend(
+                schedule
+                    .iter_points()
+                    .into_iter()
+                    .map(|p| (Some(MultiplexerNumber::Schedule(number)), p)),
+            );
+        }
+        out
+    }
+
+    fn base_ai_points_mut(&mut self) -> Vec<&mut AiPoint> {
+        let mut points: Vec<&mut AiPoint> = self.points.iter_mut().collect();
+        for meter in &mut self.meters {
+            points.extend(meter.iter_points_mut());
+        }
+        for der_unit in &mut self.ders {
+            points.extend(der_unit.iter_points_mut());
+        }
+        for inverter in &mut self.inverters {
+            points.extend(inverter.iter_points_mut());
+        }
+        for battery in &mut self.batteries {
+            points.extend(battery.iter_points_mut());
+        }
+        points
+    }
+
+    pub(crate) fn ai_points_for_update_mut(
+        &mut self,
+        multiplexer: Option<MultiplexerNumber>,
+    ) -> Option<Vec<&mut AiPoint>> {
+        match multiplexer {
+            None => Some(self.base_ai_points_mut()),
+            Some(MultiplexerNumber::Curve(number)) => self
+                .curves
+                .get_mut(usize::from(number.checked_sub(1)?))
+                .map(AiCurve::iter_points_mut),
+            Some(MultiplexerNumber::ScheduleBC(number)) => self
+                .schedules_bc
+                .get_mut(usize::from(number.checked_sub(1)?))
+                .map(AiScheduleBC::iter_points_mut),
+            Some(MultiplexerNumber::Schedule(number)) => self
+                .schedules
+                .get_mut(usize::from(number.checked_sub(1)?))
+                .map(AiSchedule::iter_points_mut),
+        }
+    }
+
     /// Collect mutable references to every AI point across all sub-groups.
     pub fn all_ai_points_full_mut(&mut self) -> Vec<&mut AiPoint> {
         let mut points: Vec<&mut AiPoint> = self.points.iter_mut().collect();
@@ -102,7 +191,7 @@ impl AnalogInputs {
 
         // Schedules
         if let Some(point) = self.point_by_uid(AiUid::Scheduling_FSCC_Schd) {
-            errors.extend(collect_index_errors(
+            errors.extend(collect_entry_number_errors(
                 point,
                 min(
                     self.schedules.len() + 1,
@@ -112,7 +201,7 @@ impl AnalogInputs {
         }
 
         if let Some(point) = self.point_by_uid(AiUid::BC_Scheduling_BC_FSCC_Schd) {
-            errors.extend(collect_index_errors(
+            errors.extend(collect_entry_number_errors(
                 point,
                 min(
                     self.schedules_bc.len() + 1,
@@ -145,17 +234,17 @@ impl AnalogInputs {
     }
 }
 
-fn collect_index_errors(index_point: &AiPoint, max_index: usize) -> ValidationErrors {
+fn collect_entry_number_errors(selector_point: &AiPoint, max_number: usize) -> ValidationErrors {
     let mut errors = ValidationErrors::new();
-    let selected_index = index_point.value().0;
-    // Example: there are 4 schedules. The index is one-based, and you can select
-    // a new schedule to edit, so the max index would be 5.
-    if selected_index as usize > max_index {
+    let selected_number = selector_point.value().0;
+    // Example: there are 4 schedules. Entry numbers are 1-based, and you can select
+    // a new schedule to edit, so the maximum entry number would be 5.
+    if selected_number as usize > max_number {
         errors.push(ValidationError {
-            point: index_point.full_index(),
+            point: selector_point.full_index(),
             message: format!(
-                "Selected index {} is out of bounds. Max expected index is {}.",
-                selected_index, max_index
+                "Selected entry number {} is out of bounds. Max expected entry number is {}.",
+                selected_number, max_number
             ),
         });
     }

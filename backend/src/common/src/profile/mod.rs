@@ -56,6 +56,7 @@ mod multiplexing {
     pub mod ai_value;
     pub mod bi_value;
     pub mod database_entry;
+    pub mod multiplexer_number;
     pub mod point_value;
 }
 #[allow(clippy::module_inception)]
@@ -93,6 +94,7 @@ pub use multiplexing::{
     ai_value::AiValue,
     bi_value::BiValue,
     database_entry::DatabaseEntry,
+    multiplexer_number::MultiplexerNumber,
     point_value::{PointIndex, PointValue},
 };
 pub use pics_profile::{EquipmentInfo, EquipmentPoints, PicsProfile, SectionInfo, SectionPoints};

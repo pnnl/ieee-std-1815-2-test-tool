@@ -2669,7 +2669,7 @@
       },
       "SectionInfo": {
         "type": "object",
-        "description": "Start index for a single point type within a section.",
+        "description": "Start point index for a single point type within a section.",
         "required": [
           "start"
         ],
