@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use common::profile::validation::{Validated, ValidationError, ValidationErrors};
 use common::profile::values::{EngineeringF64, TransmissionI32};
 use common::profile::{
-    AiPoint, AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs, PicsProfile,
+    AiPoint, AnalogInputs, AnalogOutputs, BinaryInputs, BinaryOutputs, MultiplexerNumber,
+    PicsProfile,
 };
 use common::uids::ai_uid::AiUid;
 use common::uids::ao_uid::AoUid;
@@ -62,7 +63,7 @@ pub fn update_profile(
 }
 
 /// If any selected scenario requires boundary headroom (e.g. BelowLowerBounds, AboveUpperBounds),
-/// adjusts AO and AI points in the base profile that are pinned to `i32::MIN` or `i32::MAX`
+/// adjusts AO and AI points across all groups in the base profile that are pinned to `i32::MIN` or `i32::MAX`
 /// so that extended out-of-bounds values can be represented and tested within 32-bit DNP3 transmission limits.
 /// If no boundary scenarios are selected, returns the profile unmodified.
 pub fn prepare_base_profile_for_scenarios(
@@ -103,8 +104,8 @@ pub fn prepare_base_profile_for_scenarios(
         }
     }
 
-    // Adjust base AI points
-    for ai in &mut unvalidated.ai.points {
+    // Adjust all AI points, including equipment and every curve/schedule entry.
+    for ai in unvalidated.ai.all_ai_points_full_mut() {
         if is_multiplex_selector_ai(ai.point_index) {
             continue;
         }
@@ -122,12 +123,13 @@ pub fn prepare_base_profile_for_scenarios(
         if changed {
             let eng_min = EngineeringF64::from_transmitted(min, ai.multiplier(), ai.offset);
             let eng_max = EngineeringF64::from_transmitted(max, ai.multiplier(), ai.offset);
-            ai.set_eng_bounds(eng_min, eng_max)?;
+            // Clamp while the old bounds still apply: set_eng_bounds validates the value.
             if ai.value() < eng_min {
                 ai.set_value(eng_min)?;
             } else if ai.value() > eng_max {
                 ai.set_value(eng_max)?;
             }
+            ai.set_eng_bounds(eng_min, eng_max)?;
         }
     }
 
@@ -141,18 +143,24 @@ pub fn prepare_base_profile_for_scenarios(
 fn modify_points(
     profile: Validated<PicsProfile>,
 ) -> Result<Validated<PicsProfile>, ValidationErrors> {
-    let mut random_number_generator = rand::thread_rng();
+    modify_points_with_rng(profile, &mut rand::thread_rng())
+}
+
+fn modify_points_with_rng(
+    profile: Validated<PicsProfile>,
+    random_number_generator: &mut impl Rng,
+) -> Result<Validated<PicsProfile>, ValidationErrors> {
     // TODO: BoPoint has no value field. To change BO and BI values, add a value
     // field to BiPoint, which is the BI readback point.
     let mut unvalidated_profile = profile.into_unvalidated();
     let mut modified_point_count = 0;
-    let ai_points: Vec<AiPoint> = unvalidated_profile
+    let ai_points: Vec<_> = unvalidated_profile
         .ai
-        .all_ai_points_full()
+        .all_ai_points_with_multiplexer_numbers()
         .into_iter()
-        .cloned()
+        .map(|(multiplexer, point)| (multiplexer, point.clone()))
         .collect();
-    for point in ai_points {
+    for (multiplexer_number, point) in ai_points {
         if is_multiplex_selector_ai(point.point_index) {
             debug!(
                 "Skipping multiplex edit selector AI point '{}' during modify_points",
@@ -160,14 +168,18 @@ fn modify_points(
             );
             continue;
         }
-        match unvalidated_profile.set_ai_point(&point, |point| {
-            set_random_ai_value(point, &mut random_number_generator)
-        }) {
+        match set_scenario_ai_point(
+            &mut unvalidated_profile,
+            multiplexer_number,
+            &point,
+            |point| set_random_ai_value(point, random_number_generator),
+        ) {
             Ok(_) => {
                 modified_point_count += 1;
             }
             Err(errors) => {
                 debug!(
+                    ?multiplexer_number,
                     "Cannot set a random value for AI point '{}': '{}'.",
                     point.full_index(),
                     errors
@@ -185,6 +197,18 @@ fn modify_points(
         modified_point_count
     );
     unvalidated_profile.into_validated()
+}
+
+fn set_scenario_ai_point(
+    profile: &mut PicsProfile,
+    multiplexer: Option<MultiplexerNumber>,
+    point: &AiPoint,
+    update: impl FnOnce(&mut AiPoint) -> Result<(), ValidationErrors>,
+) -> Result<(), ValidationErrors> {
+    match multiplexer {
+        Some(number) => profile.set_multiplexed_ai_point(number, point, update),
+        None => profile.set_ai_point(point, update),
+    }
 }
 
 fn set_random_ai_value(
@@ -212,14 +236,14 @@ fn set_ai_out_of_bounds(
     let mut unvalidated_profile = profile.into_unvalidated();
     let mut modified_point_count = 0;
 
-    let ai_points: Vec<AiPoint> = unvalidated_profile
+    let ai_points: Vec<_> = unvalidated_profile
         .ai
-        .all_ai_points_full()
+        .all_ai_points_with_multiplexer_numbers()
         .into_iter()
-        .cloned()
+        .map(|(multiplexer, point)| (multiplexer, point.clone()))
         .collect();
 
-    for point in ai_points {
+    for (multiplexer, point) in ai_points {
         if is_multiplex_selector_ai(point.point_index) {
             debug!(
                 "Skipping multiplex edit selector AI point '{}' during set_ai_out_of_bounds. Corresponding AO: '{}'",
@@ -266,11 +290,14 @@ fn set_ai_out_of_bounds(
             BoundsDirection::Upper => extended_maximum,
         };
 
-        if let Err(err) = unvalidated_profile.set_ai_point(&point, |p| {
-            p.set_eng_bounds(extended_minimum, extended_maximum)?;
-            p.set_value(value_outside_limits)
-        }) {
+        if let Err(err) =
+            set_scenario_ai_point(&mut unvalidated_profile, multiplexer, &point, |p| {
+                p.set_eng_bounds(extended_minimum, extended_maximum)?;
+                p.set_value(value_outside_limits)
+            })
+        {
             debug!(
+                ?multiplexer,
                 "Cannot set either eng bounds or value for AI point '{}': {:?}. Associated AO: '{}'",
                 point.full_index(),
                 err,
@@ -280,6 +307,7 @@ fn set_ai_out_of_bounds(
         }
 
         debug!(
+            ?multiplexer,
             "Set AI point '{}' to value '{}' outside its limits [{}, {}]. Associated AO: '{}'",
             point.full_index(),
             point.value(),
@@ -627,6 +655,105 @@ mod tests {
         );
     }
 
+    fn assert_selectors_preserved(original: &PicsProfile, modified: &PicsProfile) {
+        for point in original
+            .ai
+            .points
+            .iter()
+            .filter(|p| is_multiplex_selector_ai(p.point_index))
+        {
+            let updated = modified
+                .ai
+                .points
+                .iter()
+                .find(|p| p.point_index == point.point_index)
+                .unwrap();
+            assert_eq!(updated, point);
+        }
+    }
+
+    #[test]
+    fn test_modify_points_updates_every_multiplexer_entry() {
+        use rand::SeedableRng;
+
+        let profile = load_full_profile();
+        let modified =
+            modify_points_with_rng(profile.clone(), &mut rand::rngs::StdRng::seed_from_u64(1))
+                .unwrap();
+        for (before, after) in profile.ai.curves.iter().zip(&modified.ai.curves) {
+            assert_ne!(before.x_values[0].value(), after.x_values[0].value());
+        }
+        for (before, after) in profile
+            .ai
+            .schedules_bc
+            .iter()
+            .zip(&modified.ai.schedules_bc)
+        {
+            assert_ne!(before.identity.value(), after.identity.value());
+        }
+        for (before, after) in profile.ai.schedules.iter().zip(&modified.ai.schedules) {
+            assert_ne!(before.identity.value(), after.identity.value());
+        }
+        assert_selectors_preserved(&profile, &modified);
+    }
+
+    #[test]
+    fn test_boundary_scenarios_update_every_multiplexer_entry() {
+        let full_profile = load_full_profile();
+        let mut profile = full_profile.clone().into_unvalidated();
+        // A single coordinate with undefined units can expand its bounds without
+        // violating the curve scaling table or consistency between coordinates.
+        for curve in &mut profile.ai.curves {
+            curve.curve_type.set_value(EngineeringF64(0.0)).unwrap();
+            curve.x_units.set_value(EngineeringF64(0.0)).unwrap();
+            curve.y_units.set_value(EngineeringF64(0.0)).unwrap();
+            curve
+                .number_of_points
+                .set_value(EngineeringF64(1.0))
+                .unwrap();
+            curve.x_values.truncate(1);
+            curve.y_values.truncate(1);
+        }
+        let prepared = prepare_base_profile_for_scenarios(
+            profile.into_validated().unwrap(),
+            &["lower_bounds".to_string(), "upper_bounds".to_string()],
+        )
+        .unwrap();
+        for scenario in [ScenarioId::BelowLowerBounds, ScenarioId::AboveUpperBounds] {
+            let modified = update_profile(&scenario, prepared.clone(), &full_profile).unwrap();
+            let before = prepared
+                .ai
+                .curves
+                .iter()
+                .map(|c| &c.x_values[0])
+                .chain(prepared.ai.schedules_bc.iter().map(|s| &s.identity))
+                .chain(prepared.ai.schedules.iter().map(|s| &s.identity));
+            let after = modified
+                .ai
+                .curves
+                .iter()
+                .map(|c| &c.x_values[0])
+                .chain(modified.ai.schedules_bc.iter().map(|s| &s.identity))
+                .chain(modified.ai.schedules.iter().map(|s| &s.identity));
+            for (before, after) in before.zip(after) {
+                match scenario {
+                    ScenarioId::BelowLowerBounds => assert!(
+                        after.value() < before.eng_minimum(),
+                        "{}",
+                        before.full_index()
+                    ),
+                    ScenarioId::AboveUpperBounds => assert!(
+                        after.value() > before.eng_maximum(),
+                        "{}",
+                        before.full_index()
+                    ),
+                    _ => unreachable!(),
+                }
+            }
+            assert_selectors_preserved(&prepared, &modified);
+        }
+    }
+
     #[test]
     fn test_lower_bounds_sets_values_below_original_minimum() {
         let profile = load_full_profile();
@@ -860,40 +987,84 @@ mod tests {
         let result =
             prepare_base_profile_for_scenarios(full_profile.clone(), &non_boundary_scenarios)
                 .unwrap();
-        assert_eq!(
-            result.ao.all_ao_points().len(),
-            full_profile.ao.all_ao_points().len()
-        );
-        for (orig, res) in full_profile
-            .ao
-            .all_ao_points()
-            .iter()
-            .zip(result.ao.all_ao_points().iter())
-        {
-            assert_eq!(orig.minimum(), res.minimum());
-            assert_eq!(orig.maximum(), res.maximum());
-        }
+        assert_eq!(result, full_profile);
     }
 
     #[test]
     fn test_prepare_base_profile_adjusts_when_boundary_scenario_selected() {
         let full_profile = load_full_profile();
-        let boundary_scenarios = vec!["lower_bounds".to_string()];
-        let result =
-            prepare_base_profile_for_scenarios(full_profile.clone(), &boundary_scenarios).unwrap();
-        for ao in result.ao.all_ao_points() {
-            assert_ne!(
-                ao.minimum(),
-                TransmissionI32(i32::MIN),
-                "AO{} should not be i32::MIN after boundary preparation",
-                ao.point_index
-            );
-            assert_ne!(
-                ao.maximum(),
-                TransmissionI32(i32::MAX),
-                "AO{} should not be i32::MAX after boundary preparation",
-                ao.point_index
-            );
+        for scenario in ["lower_bounds", "upper_bounds"] {
+            let result =
+                prepare_base_profile_for_scenarios(full_profile.clone(), &[scenario.to_string()])
+                    .unwrap();
+            for ao in result.ao.all_ao_points() {
+                assert_ne!(
+                    ao.minimum(),
+                    TransmissionI32(i32::MIN),
+                    "AO{} should not be i32::MIN after boundary preparation",
+                    ao.point_index
+                );
+                assert_ne!(
+                    ao.maximum(),
+                    TransmissionI32(i32::MAX),
+                    "AO{} should not be i32::MAX after boundary preparation",
+                    ao.point_index
+                );
+            }
+            for (original, ai) in full_profile
+                .ai
+                .all_ai_points_full()
+                .into_iter()
+                .zip(result.ai.all_ai_points_full())
+            {
+                if is_multiplex_selector_ai(ai.point_index) {
+                    assert_eq!(ai, original, "multiplex selectors must be preserved");
+                    continue;
+                }
+                assert_ne!(
+                    ai.minimum(),
+                    TransmissionI32(i32::MIN),
+                    "{}",
+                    ai.full_index()
+                );
+                assert_ne!(
+                    ai.maximum(),
+                    TransmissionI32(i32::MAX),
+                    "{}",
+                    ai.full_index()
+                );
+                assert_eq!(ai.value(), original.value(), "{}", ai.full_index());
+            }
+
+            // Prepared profiles are serialized for the reference stations, which validate again.
+            let json = serde_json::to_string(&result).unwrap();
+            let reloaded: PicsProfile = serde_json::from_str(&json).unwrap();
+            assert_eq!(reloaded.into_validated().unwrap(), result);
         }
+    }
+
+    #[test]
+    fn test_prepare_base_profile_clamps_values_at_integer_extremes() {
+        let mut profile = load_full_profile().into_unvalidated();
+        let meter = &mut profile.ai.meters[0];
+        let meter_min = meter.active_power.eng_minimum();
+        meter.active_power.set_value(meter_min).unwrap();
+        let meter_max = meter.reactive_power.eng_maximum();
+        meter.reactive_power.set_value(meter_max).unwrap();
+
+        let result = prepare_base_profile_for_scenarios(
+            profile.into_validated().unwrap(),
+            &["lower_bounds".to_string()],
+        )
+        .unwrap();
+        let meter = &result.ai.meters[0];
+        assert!(meter.active_power.value() > meter_min);
+        assert_eq!(meter.active_power.value(), meter.active_power.eng_minimum());
+        assert!(meter.reactive_power.value() < meter_max);
+        assert_eq!(
+            meter.reactive_power.value(),
+            meter.reactive_power.eng_maximum()
+        );
+        result.into_unvalidated().into_validated().unwrap();
     }
 }
