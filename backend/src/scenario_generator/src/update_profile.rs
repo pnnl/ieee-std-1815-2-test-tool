@@ -62,7 +62,7 @@ pub fn update_profile(
 }
 
 /// If any selected scenario requires boundary headroom (e.g. BelowLowerBounds, AboveUpperBounds),
-/// adjusts AO and AI points in the base profile that are pinned to `i32::MIN` or `i32::MAX`
+/// adjusts AO and AI points across all groups in the base profile that are pinned to `i32::MIN` or `i32::MAX`
 /// so that extended out-of-bounds values can be represented and tested within 32-bit DNP3 transmission limits.
 /// If no boundary scenarios are selected, returns the profile unmodified.
 pub fn prepare_base_profile_for_scenarios(
@@ -103,8 +103,8 @@ pub fn prepare_base_profile_for_scenarios(
         }
     }
 
-    // Adjust base AI points
-    for ai in &mut unvalidated.ai.points {
+    // Adjust all AI points, including equipment and every curve/schedule entry.
+    for ai in unvalidated.ai.all_ai_points_full_mut() {
         if is_multiplex_selector_ai(ai.point_index) {
             continue;
         }
@@ -122,12 +122,13 @@ pub fn prepare_base_profile_for_scenarios(
         if changed {
             let eng_min = EngineeringF64::from_transmitted(min, ai.multiplier(), ai.offset);
             let eng_max = EngineeringF64::from_transmitted(max, ai.multiplier(), ai.offset);
-            ai.set_eng_bounds(eng_min, eng_max)?;
+            // Clamp while the old bounds still apply: set_eng_bounds validates the value.
             if ai.value() < eng_min {
                 ai.set_value(eng_min)?;
             } else if ai.value() > eng_max {
                 ai.set_value(eng_max)?;
             }
+            ai.set_eng_bounds(eng_min, eng_max)?;
         }
     }
 
@@ -778,40 +779,84 @@ mod tests {
         let result =
             prepare_base_profile_for_scenarios(full_profile.clone(), &non_boundary_scenarios)
                 .unwrap();
-        assert_eq!(
-            result.ao.all_ao_points().len(),
-            full_profile.ao.all_ao_points().len()
-        );
-        for (orig, res) in full_profile
-            .ao
-            .all_ao_points()
-            .iter()
-            .zip(result.ao.all_ao_points().iter())
-        {
-            assert_eq!(orig.minimum(), res.minimum());
-            assert_eq!(orig.maximum(), res.maximum());
-        }
+        assert_eq!(result, full_profile);
     }
 
     #[test]
     fn test_prepare_base_profile_adjusts_when_boundary_scenario_selected() {
         let full_profile = load_full_profile();
-        let boundary_scenarios = vec!["lower_bounds".to_string()];
-        let result =
-            prepare_base_profile_for_scenarios(full_profile.clone(), &boundary_scenarios).unwrap();
-        for ao in result.ao.all_ao_points() {
-            assert_ne!(
-                ao.minimum(),
-                TransmissionI32(i32::MIN),
-                "AO{} should not be i32::MIN after boundary preparation",
-                ao.point_index
-            );
-            assert_ne!(
-                ao.maximum(),
-                TransmissionI32(i32::MAX),
-                "AO{} should not be i32::MAX after boundary preparation",
-                ao.point_index
-            );
+        for scenario in ["lower_bounds", "upper_bounds"] {
+            let result =
+                prepare_base_profile_for_scenarios(full_profile.clone(), &[scenario.to_string()])
+                    .unwrap();
+            for ao in result.ao.all_ao_points() {
+                assert_ne!(
+                    ao.minimum(),
+                    TransmissionI32(i32::MIN),
+                    "AO{} should not be i32::MIN after boundary preparation",
+                    ao.point_index
+                );
+                assert_ne!(
+                    ao.maximum(),
+                    TransmissionI32(i32::MAX),
+                    "AO{} should not be i32::MAX after boundary preparation",
+                    ao.point_index
+                );
+            }
+            for (original, ai) in full_profile
+                .ai
+                .all_ai_points_full()
+                .into_iter()
+                .zip(result.ai.all_ai_points_full())
+            {
+                if is_multiplex_selector_ai(ai.point_index) {
+                    assert_eq!(ai, original, "multiplex selectors must be preserved");
+                    continue;
+                }
+                assert_ne!(
+                    ai.minimum(),
+                    TransmissionI32(i32::MIN),
+                    "{}",
+                    ai.full_index()
+                );
+                assert_ne!(
+                    ai.maximum(),
+                    TransmissionI32(i32::MAX),
+                    "{}",
+                    ai.full_index()
+                );
+                assert_eq!(ai.value(), original.value(), "{}", ai.full_index());
+            }
+
+            // Prepared profiles are serialized for the reference stations, which validate again.
+            let json = serde_json::to_string(&result).unwrap();
+            let reloaded: PicsProfile = serde_json::from_str(&json).unwrap();
+            assert_eq!(reloaded.into_validated().unwrap(), result);
         }
+    }
+
+    #[test]
+    fn test_prepare_base_profile_clamps_values_at_integer_extremes() {
+        let mut profile = load_full_profile().into_unvalidated();
+        let meter = &mut profile.ai.meters[0];
+        let meter_min = meter.active_power.eng_minimum();
+        meter.active_power.set_value(meter_min).unwrap();
+        let meter_max = meter.reactive_power.eng_maximum();
+        meter.reactive_power.set_value(meter_max).unwrap();
+
+        let result = prepare_base_profile_for_scenarios(
+            profile.into_validated().unwrap(),
+            &["lower_bounds".to_string()],
+        )
+        .unwrap();
+        let meter = &result.ai.meters[0];
+        assert!(meter.active_power.value() > meter_min);
+        assert_eq!(meter.active_power.value(), meter.active_power.eng_minimum());
+        assert!(meter.reactive_power.value() < meter_max);
+        assert_eq!(
+            meter.reactive_power.value(),
+            meter.reactive_power.eng_maximum()
+        );
+        result.into_unvalidated().into_validated().unwrap();
     }
 }

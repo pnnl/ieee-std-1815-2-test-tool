@@ -6,6 +6,7 @@ use crate::profile::{
     validation::{
         ValidationError, ValidationErrors, collect_duplicate_ai_errors, is_whole_number_in_range,
     },
+    values::TransmissionI32,
 };
 
 /// Convert a finite, whole-number f64 to a u8 curve code.
@@ -20,13 +21,16 @@ pub fn float_to_curve_code(v: f64) -> Option<u8> {
 
 /// Check that an AiPoint's minimum, maximum, and multiplier match the expected
 /// scaling entry from the curve scaling table (Tables 16 or 17).
+/// At i32 extremes, also allow one transmission count of headroom for boundary scenarios.
 fn check_ai_scaling_match(point: &AiPoint, scaling: &ScalingEntry) -> ValidationErrors {
     let mut errors = ValidationErrors::new();
 
     let expected_min = scaling.min;
     let expected_max = scaling.max;
     let point_index_str = point.point_index.to_string();
-    if point.minimum() != expected_min {
+    let has_min_headroom = expected_min == TransmissionI32(i32::MIN)
+        && point.minimum() == TransmissionI32(i32::MIN + 1);
+    if point.minimum() != expected_min && !has_min_headroom {
         errors.push(ValidationError {
             point: format!("AI{}", point_index_str),
             message: format!(
@@ -36,7 +40,9 @@ fn check_ai_scaling_match(point: &AiPoint, scaling: &ScalingEntry) -> Validation
             ),
         })
     }
-    if point.maximum != expected_max {
+    let has_max_headroom = expected_max == TransmissionI32(i32::MAX)
+        && point.maximum() == TransmissionI32(i32::MAX - 1);
+    if point.maximum() != expected_max && !has_max_headroom {
         errors.push(ValidationError {
             point: format!("AI{}", point_index_str),
             message: format!(
@@ -241,5 +247,63 @@ impl AiCurve {
             }
         }
         errors
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::{PicsProfile, values::EngineeringF64};
+
+    #[test]
+    fn scaling_allows_only_one_count_of_headroom_at_integer_extremes() {
+        let mut point = PicsProfile::load_full_profile().ai.curves[0].x_values[0].clone();
+        let scaling = ScalingEntry {
+            min: TransmissionI32(i32::MIN),
+            max: TransmissionI32(i32::MAX),
+            mult: 1.0,
+        };
+        for (min, max) in [
+            (i32::MIN, i32::MAX),
+            (i32::MIN + 1, i32::MAX),
+            (i32::MIN, i32::MAX - 1),
+            (i32::MIN + 1, i32::MAX - 1),
+        ] {
+            point
+                .set_eng_bounds(EngineeringF64(min as f64), EngineeringF64(max as f64))
+                .unwrap();
+            assert!(check_ai_scaling_match(&point, &scaling).is_empty());
+        }
+        for (min, max) in [(i32::MIN + 2, i32::MAX - 1), (i32::MIN + 1, i32::MAX - 2)] {
+            point
+                .set_eng_bounds(EngineeringF64(min as f64), EngineeringF64(max as f64))
+                .unwrap();
+            assert!(!check_ai_scaling_match(&point, &scaling).is_empty());
+        }
+    }
+
+    #[test]
+    fn scaling_still_requires_exact_non_extreme_bounds_and_multiplier() {
+        let mut point = PicsProfile::load_full_profile().ai.curves[0].x_values[0].clone();
+        let scaling = ScalingEntry {
+            min: TransmissionI32(0),
+            max: TransmissionI32(10000),
+            mult: 1.0,
+        };
+        for (min, max) in [(-1, 10000), (1, 10000), (0, 9999), (0, 10001)] {
+            point
+                .set_eng_bounds(EngineeringF64(min as f64), EngineeringF64(max as f64))
+                .unwrap();
+            assert!(!check_ai_scaling_match(&point, &scaling).is_empty());
+        }
+        point
+            .set_eng_bounds(EngineeringF64(0.0), EngineeringF64(10000.0))
+            .unwrap();
+        assert!(check_ai_scaling_match(&point, &scaling).is_empty());
+        let wrong_multiplier = ScalingEntry {
+            mult: 0.1,
+            ..scaling
+        };
+        assert!(!check_ai_scaling_match(&point, &wrong_multiplier).is_empty());
     }
 }
