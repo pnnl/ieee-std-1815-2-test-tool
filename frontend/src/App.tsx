@@ -19,7 +19,10 @@ import {
   type FlatPoint,
 } from './profile/canonical'
 import { bucketValidationErrors } from './profile/validationBucketing'
-import { interpretValidateError } from './profile/importResponse'
+import {
+  interpretValidateError,
+  isValidationErrorsResponse,
+} from './profile/importResponse'
 import {
   loadPreferences,
   updatePreference,
@@ -33,6 +36,7 @@ import {
   listProfiles,
   saveProfile,
   validateProfile,
+  addProfileCurve,
   type PicsProfile,
   type ProfileSource,
   type ValidationError,
@@ -79,6 +83,10 @@ const getTabFromSearch = (searchParams: URLSearchParams): string => {
 
 function App() {
   const [profileData, setProfileData] = useState<PicsProfile | null>(null)
+  const currentProfileRef = useRef(profileData)
+  useEffect(() => {
+    currentProfileRef.current = profileData
+  }, [profileData])
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = getTabFromSearch(searchParams)
   const [currentProfileName, setCurrentProfileName] = useState<string | null>(
@@ -857,6 +865,35 @@ function App() {
     }
   }
 
+  const handleAddCurves = async (count = 1): Promise<number | null> => {
+    if (!profileData) return null
+    try {
+      const { data, error } = await addProfileCurve({
+        body: { profile: profileData, count },
+      })
+      if (!data) {
+        throw new Error(
+          isValidationErrorsResponse(error)
+            ? error.errors.errors.map((entry) => entry.message).join('\n')
+            : 'Failed to add curves.',
+        )
+      }
+      if (currentProfileRef.current !== profileData) {
+        throw new Error(
+          'The profile changed while adding curves. Please retry.',
+        )
+      }
+      setProfileData(data.profile)
+      setValidationErrors([])
+      return data.added_curve_index
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to add curves.',
+      )
+      return null
+    }
+  }
+
   const handlePreferenceChange = (
     key: keyof Preferences,
     value: Preferences[keyof Preferences],
@@ -879,7 +916,7 @@ function App() {
     switch (outcome.kind) {
       case 'clean':
         setValidationErrors([])
-        showToast('Profile is valid.', 'success')
+        showToast('No validation errors.', 'success')
         return
       case 'invalid':
         setValidationErrors(outcome.errors)
@@ -965,6 +1002,7 @@ function App() {
                     onEntityChange={handleEntityChange}
                     profileData={profileData}
                     setProfileData={setProfileData}
+                    onAddCurves={handleAddCurves}
                   />
                 </div>
               )}
@@ -991,6 +1029,7 @@ function App() {
                     <CurvesTab
                       profileData={profileData}
                       setProfileData={setProfileData}
+                      onAddCurves={handleAddCurves}
                       errors={validationBuckets.curves}
                     />
                   </EnumDataProvider>

@@ -3,10 +3,12 @@ import { cn } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
 
 interface NumberInputProps {
+  id?: string
   label?: string
   description?: string
   value?: number | string
-  onChange?: (value: number | string) => void
+  onChange?: (value: number | string) => void | Promise<void>
+  commitOnBlur?: boolean
   min?: number
   max?: number
   step?: number
@@ -25,6 +27,7 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
       description,
       value,
       onChange,
+      commitOnBlur = false,
       min,
       max,
       step = 1,
@@ -38,6 +41,8 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
     },
     ref,
   ) => {
+    const generatedId = React.useId()
+    const inputId = props.id ?? generatedId
     const sizeClasses = {
       xs: 'h-7 text-xs px-2',
       sm: 'h-8 text-sm px-3',
@@ -49,17 +54,19 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
       value != null && value !== '' ? String(value) : '',
     )
     const [isFocused, setIsFocused] = React.useState(false)
+    const [isCommitting, setIsCommitting] = React.useState(false)
 
-    // Sync display with external value changes, but only when not focused
+    // Keep the draft visible while editing and while an async commit is pending.
     React.useEffect(() => {
-      if (!isFocused) {
+      if (!isFocused && !isCommitting) {
         setDisplayValue(value != null && value !== '' ? String(value) : '')
       }
-    }, [value, isFocused])
+    }, [value, isFocused, isCommitting])
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value
       setDisplayValue(raw)
+      if (commitOnBlur) return
 
       if (raw === '' || raw === '-') {
         onChange?.('')
@@ -71,8 +78,24 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
       }
     }
 
-    const handleBlur = () => {
+    const handleBlur = async () => {
       setIsFocused(false)
+      if (commitOnBlur) {
+        const num = Number(displayValue)
+        if (
+          displayValue.trim() !== '' &&
+          Number.isFinite(num) &&
+          (value == null || value === '' || num !== Number(value))
+        ) {
+          setIsCommitting(true)
+          try {
+            await onChange?.(num)
+          } finally {
+            setIsCommitting(false)
+          }
+        }
+        return
+      }
       // On blur, normalize the display to match the actual value
       if (displayValue === '' || displayValue === '-') {
         setDisplayValue(value != null && value !== '' ? String(value) : '')
@@ -81,17 +104,28 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
 
     return (
       <div className={cn('flex flex-col gap-1', className)}>
-        {label && <Label className="text-xs font-medium">{label}</Label>}
+        {label && (
+          <Label htmlFor={inputId} className="text-xs font-medium">
+            {label}
+          </Label>
+        )}
         {description && (
           <p className="text-xs text-muted-foreground -mt-0.5">{description}</p>
         )}
         <input
           ref={ref}
+          id={inputId}
           type="number"
           value={displayValue}
           onChange={handleChange}
           onFocus={() => setIsFocused(true)}
           onBlur={handleBlur}
+          onKeyDown={(e) => {
+            if (commitOnBlur && e.key === 'Enter') {
+              e.preventDefault()
+              e.currentTarget.blur()
+            }
+          }}
           min={min}
           max={max}
           step={step}

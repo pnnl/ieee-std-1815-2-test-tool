@@ -55,6 +55,26 @@ pub struct ProfileMutationAck {
     pub name: String,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AddProfileCurveRequest {
+    pub profile: PicsProfile,
+    /// Number of default curves to append. Defaults to one.
+    #[serde(default = "default_curve_count")]
+    #[schema(default = 1)]
+    pub count: u16,
+}
+
+fn default_curve_count() -> u16 {
+    1
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AddProfileCurveResponse {
+    pub profile: PicsProfile,
+    /// Zero-based index of the first added curve.
+    pub added_curve_index: usize,
+}
+
 /// Reject profile names that could escape the profiles directory.
 fn validate_profile_name(name: &str) -> poem::Result<()> {
     if name.is_empty()
@@ -302,6 +322,33 @@ pub async fn validate_profile(body: Json<PicsProfile>) -> poem::Result<String> {
 
 #[utoipa::path(
     post,
+    path = "/api/profiles/curves",
+    tag = "profiles",
+    operation_id = "addProfileCurve",
+    request_body = AddProfileCurveRequest,
+    responses(
+        (status = 200, description = "Updated profile, without saving", body = AddProfileCurveResponse),
+        (status = 400, description = "Invalid profile or curve limit exceeded", body = ValidationErrorsResponse)
+    )
+)]
+#[handler]
+pub async fn add_profile_curve(
+    Json(mut body): Json<AddProfileCurveRequest>,
+) -> poem::Result<Json<AddProfileCurveResponse>> {
+    let added_curve_index = body
+        .profile
+        .add_default_curves(body.count)
+        .map_err(|errors| {
+            poem::Error::from_response(ValidationErrorsResponse { errors }.into_response())
+        })?;
+    Ok(Json(AddProfileCurveResponse {
+        profile: body.profile,
+        added_curve_index,
+    }))
+}
+
+#[utoipa::path(
+    post,
     path = "/api/profiles",
     tag = "profiles",
     request_body = SaveProfileRequest,
@@ -524,6 +571,7 @@ pub fn routes() -> Route {
         .at("/parse-xlsx", post(parse_xlsx))
         .at("/:name", get(get_profile).delete(delete_profile))
         .at("/validate", post(validate_profile))
+        .at("/curves", post(add_profile_curve))
 }
 
 #[cfg(test)]
@@ -533,6 +581,95 @@ mod tests {
     use poem::middleware::AddDataEndpoint;
     use poem::test::{TestClient, TestResponse};
     use std::fs;
+
+    #[tokio::test]
+    async fn test_add_profile_curve_from_empty() {
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        let expected_curve = profile.ai.curves[0].clone();
+        profile.ai.curves.clear();
+        let client = TestClient::new(Route::new().nest("/", routes()));
+
+        let response = client
+            .post("/curves")
+            .body_json(&serde_json::json!({ "profile": profile }))
+            .send()
+            .await;
+        response.assert_status_is_ok();
+        let body = parse_json(response).await;
+        let updated: PicsProfile = serde_json::from_value(body["profile"].clone())
+            .expect("response must contain a profile");
+        assert_eq!(body["added_curve_index"], 0);
+        assert_eq!(updated.ai.curves, vec![expected_curve]);
+        updated.validate().expect("updated profile must be valid");
+    }
+
+    #[tokio::test]
+    async fn test_add_profile_curve_preserves_existing_and_supports_multiple() {
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile.ai.curves[0].curve_type.name = "Edited curve".to_string();
+        let client = TestClient::new(Route::new().nest("/", routes()));
+        let response = client
+            .post("/curves")
+            .body_json(&serde_json::json!({ "profile": profile, "count": 2 }))
+            .send()
+            .await;
+        response.assert_status_is_ok();
+        let body = parse_json(response).await;
+        let updated: PicsProfile = serde_json::from_value(body["profile"].clone())
+            .expect("response must contain a profile");
+        let initial_count = profile.ai.curves.len();
+        assert_eq!(body["added_curve_index"], initial_count);
+        assert_eq!(updated.ai.curves.len(), initial_count + 2);
+        assert_eq!(updated.ai.curves[..initial_count], profile.ai.curves);
+        assert_eq!(
+            updated.ai.curves[initial_count],
+            common::profile::AiCurve::default()
+        );
+        updated.validate().expect("updated profile must be valid");
+    }
+
+    #[tokio::test]
+    async fn test_add_profile_curve_rejects_invalid_profile() {
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile.ai.curves[0]
+            .curve_type
+            .set_value_unsafe(common::profile::values::EngineeringF64(99.0));
+        let client = TestClient::new(Route::new().nest("/", routes()));
+        let response = client
+            .post("/curves")
+            .body_json(&serde_json::json!({ "profile": profile }))
+            .send()
+            .await;
+        response.assert_status(poem::http::StatusCode::BAD_REQUEST);
+        let body = parse_json(response).await;
+        assert!(
+            !body["errors"]["errors"]
+                .as_array()
+                .expect("validation errors")
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_add_profile_curve_rejects_limit() {
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile
+            .ai
+            .points
+            .iter_mut()
+            .find(|point| point.point_index == 328)
+            .expect("curve selector must exist")
+            .maximum = common::profile::values::TransmissionI32(4);
+        let client = TestClient::new(Route::new().nest("/", routes()));
+        let response = client
+            .post("/curves")
+            .body_json(&serde_json::json!({ "profile": profile }))
+            .send()
+            .await;
+        response.assert_status(poem::http::StatusCode::BAD_REQUEST);
+        let body = parse_json(response).await;
+        assert_eq!(body["errors"]["errors"][0]["point"], "AI328");
+    }
 
     /// Create a temp directory with optional fixtures and return the path.
     ///

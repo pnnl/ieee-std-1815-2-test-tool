@@ -1,10 +1,9 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { NumberInput } from '@/components/ui/number-input'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { getMaxCurves } from '../utils/curveUtils'
 import {
   getEquipmentCount,
-  setCurveCount,
   setScheduleCount,
   type EquipmentGroup,
 } from '@/profile/canonical'
@@ -14,6 +13,7 @@ interface EntitiesTabProps {
   onEntityChange: (entityType: EquipmentGroup, value: string) => boolean
   profileData: PicsProfile
   setProfileData: (profile: PicsProfile) => void
+  onAddCurves: (count?: number) => Promise<number | null>
 }
 
 const ENTITY_FIELDS: {
@@ -43,8 +43,10 @@ function EntitiesTab({
   onEntityChange,
   profileData,
   setProfileData,
+  onAddCurves,
 }: EntitiesTabProps) {
   const [warning, setWarning] = useState('')
+  const fieldId = useId()
 
   const curveCount = profileData.AI.curves.length
   const scheduleCount = profileData.AI.schedules.length
@@ -66,12 +68,18 @@ function EntitiesTab({
     }
   }
 
-  const handleCurveCountChange = (value: string | number) => {
+  const handleCurveCountChange = async (value: string | number) => {
     const newCount = Math.max(
       0,
-      Math.min(getMaxCurves(profileData), Number(value) || 0),
+      Math.min(getMaxCurves(profileData), Math.trunc(Number(value) || 0)),
     )
-    setProfileData(setCurveCount(profileData, newCount))
+    if (newCount > curveCount) {
+      await onAddCurves(newCount - curveCount)
+    } else {
+      const next = structuredClone(profileData)
+      next.AI.curves = next.AI.curves.slice(0, newCount)
+      setProfileData(next)
+    }
   }
 
   const handleScheduleCountChange = (value: string | number) => {
@@ -99,9 +107,16 @@ function EntitiesTab({
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {ENTITY_FIELDS.map(({ key, label, description }) => (
           <div key={key} className="border rounded-md p-4">
-            <p className="font-semibold text-sm mb-0.5">{label}</p>
+            <label
+              htmlFor={`${fieldId}-${key}`}
+              className="block font-semibold text-sm mb-0.5"
+            >
+              {label}
+            </label>
             <p className="text-muted-foreground text-xs mb-3">{description}</p>
             <NumberInput
+              commitOnBlur
+              id={`${fieldId}-${key}`}
               min={0}
               step={1}
               value={getEquipmentCount(profileData, key)}
@@ -111,11 +126,18 @@ function EntitiesTab({
           </div>
         ))}
         <div className="border rounded-md p-4">
-          <p className="font-semibold text-sm mb-0.5">Curves</p>
+          <label
+            htmlFor={`${fieldId}-curves`}
+            className="block font-semibold text-sm mb-0.5"
+          >
+            Curves
+          </label>
           <p className="text-muted-foreground text-xs mb-3">
             Number of curve definitions
           </p>
           <NumberInput
+            commitOnBlur
+            id={`${fieldId}-curves`}
             min={0}
             max={getMaxCurves(profileData)}
             step={1}
@@ -125,11 +147,18 @@ function EntitiesTab({
           />
         </div>
         <div className="border rounded-md p-4">
-          <p className="font-semibold text-sm mb-0.5">Schedules</p>
+          <label
+            htmlFor={`${fieldId}-schedules`}
+            className="block font-semibold text-sm mb-0.5"
+          >
+            Schedules
+          </label>
           <p className="text-muted-foreground text-xs mb-3">
             Number of schedule entries
           </p>
           <NumberInput
+            commitOnBlur
+            id={`${fieldId}-schedules`}
             min={0}
             max={100}
             step={1}
