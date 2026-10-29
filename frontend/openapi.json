@@ -180,6 +180,46 @@
         }
       }
     },
+    "/api/profiles/curves": {
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "operationId": "addProfileCurve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddProfileCurveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated profile, without saving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddProfileCurveResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile or curve limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/profiles/parse-xlsx": {
       "post": {
         "tags": [
@@ -359,6 +399,41 @@
   },
   "components": {
     "schemas": {
+      "AddProfileCurveRequest": {
+        "type": "object",
+        "required": [
+          "profile"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of default curves to append. Defaults to one.",
+            "default": 1,
+            "minimum": 0
+          },
+          "profile": {
+            "$ref": "#/components/schemas/PicsProfile"
+          }
+        }
+      },
+      "AddProfileCurveResponse": {
+        "type": "object",
+        "required": [
+          "profile",
+          "added_curve_index"
+        ],
+        "properties": {
+          "added_curve_index": {
+            "type": "integer",
+            "description": "Zero-based index of the first added curve.",
+            "minimum": 0
+          },
+          "profile": {
+            "$ref": "#/components/schemas/PicsProfile"
+          }
+        }
+      },
       "AiBattery": {
         "type": "object",
         "description": "AI points belonging to the Battery equipment group.",

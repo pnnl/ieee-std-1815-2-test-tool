@@ -14,6 +14,7 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import { BrowserRouter } from 'react-router-dom'
 import { Theme } from '@radix-ui/themes'
 import type { ComponentProps } from 'react'
@@ -63,6 +64,7 @@ const getProfile = vi.fn()
 const listProfiles = vi.fn()
 const saveProfile = vi.fn()
 const validateProfile = vi.fn()
+const addProfileCurve = vi.fn()
 
 // jsdom reports zero-size rectangles, so splitter hit testing can intercept
 // clicks on unrelated tabs. These tests exercise profile validation flows;
@@ -88,6 +90,7 @@ vi.mock('@/api/generated', async () => {
     listProfiles: (...args: unknown[]) => listProfiles(...args),
     saveProfile: (...args: unknown[]) => saveProfile(...args),
     validateProfile: (...args: unknown[]) => validateProfile(...args),
+    addProfileCurve: (...args: unknown[]) => addProfileCurve(...args),
   }
 })
 
@@ -151,6 +154,58 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+})
+
+describe('Adding curves through the backend', () => {
+  async function openEntities() {
+    getProfile.mockResolvedValueOnce({ data: SMALL_AI_PROFILE })
+    renderApp()
+    await waitForBootstrapLoad()
+    await userEvent.click(screen.getByRole('tab', { name: /Entities/ }))
+    return screen.getByRole('spinbutton', { name: 'Curves' })
+  }
+
+  it('adds curves from zero using the returned profile', async () => {
+    const updated = structuredClone(SMALL_AI_PROFILE)
+    updated.AI.curves = [
+      structuredClone(FULL_PROFILE.AI.curves[0]),
+      structuredClone(FULL_PROFILE.AI.curves[0]),
+    ]
+    addProfileCurve.mockResolvedValueOnce({
+      data: { profile: updated, added_curve_index: 0 },
+    })
+    const countInput = await openEntities()
+    fireEvent.change(countInput, { target: { value: '2' } })
+    fireEvent.blur(countInput)
+
+    await waitFor(() =>
+      expect(addProfileCurve).toHaveBeenCalledWith({
+        body: { profile: SMALL_AI_PROFILE, count: 2 },
+      }),
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('spinbutton', { name: 'Curves' })).toHaveValue(2),
+    )
+    expect(saveProfile).not.toHaveBeenCalled()
+  })
+
+  it('retains the profile and displays validation errors when adding fails', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    addProfileCurve.mockResolvedValueOnce({
+      error: {
+        errors: { errors: [{ point: 'AI329', message: 'Invalid curve type' }] },
+      },
+    })
+    const countInput = await openEntities()
+    fireEvent.change(countInput, { target: { value: '1' } })
+    fireEvent.blur(countInput)
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('Invalid curve type'),
+    )
+    expect(screen.getByRole('spinbutton', { name: 'Curves' })).toHaveValue(0)
+    expect(saveProfile).not.toHaveBeenCalled()
+  })
 })
 
 describe('Validate action', () => {
@@ -686,12 +741,13 @@ describe('Save persists, then re-validates the saved profile and replaces the pa
     )
   })
 
-  // Meters is the first entity spinbutton; changing it flips `isModified`
-  // and enables Save without touching the AI0-AI4 points below.
+  // Editing AI9 enables Save without touching the AI0-AI4 validation cases.
   async function markProfileModified() {
-    const meters = screen.getAllByRole('spinbutton')[0] as HTMLInputElement
-    fireEvent.change(meters, {
-      target: { value: String(Number(meters.value) + 1) },
+    const valueInput = within(rowFor('AI9')).getByRole<HTMLInputElement>(
+      'spinbutton',
+    )
+    fireEvent.change(valueInput, {
+      target: { value: String(Number(valueInput.value) + 1) },
     })
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),

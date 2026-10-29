@@ -9,6 +9,7 @@ use crate::profile::{
     validation::{Validate, Validated, ValidationError, ValidationErrors},
 };
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 
 // ---------------------------------------------------------------------------
 // KeySheet
@@ -201,6 +202,39 @@ impl PicsProfile {
         Ok(())
     }
 
+    /// Append default curves and validate the entire profile, rolling back on failure.
+    /// Returns the zero-based index of the first added curve.
+    pub fn add_default_curves(&mut self, count: u16) -> Result<usize, ValidationErrors> {
+        use crate::{profile::DEFAULT_MAX_DATABASE_ENTRIES, uids::ai_uid::AiUid};
+
+        let initial_count = self.ai.curves.len();
+        let maximum = self
+            .ai
+            .point_by_uid(AiUid::Curve_DGSMn_InCrv)
+            .map(|point| point.maximum().0)
+            .unwrap_or(DEFAULT_MAX_DATABASE_ENTRIES.into())
+            .min(DEFAULT_MAX_DATABASE_ENTRIES.into());
+        if count == 0
+            || initial_count + usize::from(count) > usize::try_from(maximum).unwrap_or_default()
+        {
+            return Err(ValidationErrors::from_error(ValidationError {
+                point: format!("AI{}", AiUid::Curve_DGSMn_InCrv as u16),
+                message: format!(
+                    "Must add at least one curve and keep the total at or below {maximum}"
+                ),
+            }));
+        }
+
+        for _ in 0..count {
+            self.ai.add_curve();
+        }
+        if let Err(errors) = self.validate() {
+            self.ai.curves.truncate(initial_count);
+            return Err(errors);
+        }
+        Ok(initial_count)
+    }
+
     /// For use with user-input data only. For internal construction, always use `PicsProfile::new()`.
     pub fn new_unsafe_for_collecting_errors(
         key: KeySheet,
@@ -226,16 +260,25 @@ impl PicsProfile {
         }
     }
 
+    /// Return an owned copy of the cached, validated full.json profile embedded at build time.
     pub fn load_full_profile() -> Validated<PicsProfile> {
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../data/profiles/full.json");
-        let text = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
-        PicsProfile::into_validated(
-            serde_json::from_str(&text)
-                .unwrap_or_else(|e| panic!("failed to parse {}: {e}", path.display())),
-        )
-        .expect("failed to validate full.json profile")
+        Self::full_profile().clone()
+    }
+
+    pub(super) fn full_profile() -> &'static Validated<PicsProfile> {
+        static FULL_PROFILE: OnceLock<Validated<PicsProfile>> = OnceLock::new();
+
+        FULL_PROFILE.get_or_init(|| {
+            // Installed binaries do not have access to the build machine's source tree.
+            let text = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../data/profiles/full.json"
+            ));
+            PicsProfile::into_validated(
+                serde_json::from_str(text).expect("failed to parse embedded full.json profile"),
+            )
+            .expect("failed to validate embedded full.json profile")
+        })
     }
 }
 
@@ -244,6 +287,18 @@ impl Validate for PicsProfile {
         let mut errors = ValidationErrors::new();
 
         errors.extend(self.ai.collect_validation_errors());
+
+        for point in &self.ai.points {
+            if !self.key.is_base_ai_point(point.point_index) {
+                errors.push(ValidationError {
+                    point: point.full_index(),
+                    message: format!(
+                        "Point index {} is not a basic point according to the Key sheet; move it into its functional or equipment group",
+                        point.point_index,
+                    ),
+                });
+            }
+        }
 
         // Validate individual points
         for point in self.ao.all_ao_points() {
@@ -425,6 +480,21 @@ mod profile_index_tests {
             vec![],
         )
         .expect("test profile must be valid")
+    }
+
+    #[test]
+    fn test_add_default_curves_restores_profile_on_validation_failure() {
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile.ai.curves[0]
+            .curve_type
+            .set_value_unsafe(EngineeringF64(99.0));
+        let original = profile.clone();
+
+        profile
+            .add_default_curves(1)
+            .expect_err("invalid profile must be rejected");
+
+        assert_eq!(profile, original);
     }
 
     #[test]

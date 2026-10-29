@@ -336,6 +336,7 @@ fn generate_unsupported_profile(
     let submitted_bo: HashSet<u16> = profile.bo.points.iter().map(|p| p.point_index).collect();
     let submitted_ai: HashSet<u16> = profile.ai.points.iter().map(|p| p.point_index).collect();
     let submitted_bi: HashSet<u16> = profile.bi.points.iter().map(|p| p.point_index).collect();
+    let submitted_ctr: HashSet<u16> = profile.ctr.iter().map(|p| p.point_index).collect();
 
     // Build flat point_index sets covering ALL AI points inside submitted curves/schedules.
     // A curve/schedule is considered "present" in the submitted profile if ANY of its
@@ -366,7 +367,7 @@ fn generate_unsupported_profile(
         .collect();
 
     PicsProfile::new(
-        profile.key.clone(),
+        full_profile.key.clone(),
         BinaryOutputs {
             points: full_profile
                 .bo
@@ -515,7 +516,12 @@ fn generate_unsupported_profile(
                 .cloned()
                 .collect(),
         },
-        vec![],
+        full_profile
+            .ctr
+            .iter()
+            .filter(|p| !submitted_ctr.contains(&p.point_index))
+            .cloned()
+            .collect(),
     )
 }
 
@@ -849,6 +855,82 @@ mod tests {
                 "Unsupported scenario should include base AO points not in submitted profile"
             );
         }
+    }
+
+    #[test]
+    fn test_unsupported_accounts_for_all_point_groups() {
+        let full_profile = load_full_profile();
+        let empty_profile = PicsProfile::new(
+            full_profile.key.clone(),
+            BinaryOutputs::default(),
+            BinaryInputs::default(),
+            AnalogOutputs::default(),
+            AnalogInputs::default(),
+            vec![],
+        )
+        .unwrap();
+
+        let unsupported = update_profile(
+            &ScenarioId::Unsupported,
+            empty_profile.clone(),
+            &full_profile,
+        )
+        .unwrap();
+        assert_eq!(
+            unsupported, full_profile,
+            "An empty submission should leave every point unsupported"
+        );
+
+        let unsupported = update_profile(
+            &ScenarioId::Unsupported,
+            full_profile.clone(),
+            &full_profile,
+        )
+        .unwrap();
+        assert_eq!(
+            unsupported, empty_profile,
+            "A full submission should leave no points unsupported"
+        );
+    }
+
+    #[test]
+    fn test_unsupported_includes_only_missing_counters() {
+        let full_profile = load_full_profile();
+        let mut submitted = full_profile.clone().into_unvalidated();
+        assert!(!submitted.ctr.is_empty(), "fixture must include counters");
+        let missing = submitted.ctr.remove(0);
+        let result = update_profile(
+            &ScenarioId::Unsupported,
+            submitted.into_validated().unwrap(),
+            &full_profile,
+        )
+        .unwrap();
+        assert_eq!(result.ctr, vec![missing]);
+    }
+
+    #[test]
+    fn test_unsupported_uses_reference_key_boundaries() {
+        let full_profile = load_full_profile();
+        let mut submitted = PicsProfile::new(
+            full_profile.key.clone(),
+            BinaryOutputs::default(),
+            BinaryInputs::default(),
+            AnalogOutputs::default(),
+            AnalogInputs::default(),
+            vec![],
+        )
+        .unwrap()
+        .into_unvalidated();
+        // AI30000 is experimental in the reference profile, but would fall
+        // inside the battery range under the submitted profile's boundaries.
+        submitted.key.experimental.ai.start = 31000;
+        let result = update_profile(
+            &ScenarioId::Unsupported,
+            submitted.into_validated().unwrap(),
+            &full_profile,
+        )
+        .unwrap();
+        assert_eq!(result.key, full_profile.key);
     }
 
     #[test]

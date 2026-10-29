@@ -232,6 +232,11 @@ impl AnalogInputs {
             .into_iter()
             .find(|point| point.point_index == uid as u16)
     }
+
+    pub fn add_curve(&mut self) {
+        let curve = AiCurve::default();
+        self.curves.push(curve);
+    }
 }
 
 fn collect_entry_number_errors(selector_point: &AiPoint, max_number: usize) -> ValidationErrors {
@@ -249,4 +254,125 @@ fn collect_entry_number_errors(selector_point: &AiPoint, max_number: usize) -> V
         });
     }
     errors
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::{
+        EventClass, PicsProfile,
+        values::{EngineeringF64, TransmissionI32},
+    };
+
+    fn point(index: u16) -> AiPoint {
+        AiPoint::new(
+            index,
+            String::new(),
+            EventClass::None,
+            TransmissionI32(0),
+            TransmissionI32(100),
+            1.0,
+            EngineeringF64(0.0),
+            String::new(),
+            String::new(),
+            EngineeringF64(0.0),
+            None,
+            String::new(),
+            false,
+            false,
+        )
+        .expect("test point must be valid")
+    }
+
+    #[test]
+    fn profile_accepts_basic_range_boundaries_and_selectors() {
+        let indices = [
+            0,
+            328,
+            533,
+            1999,
+            2000,
+            2001,
+            2300,
+            2999,
+            3000,
+            3500,
+            4999,
+            30000,
+            u16::MAX,
+        ];
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile.ai.points = indices.into_iter().map(point).collect();
+        profile
+            .into_validated()
+            .expect("basic points and selectors must be accepted");
+    }
+
+    #[test]
+    fn profile_returns_errors_for_all_invalid_basic_points_and_groups() {
+        let invalid_indices = [329, 532, 2002, 2299, 3001, 3499, 5000, 29999];
+        let curve = AiCurve {
+            curve_type: point(329),
+            number_of_points: point(329),
+            x_units: point(331),
+            y_units: point(332),
+            x_values: vec![],
+            y_values: vec![],
+        };
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile.ai.points = invalid_indices.into_iter().map(point).collect();
+        profile.ai.curves = vec![curve];
+        let errors = profile
+            .into_validated()
+            .expect_err("invalid basic points and a duplicate curve index must be rejected");
+
+        for index in invalid_indices {
+            assert!(
+                errors.errors.iter().any(|error| {
+                    error.point == format!("AI{index}")
+                        && error.message.contains("not a basic point")
+                }),
+                "missing basic point validation error for AI{index}"
+            );
+        }
+        assert!(
+            errors
+                .errors
+                .iter()
+                .any(|error| error.message == "Duplicate AI point index")
+        );
+    }
+
+    #[test]
+    fn profile_uses_custom_boundaries_for_base_points_and_selectors() {
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile.key.curves.ai.start = 400;
+        profile.key.system_meter.ai.start = 600;
+        profile.key.extensions.ai.start = 650;
+        profile.key.schedules_bc.ai.start = 2100;
+        profile.key.schedules.ai.start = 3100;
+        profile.ai.points = [399, 400, 600, 2100, 2101, 3100]
+            .into_iter()
+            .map(point)
+            .collect();
+        let mut profile = profile
+            .into_validated()
+            .expect("base points and selectors must follow the Key sheet")
+            .into_unvalidated();
+
+        let invalid_indices = [401, 599, 2102, 3101];
+        profile.ai.points = invalid_indices.into_iter().map(point).collect();
+        let errors = profile
+            .into_validated()
+            .expect_err("functional points cannot be stored as base points");
+        for index in invalid_indices {
+            assert!(
+                errors
+                    .errors
+                    .iter()
+                    .any(|error| error.point == format!("AI{index}")),
+                "missing validation error for AI{index}",
+            );
+        }
+    }
 }

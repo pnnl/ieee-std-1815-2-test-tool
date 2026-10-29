@@ -1507,6 +1507,22 @@
         "mandatory_1547": true
       },
       {
+        "point_index": 328,
+        "name": "Curve Edit Selector",
+        "event_class": "Class2",
+        "minimum": 0,
+        "maximum": 100,
+        "multiplier": 1.0,
+        "offset": 0.0,
+        "units": "n/a",
+        "iec_61850_uid": "DGSMn.InCrv",
+        "value": 0.0,
+        "assoc_ao": "AO244",
+        "purpose": "Curve",
+        "mandatory_1815": true,
+        "mandatory_1547": true
+      },
+      {
         "point_index": 536,
         "name": "System Meter Frequency",
         "event_class": "Class3",
@@ -1823,22 +1839,6 @@
         "value": 0.0,
         "assoc_ao": "AO511",
         "purpose": "Constant Vars",
-        "mandatory_1815": true,
-        "mandatory_1547": true
-      },
-      {
-        "point_index": 328,
-        "name": "Curve Edit Selector",
-        "event_class": "Class2",
-        "minimum": 0,
-        "maximum": 100,
-        "multiplier": 1.0,
-        "offset": 0.0,
-        "units": "n/a",
-        "iec_61850_uid": "DGSMn.InCrv",
-        "value": 0.0,
-        "assoc_ao": "AO244",
-        "purpose": "Curve",
         "mandatory_1815": true,
         "mandatory_1547": true
       }
