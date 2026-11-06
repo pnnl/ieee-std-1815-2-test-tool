@@ -38,6 +38,8 @@ import { type Scenario, fetchScenarios } from './scenarios'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 
+const START_TEST_RUN_LABEL = 'Start Test Run'
+
 interface TestRunnerTabProps {
   profileData: PicsProfile
   preferences: Preferences
@@ -497,11 +499,13 @@ function TestRunnerTab({
                 className={`${styles.btn} ${styles.startStopButton} ${runnerActive ? styles.btnDanger : styles.btnSuccess}`}
                 onClick={handleToggleTestRun}
                 disabled={isConnecting}
-                aria-label={runnerActive ? 'Stop test run' : 'Start test run'}
+                aria-label={
+                  runnerActive ? 'Stop test run' : START_TEST_RUN_LABEL
+                }
                 aria-pressed={runnerActive}
               >
                 {startIcon}&nbsp;&nbsp;&nbsp;
-                {runnerActive ? 'Stop Test Run' : 'Start Test Run'}
+                {runnerActive ? 'Stop Test Run' : START_TEST_RUN_LABEL}
               </button>
             </div>
 
@@ -597,8 +601,8 @@ function TestRunnerTab({
               {logs.length === 0 ? (
                 <div className={styles.logEmpty}>
                   <p>
-                    No logs yet. Click &quot;Start&quot; to begin the test
-                    runner.
+                    No logs yet. Click &quot;{START_TEST_RUN_LABEL}&quot; to
+                    begin the test runner.
                   </p>
                 </div>
               ) : filteredLogs.length === 0 ? (
