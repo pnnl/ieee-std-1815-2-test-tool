@@ -19,7 +19,6 @@ import {
   type DeviceUnderTest,
   savePreferences,
 } from '../../utils/preferences'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const PROCESS_STATUS_CLASSES: Partial<Record<ProcessStatus, string>> = {
   stopped: styles.statusStopped,
@@ -75,14 +74,9 @@ function TestRunnerTab({
   >(() => {
     return { ...preferences.enabledScenarios }
   })
-  const [deviceUnderTest, setDeviceUnderTest] = useState<DeviceUnderTest>(
+  const [deviceUnderTest] = useState<DeviceUnderTest>(
     preferences.deviceUnderTest ?? 'outstation',
   )
-
-  const handleDeviceUnderTestChange = (device: DeviceUnderTest) => {
-    setDeviceUnderTest(device)
-    savePreferences({ ...preferences, deviceUnderTest: device })
-  }
 
   const LOG_SOURCES: LogSource[] = [
     'test_runner',
@@ -477,19 +471,9 @@ function TestRunnerTab({
             </div>
 
             <div className={styles.dutSection}>
-              <span className={styles.dutLabel}>Device Under Test</span>
-              <ToggleGroup
-                value={deviceUnderTest}
-                onValueChange={(value) =>
-                  handleDeviceUnderTestChange(value as DeviceUnderTest)
-                }
-                aria-label="Device under test"
-              >
-                <ToggleGroupItem value="control_station">
-                  Control Station
-                </ToggleGroupItem>
-                <ToggleGroupItem value="outstation">Outstation</ToggleGroupItem>
-              </ToggleGroup>
+              <span className={styles.dutLabel}>
+                Device Under Test: outstation
+              </span>
             </div>
 
             <div className={styles.testRunnerControls}>
