@@ -64,6 +64,9 @@ mod tests {
                 expected_tests: vec![ExpectedTest {
                     test_id: TestName::MON_001,
                     should_pass: true,
+                    applicability_note: Some(
+                        "Bounds check N/A: no eligible AO points.".to_string(),
+                    ),
                 }],
             },
             Scenario {
@@ -82,6 +85,10 @@ mod tests {
         assert_eq!(arr.len(), 2);
         assert_eq!(arr[0].id, "configuration");
         assert_eq!(arr[0].expected_tests.len(), 1);
+        assert_eq!(
+            arr[0].expected_tests[0].applicability_note.as_deref(),
+            Some("Bounds check N/A: no eligible AO points.")
+        );
         assert_eq!(arr[1].id, "unsupported");
         assert!(arr[1].expected_tests.is_empty());
     }

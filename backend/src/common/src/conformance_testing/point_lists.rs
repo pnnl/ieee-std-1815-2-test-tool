@@ -91,8 +91,8 @@ pub fn conn_001() -> ConformancePoints {
     ConformancePoints {
         ai: &[AiUid::Connect_DCTE3_WinTms, AiUid::Connect_DCTE3_RvrtTms],
         bi: &[BiUid::Monitoring_CSWI_Pos_1, BiUid::Monitoring_CSWI_Pos_2],
-        ao: &[],
-        bo: &[],
+        ao: &[AoUid::Connect_DCTE3_WinTms, AoUid::Connect_DCTE3_RvrtTms],
+        bo: &[BoUid::Monitoring_CSWI_Pos],
     }
 }
 
@@ -119,8 +119,23 @@ pub fn serv_001() -> ConformancePoints {
             BiUid::Enter_Service_DGEN_PrmConn,
             BiUid::Enter_Service_DGEN_PrmDscon,
         ],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Return_to_Service_DCTE1_VHiLim,
+            AoUid::Return_to_Service_DCTE1_VLoLim,
+            AoUid::Return_to_Service_DCTE1_HzHiLim,
+            AoUid::Return_to_Service_DCTE1_HzLoLim,
+            AoUid::Return_to_Service_DCTE1_RtnDlyTmms,
+            AoUid::Return_to_Service_DCTE1_WinTms,
+            AoUid::Return_to_Service_DCTE1_RtnRmpTmms,
+            AoUid::Cease_DCTE2_WinTms,
+            AoUid::Cease_DCTE2_RmpTms,
+            AoUid::Cease_DCTE2_RvrtTms,
+        ],
+        bo: &[
+            BoUid::State_DCTE_CeaEgzReqCtl_1,
+            BoUid::Enter_Service_DGEN_PrmConn,
+            BoUid::Enter_Service_DGEN_PrmDscon,
+        ],
     }
 }
 
@@ -134,6 +149,7 @@ pub fn op_001() -> ConformancePoints {
             BiUid::State_DCTE_CeaEgzReqSt_6,
             BiUid::State_DCTE_CeaEgzReqSt_3,
             BiUid::State_DGEN_DEROpSt_synchronizing,
+            BiUid::State_DGEN_DEROpSt_onbutdisconnectedandnotready,
             BiUid::Enter_Service_DGEN_PrmConn,
             BiUid::Enter_Service_DGEN_PrmDscon,
             BiUid::Monitoring_DGEN_DEROpSt_running,
@@ -150,7 +166,7 @@ pub fn op_001() -> ConformancePoints {
 /// Point list for the CURVE-001 conformance test.
 pub fn curve_001() -> ConformancePoints {
     ConformancePoints {
-        ai: &[],
+        ai: &[AiUid::Curve_DGSMn_InCrv],
         bi: &[BiUid::Curve_MESA_CrvRef],
         ao: &[AoUid::Curve_DGSMn_InCrv],
         bo: &[],
@@ -160,7 +176,7 @@ pub fn curve_001() -> ConformancePoints {
 /// Point list for the CURVE-002 conformance test.
 pub fn curve_002() -> ConformancePoints {
     ConformancePoints {
-        ai: &[],
+        ai: &[AiUid::Curve_DGSMn_InCrv],
         bi: &[BiUid::Curve_MESA_CrvRef],
         ao: &[AoUid::Curve_DGSMn_InCrv],
         bo: &[],
@@ -170,7 +186,7 @@ pub fn curve_002() -> ConformancePoints {
 /// Point list for the CURVE-003 conformance test.
 pub fn curve_003() -> ConformancePoints {
     ConformancePoints {
-        ai: &[],
+        ai: &[AiUid::Curve_DGSMn_InCrv],
         bi: &[BiUid::Curve_MESA_CrvRef],
         ao: &[AoUid::Curve_DGSMn_InCrv],
         bo: &[],
@@ -189,8 +205,14 @@ pub fn vrt_001() -> ConformancePoints {
             AiUid::Volt_Ride_Through_DLVT_PTUV2_BlkRef,
         ],
         bi: &[BiUid::Volt_Ride_Through_DHVT_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Volt_Ride_Through_DHVT_EcpRef,
+            AoUid::Volt_Ride_Through_DHVT_PTOV1_BlkRef,
+            AoUid::Volt_Ride_Through_DLVT_PTUV1_BlkRef,
+            AoUid::Volt_Ride_Through_DHVT_PTOV2_BlkRef,
+            AoUid::Volt_Ride_Through_DLVT_PTUV2_BlkRef,
+        ],
+        bo: &[BoUid::Volt_Ride_Through_DHVT_Mod],
     }
 }
 
@@ -206,8 +228,14 @@ pub fn frt_001() -> ConformancePoints {
             AiUid::Freq_Ride_Through_DLFT_PTUF2_BlkRef,
         ],
         bi: &[BiUid::Freq_Ride_Through_DHFT_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Freq_Ride_Through_DHFT_EcpRef,
+            AoUid::Freq_Ride_Through_DHFT_PTOF1_BlkRef,
+            AoUid::Freq_Ride_Through_DLFT_PTUF1_BlkRef,
+            AoUid::Freq_Ride_Through_DHFT_PTOF2_BlkRef,
+            AoUid::Freq_Ride_Through_DLFT_PTUF2_BlkRef,
+        ],
+        bo: &[BoUid::Freq_Ride_Through_DHFT_Mod],
     }
 }
 
@@ -244,12 +272,42 @@ pub fn fw_001() -> ConformancePoints {
             AiUid::Freq_Watt_DHFW1_SocUseMaxPct,
         ],
         bi: &[
-            BiUid::Freq_Ride_Through_DHFT_Mod,
+            BiUid::Freq_Watt_DHFW1_Mod,
             BiUid::Freq_Watt_DHFW_HysEna,
             BiUid::Freq_Watt_DHFW_SnptEna,
         ],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Freq_Watt_DHFW1_ModPrio,
+            AoUid::Freq_Watt_DHFW1_WinTms,
+            AoUid::Freq_Watt_DHFW1_RmpTms,
+            AoUid::Freq_Watt_DHFW1_RvrtTms,
+            AoUid::Freq_Watt_DHFW1_EcpRef,
+            AoUid::Freq_Watt_DHFW1_HzStr,
+            AoUid::Freq_Watt_DHFW1_HzStop,
+            AoUid::Freq_Watt_DHFW1_WGra,
+            AoUid::Freq_Watt_DHFW1_WChaGra,
+            AoUid::Freq_Watt_DLFW1_HzStr,
+            AoUid::Freq_Watt_DLFW1_HzStop,
+            AoUid::Freq_Watt_DLFW1_WGra,
+            AoUid::Freq_Watt_DLFW1_WChaGra,
+            AoUid::Freq_Watt_DHFW1_ActStrDlTmms,
+            AoUid::Freq_Watt_DHFW1_ActStopDlTmms,
+            AoUid::Freq_Watt_DHFW1_OplTmsMax_1,
+            AoUid::Freq_Watt_DHFW1_OplTmsMax_2,
+            AoUid::Freq_Watt_DHFW1_DschRpuRte,
+            AoUid::Freq_Watt_DHFW1_DschRpdRte,
+            AoUid::Freq_Watt_DHFW1_ChaRpuRte,
+            AoUid::Freq_Watt_DHFW1_ChaRpdRte,
+            AoUid::Freq_Watt_DHFW1_RtnRmpRte,
+            AoUid::Freq_Watt_DLFW1_RtnRmpRte,
+            AoUid::Freq_Watt_DHFW1_SocUseMin,
+            AoUid::Freq_Watt_DHFW1_SocUseMax,
+        ],
+        bo: &[
+            BoUid::Freq_Watt_DHFW_HysEna,
+            BoUid::Freq_Watt_DHFW_SnptEna,
+            BoUid::Freq_Watt_DHFW1_Mod,
+        ],
     }
 }
 
@@ -276,9 +334,31 @@ pub fn drcs_001() -> ConformancePoints {
             AiUid::Dyn_React_Curr_Supp_DRGS_HoldTmms,
             AiUid::Dyn_React_Curr_Supp_DRGS_ReqA,
         ],
-        bi: &[BiUid::Dyn_React_Curr_Supp_DRGS_Mod],
-        ao: &[],
-        bo: &[],
+        bi: &[
+            BiUid::Mode_State_DRGS_ArGraMod,
+            BiUid::Dyn_React_Curr_Supp_DRGS_Mod,
+        ],
+        ao: &[
+            AoUid::Dyn_React_Curr_Supp_DRGS_ModPrio,
+            AoUid::Dyn_React_Curr_Supp_DRGS_WinTms,
+            AoUid::Dyn_React_Curr_Supp_DRGS_RmpTms,
+            AoUid::Dyn_React_Curr_Supp_DRGS_RvrtTms,
+            AoUid::Dyn_React_Curr_Supp_DRGS_EcpRef,
+            AoUid::Dyn_React_Curr_Supp_DRGS_ArGraMod,
+            AoUid::Dyn_React_Curr_Supp_DRGS_DbVMin,
+            AoUid::Dyn_React_Curr_Supp_DRGS_DbVMax,
+            AoUid::Dyn_React_Curr_Supp_DRGS_ArGraSag,
+            AoUid::Dyn_React_Curr_Supp_DRGS_ArGraSwl,
+            AoUid::Dyn_React_Curr_Supp_DRGS_FilTms,
+            AoUid::Dyn_React_Curr_Supp_DRGS_BlkZnV,
+            AoUid::Dyn_React_Curr_Supp_DRGS_HysBlkZnV,
+            AoUid::Dyn_React_Curr_Supp_DRGS_BlkZnTmms,
+            AoUid::Dyn_React_Curr_Supp_DRGS_HoldTmms,
+        ],
+        bo: &[
+            BoUid::Mode_State_DRGS_ArGraMod,
+            BoUid::Dyn_React_Curr_Supp_DRGS_Mod,
+        ],
     }
 }
 
@@ -301,8 +381,18 @@ pub fn dvw_001() -> ConformancePoints {
             AiUid::Dyn_Volt_Watt_DVWD_ReqWSet,
         ],
         bi: &[BiUid::Dyn_Volt_Watt_DVWD_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Dyn_Volt_Watt_DVWD_ModPrio,
+            AoUid::Dyn_Volt_Watt_DVWD_WinTms,
+            AoUid::Dyn_Volt_Watt_DVWD_RmpTms,
+            AoUid::Dyn_Volt_Watt_DVWD_RvrtTms,
+            AoUid::Dyn_Volt_Watt_DVWD2_EcpRef,
+            AoUid::Dyn_Volt_Watt_DVWD_DynVWGra,
+            AoUid::Dyn_Volt_Watt_DVWD_VWFilTms,
+            AoUid::Dyn_Volt_Watt_DVWD_DbVWLo,
+            AoUid::Dyn_Volt_Watt_DVWD_DbVWHi,
+        ],
+        bo: &[BoUid::Dyn_Volt_Watt_DVWD_Mod],
     }
 }
 
@@ -320,8 +410,16 @@ pub fn apl_001() -> ConformancePoints {
             AiUid::Active_Power_Limit_DWMN_WLimPct,
         ],
         bi: &[BiUid::Active_Power_Limit_DWMX_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Active_Power_Limit_DWMX_ModPrio,
+            AoUid::Active_Power_Limit_DWMX_WinTms,
+            AoUid::Active_Power_Limit_DWMX_RmpTms,
+            AoUid::Active_Power_Limit_DWMX_RvrtTms,
+            AoUid::Active_Power_Limit_DWMX_EcpRef,
+            AoUid::Active_Power_Limit_DWMX_WLimPct,
+            AoUid::Active_Power_Limit_DWMN_WLimPct,
+        ],
+        bo: &[BoUid::Active_Power_Limit_DWMX_Mod],
     }
 }
 
@@ -347,8 +445,25 @@ pub fn chg_001() -> ConformancePoints {
             BiUid::Set_Active_Power_DWGC_Mod,
             BiUid::Set_Active_Power_DWGC_UseRmpRte,
         ],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Set_Active_Power_DWGC_ModPrio,
+            AoUid::Set_Active_Power_DWGC_WinTms,
+            AoUid::Set_Active_Power_DWGC_RmpTms,
+            AoUid::Set_Active_Power_DWGC_RvrtTms,
+            AoUid::Set_Active_Power_DWGC_GnWPctSpt,
+            AoUid::Set_Active_Power_DWGC_OplTmsMax_1,
+            AoUid::Set_Active_Power_DWGC_OplTmsMax_2,
+            AoUid::Set_Active_Power_DWGC_DschRpuRte,
+            AoUid::Set_Active_Power_DWGC_DschRpdRte,
+            AoUid::Set_Active_Power_DWGC_ChaRpuRte,
+            AoUid::Set_Active_Power_DWGC_ChaRpdRte,
+            AoUid::Set_Active_Power_DWGC_SocUseMinPct,
+            AoUid::Set_Active_Power_DWGC_SocUseMaxPct,
+        ],
+        bo: &[
+            BoUid::Set_Active_Power_DWGC_UseRmpRte,
+            BoUid::Set_Active_Power_DWGC_Mod,
+        ],
     }
 }
 
@@ -371,8 +486,22 @@ pub fn ccm_001() -> ConformancePoints {
             AiUid::Coord_Charge_Dischg_DTCD_DschDurMax,
         ],
         bi: &[BiUid::Coord_Charge_Dischg_DTCD_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Coord_Charge_Dischg_DTCD_ModPrio,
+            AoUid::Coord_Charge_Dischg_DTCD_WinTms,
+            AoUid::Coord_Charge_Dischg_DTCD_RmpTms,
+            AoUid::Coord_Charge_Dischg_DTCD_RvrtTms,
+            AoUid::Coord_Charge_Dischg_DTCD_SocUseTgtPct,
+            AoUid::Coord_Charge_Dischg_DTCD_DateTgt_Date,
+            AoUid::Coord_Charge_Dischg_DTCD_DateTgt_Time,
+            AoUid::Coord_Charge_Dischg_DTCD_WhReq,
+            AoUid::Coord_Charge_Dischg_DTCD_ChaDurTms,
+            AoUid::Coord_Charge_Dischg_DTCD_SocDate,
+            AoUid::Coord_Charge_Dischg_DTCD_SocDateTms,
+            AoUid::Coord_Charge_Dischg_DTCD_ChaDurMax,
+            AoUid::Coord_Charge_Dischg_DTCD_DschDurMax,
+        ],
+        bo: &[BoUid::Coord_Charge_Dischg_DTCD_Mod],
     }
 }
 
@@ -393,8 +522,18 @@ pub fn apr1_001() -> ConformancePoints {
             AiUid::Peak_Power_Limiting_DWFL1_ReqW,
         ],
         bi: &[BiUid::Peak_Power_Limiting_DWFL1_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Peak_Power_Limiting_DWFL1_ModPrio,
+            AoUid::Peak_Power_Limiting_DWFL1_WinTms,
+            AoUid::Peak_Power_Limiting_DWFL1_RmpTms,
+            AoUid::Peak_Power_Limiting_DWFL1_RvrtTms,
+            AoUid::Peak_Power_Limiting_DWFL1_EcpRef,
+            AoUid::Peak_Power_Limiting_DWFL1_FolWThr,
+            AoUid::Peak_Power_Limiting_DWFL1_FolWPct,
+            AoUid::Peak_Power_Limiting_DWFL1_RpuRte,
+            AoUid::Peak_Power_Limiting_DWFL1_RpdRte,
+        ],
+        bo: &[BoUid::Peak_Power_Limiting_DWFL1_Mod],
     }
 }
 
@@ -415,8 +554,18 @@ pub fn apr2_001() -> ConformancePoints {
             AiUid::Load_Following_DWFL2_ReqW,
         ],
         bi: &[BiUid::Load_Following_DWFL2_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Load_Following_DWFL2_ModPrio,
+            AoUid::Load_Following_DWFL2_WinTms,
+            AoUid::Load_Following_DWFL2_RmpTms,
+            AoUid::Load_Following_DWFL2_RvrtTms,
+            AoUid::Load_Following_DWFL2_EcpRef,
+            AoUid::Load_Following_DWFL2_FolWThr,
+            AoUid::Load_Following_DWFL2_FolWPct,
+            AoUid::Load_Following_DWFL2_RpuRte,
+            AoUid::Load_Following_DWFL2_RpdRte,
+        ],
+        bo: &[BoUid::Load_Following_DWFL2_Mod],
     }
 }
 
@@ -437,8 +586,18 @@ pub fn apr3_001() -> ConformancePoints {
             AiUid::Generation_Following_DWFL3_ReqW,
         ],
         bi: &[BiUid::Generation_Following_DWFL3_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Generation_Following_DWFL3_ModPrio,
+            AoUid::Generation_Following_DWFL3_WinTms,
+            AoUid::Generation_Following_DWFL3_RmpTms,
+            AoUid::Generation_Following_DWFL3_RvrtTms,
+            AoUid::Generation_Following_DWFL3_EcpRef,
+            AoUid::Generation_Following_DWFL3_FolWThr,
+            AoUid::Generation_Following_DWFL3_FolWPct,
+            AoUid::Generation_Following_DWFL3_RpuRte,
+            AoUid::Generation_Following_DWFL3_RpdRte,
+        ],
+        bo: &[BoUid::Generation_Following_DWFL3_Mod],
     }
 }
 
@@ -465,8 +624,22 @@ pub fn agc_001() -> ConformancePoints {
             AiUid::AGC_DAGC_SocWhExpc,
         ],
         bi: &[BiUid::AGC_DAGC_Mod, BiUid::AGC_DAGC_UseRmpRte],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::AGC_DAGC_ModPrio,
+            AoUid::AGC_DAGC_WinTms,
+            AoUid::AGC_DAGC_RmpTms,
+            AoUid::AGC_DAGC_RvrtTms,
+            AoUid::AGC_DAGC_WSpt,
+            AoUid::AGC_DAGC_OplTmsMax_1,
+            AoUid::AGC_DAGC_OplTmsMax_2,
+            AoUid::AGC_DAGC_DschRpuRte,
+            AoUid::AGC_DAGC_DschRpdRte,
+            AoUid::AGC_DAGC_ChaRpuRte,
+            AoUid::AGC_DAGC_ChaRpdRte,
+            AoUid::AGC_DAGC_SocUseMinPct,
+            AoUid::AGC_DAGC_SocUseMaxPct,
+        ],
+        bo: &[BoUid::AGC_DAGC_UseRmpRte, BoUid::AGC_DAGC_Mod],
     }
 }
 
@@ -491,8 +664,22 @@ pub fn aps_001() -> ConformancePoints {
             AiUid::Active_Power_Smoothing_DWSM_ReqWSet,
         ],
         bi: &[BiUid::Active_Power_Smoothing_DWSM_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Active_Power_Smoothing_DWSM_ModPrio,
+            AoUid::Active_Power_Smoothing_DWSM_WinTms,
+            AoUid::Active_Power_Smoothing_DWSM_RmpTms,
+            AoUid::Active_Power_Smoothing_DWSM_RvrtTms,
+            AoUid::Active_Power_Smoothing_DWSM_EcpRef,
+            AoUid::Active_Power_Smoothing_DWSM_WSmthGra,
+            AoUid::Active_Power_Smoothing_DWSM_WSmthLoLim,
+            AoUid::Active_Power_Smoothing_DWSM_WSmthHiLim,
+            AoUid::Active_Power_Smoothing_DWSM_FilTms,
+            AoUid::Active_Power_Smoothing_DWSM_DschRpuRte,
+            AoUid::Active_Power_Smoothing_DWSM_DschRpdRte,
+            AoUid::Active_Power_Smoothing_DWSM_ChaRpuRte,
+            AoUid::Active_Power_Smoothing_DWSM_ChaRpdRte,
+        ],
+        bo: &[BoUid::Active_Power_Smoothing_DWSM_Mod],
     }
 }
 
@@ -517,8 +704,22 @@ pub fn vw_001() -> ConformancePoints {
             AiUid::Volt_Watt_DVWC1_RpdChaRte,
         ],
         bi: &[BiUid::Volt_Watt_DVWC_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Volt_Watt_DVWC_ModPrio,
+            AoUid::Volt_Watt_DVWC_WinTms,
+            AoUid::Volt_Watt_DVWC_RmpTms,
+            AoUid::Volt_Watt_DVWC_RvrtTms,
+            AoUid::Volt_Watt_DVWC_EcpRef,
+            AoUid::Volt_Watt_DVWC_VWCrv,
+            AoUid::Volt_Watt_DVWC_FilTms,
+            AoUid::Volt_Watt_DVWC_OplTmsMax_1,
+            AoUid::Volt_Watt_DVWC_OplTmsMax_2,
+            AoUid::Volt_Watt_DVWC_DschRpuRte,
+            AoUid::Volt_Watt_DVWC_DschRpdRte,
+            AoUid::Volt_Watt_DVWC_ChaRpuRte,
+            AoUid::Volt_Watt_DVWC_ChaRpdRte,
+        ],
+        bo: &[BoUid::Volt_Watt_DVWC_Mod],
     }
 }
 
@@ -552,15 +753,46 @@ pub fn fwc_001() -> ConformancePoints {
             BiUid::Freq_Watt_Curve_DHFW1_HysEna,
             BiUid::Freq_Watt_Curve_DHFW1_SnptEna,
         ],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Freq_Watt_Curve_DHFW2_ModPrio,
+            AoUid::Freq_Watt_Curve_DHFW2_WinTms,
+            AoUid::Freq_Watt_Curve_DHFW2_RmpTms,
+            AoUid::Freq_Watt_Curve_DHFW2_RvrtTms,
+            AoUid::Freq_Watt_Curve_DHFW2_EcpRef,
+            AoUid::Freq_Watt_Curve_DHFW2_HzWCrv,
+            AoUid::Freq_Watt_Curve_DHFW2_HysCrv,
+            AoUid::Freq_Watt_Curve_DLFW2_HysCrv,
+            AoUid::Freq_Watt_Curve_DHFW2_ActStrDlTmms,
+            AoUid::Freq_Watt_Curve_DHFW2_ActStopDlTmms,
+            AoUid::Freq_Watt_Curve_DHFW2_OplTmsMax_1,
+            AoUid::Freq_Watt_Curve_DHFW2_OplTmsMax_2,
+            AoUid::Freq_Watt_Curve_DHFW2_RpuRte,
+            AoUid::Freq_Watt_Curve_DHFW2_RpdRte,
+            AoUid::Freq_Watt_Curve_DHFW2_RpuChaRte,
+            AoUid::Freq_Watt_Curve_DHFW2_RpdChaRte,
+            AoUid::Freq_Watt_Curve_DHFW2_SocUseMinPct,
+            AoUid::Freq_Watt_Curve_DHFW2_SocUseMaxPct,
+        ],
+        bo: &[
+            BoUid::Freq_Watt_Curve_DHFW1_HysEna,
+            BoUid::Freq_Watt_Curve_DHFW1_SnptEna,
+            BoUid::Freq_Watt_Curve_DHFW2_Mod,
+        ],
     }
 }
 
 /// Point list for the CVAR-001 (Constant VAr) conformance test.
 pub fn cvar_001() -> ConformancePoints {
     ConformancePoints {
-        ai: &[],
+        ai: &[
+            AiUid::Const_VArs_DVAR_ModPrio,
+            AiUid::Const_VArs_DVAR_WinTms,
+            AiUid::Const_VArs_DVAR_RmpTms,
+            AiUid::Const_VArs_DVAR_RvrtTms,
+            AiUid::Const_VArs_DVAR_VArTgtPct,
+            AiUid::Const_VArs_DVAR_OplTmsMax_1,
+            AiUid::Const_VArs_DVAR_OplTmsMax_2,
+        ],
         bi: &[BiUid::State_DGEN_OpnLoopTau, BiUid::Const_Vars_DVAR_Mod],
         ao: &[
             AoUid::Const_Vars_DVAR_ModPrio,
@@ -571,7 +803,7 @@ pub fn cvar_001() -> ConformancePoints {
             AoUid::Const_Vars_DVAR_OplTmsMax_1,
             AoUid::Const_Vars_DVAR_OplTmsMax_2,
         ],
-        bo: &[],
+        bo: &[BoUid::State_DGEN_OpnLoopTau, BoUid::Const_Vars_DVAR_Mod],
     }
 }
 
@@ -589,10 +821,21 @@ pub fn fpf_001() -> ConformancePoints {
         bi: &[
             BiUid::State_DFPF_PFGnExtSet,
             BiUid::State_DFPF_PFLodExtSet,
-            BiUid::Constant_PF_DFPF,
+            BiUid::Constant_PF_DFPF_Mod,
         ],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Constant_PF_DFPF_ModPrio,
+            AoUid::Constant_PF_DFPF_WinTms,
+            AoUid::Constant_PF_DFPF_RmpTms,
+            AoUid::Constant_PF_DFPF_RvrtTms,
+            AoUid::Constant_PF_DFPF_PFGnTgt,
+            AoUid::Constant_PF_DFPF_PFLodTgt,
+        ],
+        bo: &[
+            BoUid::State_DFPF_PFGnExtSet,
+            BoUid::State_DFPF_PFLodExtSet,
+            BoUid::Constant_PF_DFPF_Mod,
+        ],
     }
 }
 
@@ -613,9 +856,19 @@ pub fn vv_001() -> ConformancePoints {
             AiUid::Volt_VAr_DVVR_VRefTmms,
             AiUid::Volt_VAr_DVVR_ReqVAr,
         ],
-        bi: &[BiUid::Volt_Var_DVVR],
-        ao: &[],
-        bo: &[],
+        bi: &[BiUid::Volt_Var_DVVR_Mod],
+        ao: &[
+            AoUid::Volt_Var_DVVR_ModPrio,
+            AoUid::Volt_Var_DVVR_WinTms,
+            AoUid::Volt_Var_DVVR_RmpTms,
+            AoUid::Volt_Var_DVVR_RvrtTms,
+            AoUid::Volt_Var_DVVR_EcpRef,
+            AoUid::Volt_Var_DVVR_VVArCrv,
+            AoUid::Volt_Var_DVVR_OplTmsMax_1,
+            AoUid::Volt_Var_DVVR_OplTmsMax_2,
+            AoUid::Volt_Var_DVVR_VRefTmms,
+        ],
+        bo: &[BoUid::Volt_Var_DVVR_Mod],
     }
 }
 
@@ -634,9 +887,18 @@ pub fn wv_001() -> ConformancePoints {
             AiUid::Watt_VAr_DWVR_OplTmsMax_2,
             AiUid::Watt_VAr_DWVR_ReqVAr,
         ],
-        bi: &[BiUid::Watt_Var_DWVR],
-        ao: &[],
-        bo: &[],
+        bi: &[BiUid::Watt_Var_DWVR_Mod],
+        ao: &[
+            AoUid::Watt_Var_DWVR_ModPrio,
+            AoUid::Watt_Var_DWVR_WinTms,
+            AoUid::Watt_Var_DWVR_RmpTms,
+            AoUid::Watt_Var_DWVR_RvrtTms,
+            AoUid::Watt_Var_DWVR_EcpRef,
+            AoUid::Watt_Var_DWVR_WVArCrv,
+            AoUid::Watt_Var_DWVR_OplTmsMax_1,
+            AoUid::Watt_Var_DWVR_OplTmsMax_2,
+        ],
+        bo: &[BoUid::Watt_Var_DWVR_Mod],
     }
 }
 
@@ -655,8 +917,17 @@ pub fn pfc_001() -> ConformancePoints {
             AiUid::PF_Correct_DPFC_PFCorRef_rangeC_max,
         ],
         bi: &[BiUid::PF_Correct_DPFC_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::PF_Correct_DPFC_ModPrio,
+            AoUid::PF_Correct_DPFC_WinTms,
+            AoUid::PF_Correct_DPFC_RmpRte,
+            AoUid::PF_Correct_DPFC_RvrtTms,
+            AoUid::PF_Correct_DPFC_EcpRef,
+            AoUid::PF_Correct_DPFC_PFTrg,
+            AoUid::PF_Correct_DPFC_PFCorRef_rangeC_min,
+            AoUid::PF_Correct_DPFC_PFCorRef_rangeC_max,
+        ],
+        bo: &[BoUid::PF_Correct_DPFC_Mod],
     }
 }
 
@@ -673,27 +944,68 @@ pub fn psig_001() -> ConformancePoints {
             AiUid::Price_DPRG_OplTmsMax_2,
         ],
         bi: &[BiUid::Price_DPRG_Mod],
-        ao: &[],
-        bo: &[],
+        ao: &[
+            AoUid::Price_DPRG_ModPrio,
+            AoUid::Price_DPRG_WinTms,
+            AoUid::Price_DPRG_RmpTms,
+            AoUid::Price_DPRG_RvrtTms,
+            AoUid::Price_DPRG_PrcRef,
+            AoUid::Price_DPRG_OplTmsMax_1,
+            AoUid::Price_DPRG_OplTmsMax_2,
+        ],
+        bo: &[BoUid::Price_DPRG_Mod],
     }
 }
 
 /// Point list for the SCHED-001 (Backward-Compatible Scheduling) conformance test.
 pub fn sched_001() -> ConformancePoints {
     ConformancePoints {
-        ai: &[],
-        bi: &[BiUid::BC_Scheduling_BC_FSCHn_SchdSt_2],
+        ai: &[
+            AiUid::Config_MESA_NumSchd,
+            AiUid::BC_Scheduling_BC_FSCC_ActSchdRef,
+            AiUid::BC_Scheduling_BC_FSCC_Schd,
+            AiUid::BC_Scheduling_BC_FSCCn_Schd,
+            AiUid::BC_Scheduling_BC_FSCHn_SchdPrio,
+            AiUid::BC_Scheduling_MESAn_SchdTyp,
+            AiUid::BC_Scheduling_BC_FSCHn_StrTm_Date,
+            AiUid::BC_Scheduling_BC_FSCHn_StrTm_Time,
+            AiUid::BC_Scheduling_BC_FSCHn_NxtStrTm,
+            AiUid::BC_Scheduling_BC_FSCHn_SchdReuse,
+            AiUid::BC_Scheduling_BC_FSCHn_SchdSt_1,
+            AiUid::BC_Scheduling_BC_FSCHn_SchdSt_2,
+            AiUid::BC_Scheduling_BC_FSCHn_NumEntr,
+        ],
+        bi: &[
+            BiUid::BC_Scheduling_BC_FSCHn_SchdSt_2,
+            BiUid::BC_Scheduling_BC_FSCHn_SchdReuse_1,
+            BiUid::BC_Scheduling_BC_FSCHn_SchdReuse_2,
+            BiUid::BC_Scheduling_BC_FSCHn_SchdReuse_3,
+            BiUid::BC_Scheduling_BC_FSCHn_SchdReuse_4,
+            BiUid::BC_Scheduling_BC_FSCHn_SchdReuse_5,
+            BiUid::BC_Scheduling_BC_FSCHn_SchdReuse_6,
+            BiUid::BC_Scheduling_BC_FSCHn_SchdReuse_7,
+        ],
         ao: &[
             AoUid::BC_Scheduling_BC_FSCC_Schd,
             AoUid::BC_Scheduling_BC_FSCCn_Schd,
             AoUid::BC_Scheduling_BC_FSCHn_SchdPrio,
+            AoUid::BC_Scheduling_MESAn_SchdVal_valEq,
             AoUid::BC_Scheduling_BC_FSCHn_StrTm_Date,
             AoUid::BC_Scheduling_BC_FSCHn_StrTm_Time,
             AoUid::BC_Scheduling_BC_FSCHn_NxtStrTm,
             AoUid::BC_Scheduling_BC_FSCHn_SchdReuse,
             AoUid::BC_Scheduling_BC_FSCHn_NumEntr,
         ],
-        bo: &[],
+        bo: &[
+            BoUid::BC_Scheduling_BC_FSCHn_SchdSt_3,
+            BoUid::BC_Scheduling_BC_FSCHn_SchdReuse_1,
+            BoUid::BC_Scheduling_BC_FSCHn_SchdReuse_2,
+            BoUid::BC_Scheduling_BC_FSCHn_SchdReuse_3,
+            BoUid::BC_Scheduling_BC_FSCHn_SchdReuse_4,
+            BoUid::BC_Scheduling_BC_FSCHn_SchdReuse_5,
+            BoUid::BC_Scheduling_BC_FSCHn_SchdReuse_6,
+            BoUid::BC_Scheduling_BC_FSCHn_SchdReuse_7,
+        ],
     }
 }
 

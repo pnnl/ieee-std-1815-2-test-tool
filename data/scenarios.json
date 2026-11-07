@@ -113,13 +113,13 @@
   {
     "id": "lower_bounds",
     "name": "Lower Bounds",
-    "description": "Attempt to modify all points outside their minimum values.",
+    "description": "Attempt to modify all points outside their minimum values. Only tests with eligible AO points are expected to fail.",
     "expected_tests": []
   },
   {
     "id": "upper_bounds",
     "name": "Upper Bounds",
-    "description": "Attempt to modify all points outside their maximum values.",
+    "description": "Attempt to modify all points outside their maximum values. Only tests with eligible AO points are expected to fail.",
     "expected_tests": []
   },
   {

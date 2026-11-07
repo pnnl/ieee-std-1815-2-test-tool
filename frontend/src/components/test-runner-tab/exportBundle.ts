@@ -43,6 +43,7 @@ export interface ResultsJsonTest {
   display_name: string
   passed: boolean | null | undefined
   expected_to_pass: boolean
+  applicability_note?: string
   outcome: TestOutcome
   timestamp: number | undefined
   comments: SunSpecComment[]
@@ -152,6 +153,7 @@ export function buildResultsJson(input: BundleInput): ResultsJsonDoc {
         display_name: testNameToControlModeTest[expected.test_id].displayName,
         passed: passedValue,
         expected_to_pass: expected.should_pass,
+        applicability_note: expected.applicability_note,
         outcome,
         timestamp: result?.timestamp,
         comments: result?.comments ?? [],
@@ -237,7 +239,12 @@ export function buildReportMarkdown(input: BundleInput): string {
       const expectedLabel = expected.should_pass
         ? 'expected pass'
         : 'expected fail'
-      lines.push(`- [${icon}] ${expected.test_id} (${expectedLabel})`)
+      const applicabilityNote = expected.applicability_note
+        ? ` — ${expected.applicability_note}`
+        : ''
+      lines.push(
+        `- [${icon}] ${expected.test_id} (${expectedLabel})${applicabilityNote}`,
+      )
     }
     lines.push('')
   }

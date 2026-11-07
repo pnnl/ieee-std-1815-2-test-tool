@@ -60,6 +60,46 @@ function makeInput(overrides: Partial<BundleInput> = {}): BundleInput {
   }
 }
 
+describe('applicability notes in exports', () => {
+  it.each([true, false, null])(
+    'preserves the note, raw result, and counts when passed=%s',
+    (passed) => {
+      const note = 'Bounds check N/A: no eligible AO points.'
+      const input = makeInput({
+        scenarios: [
+          {
+            ...minimalScenario,
+            expected_tests: minimalScenario.expected_tests.map((test) =>
+              test.test_id === 'MON_001'
+                ? { ...test, applicability_note: note }
+                : test,
+            ),
+          },
+        ],
+        results: { 'sc-001:MON_001': makeResult('sc-001', 'MON_001', passed) },
+      })
+      const doc = buildResultsJson(input)
+      expect(doc.schema_version).toBe(1)
+      expect(doc.scenarios[0].tests[0]).toMatchObject({
+        applicability_note: note,
+        passed,
+        outcome: passed === null ? 'pending' : passed ? 'passed' : 'failed',
+      })
+      expect(doc.summary).toEqual(
+        computeSummary([minimalScenario], input.results),
+      )
+      const report = buildReportMarkdown(input)
+      const status = passed === null ? 'PENDING' : passed ? 'PASS' : 'FAIL'
+      expect(report).toContain(
+        `- [${status}] MON_001 (expected pass) — ${note}`,
+      )
+      expect(
+        JSON.parse(JSON.stringify(doc)).scenarios[0].tests[1],
+      ).not.toHaveProperty('applicability_note')
+    },
+  )
+})
+
 // ---------------------------------------------------------------------------
 // buildResultsJson: schema_version
 // ---------------------------------------------------------------------------

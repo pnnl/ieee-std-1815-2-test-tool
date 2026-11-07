@@ -2400,6 +2400,13 @@
           "should_pass"
         ],
         "properties": {
+          "applicability_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explains the scenario operation's applicability without changing the test outcome."
+          },
           "should_pass": {
             "type": "boolean"
           },

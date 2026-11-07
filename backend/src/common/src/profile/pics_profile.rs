@@ -462,6 +462,55 @@ mod profile_index_tests {
     }
 
     #[test]
+    fn test_ai_association_used_when_ao_association_missing() {
+        let mut profile = make_minimal_profile().into_unvalidated();
+        let mut ai = make_ai(21, "AI21");
+        ai.assoc_ao = Some("AO11".into());
+        profile.ai.points.push(ai);
+
+        let idx = ProfileIndex::from_profile(&profile.into_validated().unwrap());
+        assert_eq!(idx.ao_to_ai.get(&11), Some(&21));
+        assert_eq!(idx.ai_to_ao.get(&21), Some(&11));
+        assert!(idx.base_ai_indices.contains(&21));
+    }
+
+    #[test]
+    fn test_ai_association_preserves_explicit_ao_associations() {
+        let mut profile = make_minimal_profile().into_unvalidated();
+        profile.ai.points[0].assoc_ao = Some("AO11".into());
+        let mut ai = make_ai(21, "AI21");
+        ai.assoc_ao = Some("AO10".into());
+        profile.ai.points.push(ai);
+
+        let idx = ProfileIndex::from_profile(&profile.into_validated().unwrap());
+        assert_eq!(idx.ao_to_ai.get(&10), Some(&20));
+        assert_eq!(idx.ai_to_ao.get(&20), Some(&10));
+        assert!(!idx.ao_to_ai.contains_key(&11));
+        assert!(!idx.ai_to_ao.contains_key(&21));
+    }
+
+    #[test]
+    fn test_ai_association_to_missing_ao_is_ignored() {
+        let mut profile = make_minimal_profile().into_unvalidated();
+        let mut ai = make_ai(21, "AI21");
+        ai.assoc_ao = Some("AO99".into());
+        profile.ai.points.push(ai);
+
+        let idx = ProfileIndex::from_profile(&profile.into_validated().unwrap());
+        assert!(!idx.ao_to_ai.contains_key(&99));
+        assert!(!idx.ai_to_ao.contains_key(&21));
+    }
+
+    #[test]
+    fn test_full_profile_fwc_ramp_up_association() {
+        let profile = PicsProfile::load_full_profile();
+        let idx = ProfileIndex::from_profile(&profile);
+        assert_eq!(idx.ao_to_ai.get(&191), Some(&268));
+        assert_eq!(idx.ai_to_ao.get(&268), Some(&191));
+        assert!(idx.base_ai_indices.contains(&268));
+    }
+
+    #[test]
     fn test_ao_to_ai_curve_selector_resolved() {
         // AO 244 → AI 328 which is in AI.curves, not AI.points
         let profile = make_minimal_profile();
