@@ -22,8 +22,8 @@ export default function TestStationSetup({
           <Badge variant="secondary">Starts automatically</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          This DNP3 client starts locally for each test run. It connects to the
-          outstation and runs the selected scenarios.
+          This control station starts locally for each test run. It connects to
+          the outstation and runs the selected scenarios.
         </p>
       </div>
       <div className="rounded-md border bg-card p-3 space-y-2">
@@ -39,8 +39,8 @@ export default function TestStationSetup({
         </div>
         <p className="text-sm text-muted-foreground">
           {referenceOutstation
-            ? 'The tool starts this DNP3 server locally using the loaded profile.'
-            : 'Start your DNP3 server before running tests. The tool connects to this device; you manage it.'}
+            ? 'The tool starts this outstation locally using the loaded profile.'
+            : 'Start your outstation before running tests. The tool connects to this device.'}
         </p>
         <p className="text-sm">
           Endpoint:{' '}
