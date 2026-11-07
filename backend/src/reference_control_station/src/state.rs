@@ -7,7 +7,6 @@ use common::profile::PicsProfile;
 use common::profile::validation::Validated;
 use common::profile::values::TransmissionI32;
 
-use crate::config::AppConfig;
 use crate::data_record::DataRecordWriter;
 
 /// An observed transmission value outside the profile's allowed range.
@@ -24,8 +23,6 @@ pub(crate) struct ControlStationState {
     pub data_writer: Option<DataRecordWriter>,
     /// Latest values per point (key: "type:index"). A landing pad for the most recent AI/BI values received from the outstation.
     pub latest_transmission_values: RwLock<HashMap<String, serde_json::Value>>,
-    /// Running configuration.
-    pub config: AppConfig,
     /// Loaded PICS profile.
     pub profile: RwLock<Arc<Validated<PicsProfile>>>,
     /// Precomputed O(1) lookup index.

@@ -200,7 +200,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let control_station_state = Arc::new(ControlStationState {
         data_writer,
         latest_transmission_values: RwLock::new(HashMap::new()),
-        config: app_config,
         profile: RwLock::new(profile),
         profile_index: RwLock::new(profile_index),
         outstation_curve_database,
@@ -212,7 +211,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ao_range_violations: RwLock::new(HashMap::new()),
         scenario_id: Arc::clone(&scenario_id),
     });
-    let config = &control_station_state.config;
+    let config = &app_config;
 
     // Build association config from TOML startup settings
     let disable_unsol = if config.startup.disable_unsolicited {
@@ -370,23 +369,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tracing::info!("Loading new scenario '{new_scenario_id}'");
 
             // Rebuild in-memory databases from new profile
-            let db_config = &stdin_state.config.databases;
             *stdin_state.outstation_curve_database.write().unwrap() =
                 common::profile::CurveDatabase::from_profile(
                     &new_profile,
-                    db_config.max_curves,
+                    max_curves,
                     common::uids::ai_uid::AiUid::Curve_DGSMn_InCrv,
                 );
             *stdin_state.schedule_bc_database.write().unwrap() =
                 common::profile::ScheduleBCDatabase::from_profile(
                     &new_profile,
-                    db_config.max_schedules_bc,
+                    max_schedules_bc,
                     common::uids::ai_uid::AiUid::BC_Scheduling_BC_FSCC_Schd,
                 );
             *stdin_state.schedule_database.write().unwrap() =
                 common::profile::ScheduleDatabase::from_profile(
                     &new_profile,
-                    db_config.max_schedules,
+                    max_schedules,
                     common::uids::ai_uid::AiUid::Scheduling_FSCC_Schd,
                 );
 
