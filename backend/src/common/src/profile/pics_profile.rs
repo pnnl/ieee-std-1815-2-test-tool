@@ -185,31 +185,6 @@ impl PicsProfile {
         Ok(initial_count)
     }
 
-    /// For use with user-input data only. For internal construction, always use `PicsProfile::new()`.
-    pub fn new_unsafe_for_collecting_errors(
-        key: KeySheet,
-        bo: BinaryOutputs,
-        bi: BinaryInputs,
-        ao: AnalogOutputs,
-        ai: AnalogInputs,
-        ctr: Vec<CtrPoint>,
-    ) -> (Self, ValidationErrors) {
-        let new_profile = Self {
-            key,
-            bo,
-            bi,
-            ao,
-            ai,
-            ctr,
-            _private_to_force_new_constructor: (),
-        };
-
-        match new_profile.validate() {
-            Ok(_) => (new_profile.clone(), ValidationErrors::new()),
-            Err(errors) => (new_profile.clone(), errors),
-        }
-    }
-
     /// Return an owned copy of the cached, validated full.json profile embedded at build time.
     pub fn load_full_profile() -> Validated<PicsProfile> {
         Self::full_profile().clone()

@@ -176,11 +176,6 @@ impl CurveDatabase {
         self.inner_db.get(curve_number)
     }
 
-    /// Look up a curve entry mutably by 1-based curve number.
-    pub fn get_mut(&mut self, curve_number: u16) -> Option<&mut CurveEntry> {
-        self.inner_db.get_mut(curve_number)
-    }
-
     /// Set the currently active curve number (1-based) and return all AI values for that curve.
     ///
     /// If `entry_number` is within range but has not been loaded from the profile, a blank

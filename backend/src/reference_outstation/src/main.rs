@@ -1,6 +1,5 @@
 //! DNP3 Reference Outstation application.
 
-#[allow(dead_code)]
 mod config;
 mod conformance;
 mod database;
@@ -78,9 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let scenario_id = Arc::new(Mutex::new(String::new()));
-    let conformance_messages = Arc::new(Mutex::new(Vec::new()));
-    let conformance_layer =
-        ConformanceTrackingLayer::new(conformance_messages, Arc::clone(&scenario_id));
+    let conformance_layer = ConformanceTrackingLayer::new(Arc::clone(&scenario_id));
 
     tracing_subscriber::registry()
         .with(
@@ -100,7 +97,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             master_address: args.master_address,
             bind_address: args.local.clone(),
         },
-        log_level: log_level.to_string(),
         unsolicited_enabled: true,
         accept_time_writes: true,
         freeze_mapping: HashMap::new(),
