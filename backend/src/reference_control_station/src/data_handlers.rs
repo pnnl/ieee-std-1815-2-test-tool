@@ -49,9 +49,6 @@ impl RefReadHandler {
             .write()
             .unwrap()
             .insert(key, json_value.clone());
-
-        // Push to event history
-        self.state.push_event(json_value);
     }
 
     fn check_static_qualifier(&self, info: &HeaderInfo, type_name: &str) {
@@ -327,12 +324,6 @@ impl ReadHandler for RefReadHandler {
             header.iin.iin1.value,
             header.iin.iin2.value
         );
-
-        // Update last IIN
-        {
-            let mut iin = self.state.last_iin.write().unwrap();
-            *iin = Some((header.iin.iin1.value, header.iin.iin2.value));
-        }
 
         MaybeAsync::ready(())
     }

@@ -8,8 +8,8 @@ mod data_handlers;
 mod data_record;
 mod state;
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use clap::Parser;
@@ -179,49 +179,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let max_curves = app_config.databases.max_curves;
     let max_schedules_bc = app_config.databases.max_schedules_bc;
     let max_schedules = app_config.databases.max_schedules;
-    let outstation_curve_database = Arc::new(std::sync::RwLock::new(
-        common::profile::CurveDatabase::from_profile(
-            &profile,
-            max_curves,
-            common::uids::ai_uid::AiUid::Curve_DGSMn_InCrv,
-        ),
+    let outstation_curve_database = RwLock::new(common::profile::CurveDatabase::from_profile(
+        &profile,
+        max_curves,
+        common::uids::ai_uid::AiUid::Curve_DGSMn_InCrv,
     ));
-    let schedule_bc_database = Arc::new(std::sync::RwLock::new(
-        common::profile::ScheduleBCDatabase::from_profile(
-            &profile,
-            max_schedules_bc,
-            common::uids::ai_uid::AiUid::BC_Scheduling_BC_FSCC_Schd,
-        ),
+    let schedule_bc_database = RwLock::new(common::profile::ScheduleBCDatabase::from_profile(
+        &profile,
+        max_schedules_bc,
+        common::uids::ai_uid::AiUid::BC_Scheduling_BC_FSCC_Schd,
     ));
-    let schedule_database = Arc::new(std::sync::RwLock::new(
-        common::profile::ScheduleDatabase::from_profile(
-            &profile,
-            max_schedules,
-            common::uids::ai_uid::AiUid::Scheduling_FSCC_Schd,
-        ),
+    let schedule_database = RwLock::new(common::profile::ScheduleDatabase::from_profile(
+        &profile,
+        max_schedules,
+        common::uids::ai_uid::AiUid::Scheduling_FSCC_Schd,
     ));
     let profile_index = Arc::new(common::profile::ProfileIndex::from_profile(&profile));
-
-    let config = Arc::new(app_config);
 
     // Build shared state
     let control_station_state = Arc::new(ControlStationState {
         data_writer,
-        latest_transmission_values: Arc::new(std::sync::RwLock::new(HashMap::new())),
-        last_iin: Arc::new(std::sync::RwLock::new(None)),
-        config: config.clone(),
-        event_history: Arc::new(std::sync::RwLock::new(std::collections::VecDeque::new())),
-        profile: Arc::new(std::sync::RwLock::new(profile)),
-        profile_index: Arc::new(std::sync::RwLock::new(profile_index)),
+        latest_transmission_values: RwLock::new(HashMap::new()),
+        config: app_config,
+        profile: RwLock::new(profile),
+        profile_index: RwLock::new(profile_index),
         outstation_curve_database,
         schedule_bc_database,
         schedule_database,
-        sent_ao_indices: Arc::new(std::sync::RwLock::new(std::collections::HashSet::new())),
-        sent_bo_indices: Arc::new(std::sync::RwLock::new(std::collections::HashSet::new())),
-        ai_range_violations: Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
-        ao_range_violations: Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
+        sent_ao_indices: RwLock::new(HashSet::new()),
+        sent_bo_indices: RwLock::new(HashSet::new()),
+        ai_range_violations: RwLock::new(HashMap::new()),
+        ao_range_violations: RwLock::new(HashMap::new()),
         scenario_id: Arc::clone(&scenario_id),
     });
+    let config = &control_station_state.config;
 
     // Build association config from TOML startup settings
     let disable_unsol = if config.startup.disable_unsolicited {
