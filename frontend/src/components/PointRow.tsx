@@ -141,25 +141,45 @@ function PointRow({
 
       {/* Value column: AI only */}
       {showValueColumn && (
-        <TableCell
-          style={{
-            width: columnWidths[isBinary ? 7 : 8]
-              ? `${columnWidths[isBinary ? 7 : 8]}px`
-              : undefined,
-          }}
-        >
-          <Input
-            type="number"
-            className="h-7 text-xs font-mono"
-            value={valueDisplay}
-            onChange={(e) => {
-              const raw = e.currentTarget.value
-              const parsed = raw === '' ? null : Number(raw)
-              if (parsed !== null && Number.isNaN(parsed)) return
-              onUpdate(point, 'value', parsed)
+        <>
+          <TableCell
+            className="text-right font-mono text-xs text-muted-foreground"
+            style={{
+              width: columnWidths[8] ? `${columnWidths[8]}px` : undefined,
             }}
-          />
-        </TableCell>
+          >
+            {point.kind === 'ai'
+              ? point.minimum * point.multiplier + point.offset
+              : ''}
+          </TableCell>
+          <TableCell
+            style={{
+              width: columnWidths[9] ? `${columnWidths[9]}px` : undefined,
+            }}
+          >
+            <Input
+              type="number"
+              className="h-7 text-xs font-mono"
+              value={valueDisplay}
+              onChange={(e) => {
+                const raw = e.currentTarget.value
+                const parsed = raw === '' ? null : Number(raw)
+                if (parsed !== null && Number.isNaN(parsed)) return
+                onUpdate(point, 'value', parsed)
+              }}
+            />
+          </TableCell>
+          <TableCell
+            className="font-mono text-xs text-muted-foreground"
+            style={{
+              width: columnWidths[10] ? `${columnWidths[10]}px` : undefined,
+            }}
+          >
+            {point.kind === 'ai'
+              ? point.maximum * point.multiplier + point.offset
+              : ''}
+          </TableCell>
+        </>
       )}
     </TableRow>
   )
