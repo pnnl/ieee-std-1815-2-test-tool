@@ -22,7 +22,7 @@ use common::{
 };
 use tracing::{Level, span};
 
-use crate::state::ControlStationState;
+use crate::state::{ControlStationState, RangeViolation};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -85,7 +85,8 @@ fn validate_ao_sent(state: &ControlStationState, uid: AoUid) -> Option<SunSpecCo
 /// Returns a comment if the most recent AI readback value for `uid` was out of range.
 fn validate_ai_in_range(state: &ControlStationState, uid: AiUid) -> Option<SunSpecComment> {
     let index = uid as u16;
-    let (value, min, max) = *state.ai_range_violations.read().unwrap().get(&index)?;
+    let RangeViolation { value, min, max } =
+        *state.ai_range_violations.read().unwrap().get(&index)?;
     Some(SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AI{index}"),
@@ -97,7 +98,8 @@ fn validate_ai_in_range(state: &ControlStationState, uid: AiUid) -> Option<SunSp
 /// Returns a comment if the most recent AO status readback value for `uid` was out of range.
 fn validate_ao_in_range(state: &ControlStationState, uid: AoUid) -> Option<SunSpecComment> {
     let index = uid as u16;
-    let (value, min, max) = *state.ao_range_violations.read().unwrap().get(&index)?;
+    let RangeViolation { value, min, max } =
+        *state.ao_range_violations.read().unwrap().get(&index)?;
     Some(SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
