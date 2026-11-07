@@ -3,8 +3,8 @@
 // renders unstyled, and a point with more than one error (AI2) gets
 // exactly ONE highlighted row, never a doubled style.
 
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { Theme } from '@radix-ui/themes'
 import { Table, TableBody } from '@/components/ui/table'
 import PointRow from './PointRow'
@@ -56,6 +56,65 @@ function makeAiPoint(
 function err(point: string, message: string): ValidationError {
   return { point, message }
 }
+
+describe('PointRow descriptions', () => {
+  it('formats only the description cell and preserves numeric editing', () => {
+    const point = makeAiPoint(0, {
+      name: 'Mode. <0> Off <1> On',
+      minimum: -10,
+      maximum: 100,
+    })
+    const onUpdate = vi.fn()
+    render(
+      <Table>
+        <TableBody>
+          <PointRow
+            point={point}
+            isBinary={false}
+            showValueColumn
+            onUpdate={onUpdate}
+          />
+        </TableBody>
+      </Table>,
+    )
+    const cells = screen.getAllByRole('cell')
+    expect(cells).toHaveLength(11)
+    expect(within(cells[1]).getByText('Off')).toBeVisible()
+    expect(cells[8]).toHaveTextContent('-10')
+    expect(cells[10]).toHaveTextContent('100')
+    const input = within(cells[9]).getByRole('spinbutton')
+    fireEvent.change(input, { target: { value: '1' } })
+    expect(onUpdate).toHaveBeenLastCalledWith(point, 'value', 1)
+    fireEvent.change(input, { target: { value: '' } })
+    expect(onUpdate).toHaveBeenLastCalledWith(point, 'value', null)
+  })
+})
+
+describe('PointRow analog bounds', () => {
+  it.each([0, 5])('displays engineering bounds with offset %s', (offset) => {
+    renderRow(
+      makeAiPoint(0, {
+        minimum: 100,
+        maximum: 10000,
+        multiplier: 0.01,
+        offset,
+        value: 20000,
+      }),
+    )
+    const cells = screen.getAllByRole('cell')
+    expect(cells[8].textContent).toBe(String(1 + offset))
+    expect(cells[10].textContent).toBe(String(100 + offset))
+    expect(screen.getByRole('spinbutton')).toHaveValue(20000)
+  })
+
+  it('places the minimum before the input and maximum after it', () => {
+    renderRow(makeAiPoint(0, { minimum: -10, maximum: 100 }))
+    const cells = screen.getAllByRole('cell')
+    expect(cells[8]).toHaveTextContent('-10')
+    expect(cells[9]).toContainElement(screen.getByRole('spinbutton'))
+    expect(cells[10]).toHaveTextContent('100')
+  })
+})
 
 describe('PointRow error highlight', () => {
   it('renders unstyled when errors is omitted', () => {
