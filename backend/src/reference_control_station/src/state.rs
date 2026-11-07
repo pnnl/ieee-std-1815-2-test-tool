@@ -7,8 +7,6 @@ use common::profile::PicsProfile;
 use common::profile::validation::Validated;
 use common::profile::values::TransmissionI32;
 
-use crate::data_record::DataRecordWriter;
-
 /// An observed transmission value outside the profile's allowed range.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RangeViolation {
@@ -19,8 +17,6 @@ pub(crate) struct RangeViolation {
 
 /// Shared state for the control station application.
 pub(crate) struct ControlStationState {
-    /// JSONL data file writer.
-    pub data_writer: Option<DataRecordWriter>,
     /// Latest values per point (key: "type:index"). A landing pad for the most recent AI/BI values received from the outstation.
     pub latest_transmission_values: RwLock<HashMap<String, serde_json::Value>>,
     /// Loaded PICS profile.

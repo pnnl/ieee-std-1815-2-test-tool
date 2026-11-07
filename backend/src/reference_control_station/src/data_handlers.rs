@@ -8,20 +8,25 @@ use dnp3::app::measurement::*;
 use dnp3::app::{MaybeAsync, QualifierCode, ResponseHeader, Variation};
 use dnp3::master::{HeaderInfo, ReadHandler, ReadType};
 
-use crate::data_record::DataRecord;
+use crate::data_record::{DataRecord, DataRecordWriter};
 use crate::state::ControlStationState;
 
 /// ReadHandler implementation for the reference control station.
 pub(crate) struct RefReadHandler {
     state: Arc<ControlStationState>,
+    data_writer: Option<DataRecordWriter>,
     current_read_type: ReadType,
 }
 
 impl RefReadHandler {
     /// Create a new boxed read handler.
-    pub fn boxed(state: Arc<ControlStationState>) -> Box<dyn ReadHandler> {
+    pub fn boxed(
+        state: Arc<ControlStationState>,
+        data_writer: Option<DataRecordWriter>,
+    ) -> Box<dyn ReadHandler> {
         Box::new(Self {
             state,
+            data_writer,
             current_read_type: ReadType::SinglePoll,
         })
     }
@@ -36,7 +41,7 @@ impl RefReadHandler {
     }
 
     fn write_record(&self, record: &DataRecord) {
-        if let Some(ref writer) = self.state.data_writer {
+        if let Some(ref writer) = self.data_writer {
             writer.write(record);
         }
 

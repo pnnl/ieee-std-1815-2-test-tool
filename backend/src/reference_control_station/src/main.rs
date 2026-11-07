@@ -198,7 +198,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build shared state
     let control_station_state = Arc::new(ControlStationState {
-        data_writer,
         latest_transmission_values: RwLock::new(HashMap::new()),
         profile: RwLock::new(profile),
         profile_index: RwLock::new(profile_index),
@@ -275,7 +274,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_association(
             outstation_address,
             assoc_config,
-            RefReadHandler::boxed(control_station_state.clone()),
+            RefReadHandler::boxed(control_station_state.clone(), data_writer),
             Box::new(RefAssociationHandler),
             Box::new(RefAssociationInformation),
         )
