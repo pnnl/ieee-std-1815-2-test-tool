@@ -21,6 +21,7 @@ type ScenarioItem = {
 type TestItem = ControlModeTest & {
   type: 'test'
   scenario: Scenario
+  applicabilityNote?: string
 }
 
 type TreeItemData = ScenarioItem | TestItem
@@ -199,6 +200,7 @@ export default function TestResultsTree({
           type: 'test',
           scenario,
           testId: expected.test_id,
+          applicabilityNote: expected.applicability_note,
           ...testMeta,
         })
       }
@@ -428,6 +430,11 @@ export default function TestResultsTree({
                     {partialTag}
                   </Box>
                   <Box>{xFailBadge}</Box>
+                  {scenarioOrTest.applicabilityNote && (
+                    <Text as="div" size="1" color="gray">
+                      {scenarioOrTest.applicabilityNote}
+                    </Text>
+                  )}
                 </Box>
               </div>
             )

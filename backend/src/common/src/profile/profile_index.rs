@@ -17,7 +17,7 @@ use crate::profile::{
 /// The association maps here include those points, so AO 244 → AI 328 etc.
 /// resolve correctly.
 pub struct ProfileIndex {
-    /// AO index → associated AI index (from `assoc_ai` field on each AO point).
+    /// AO index → associated AI index (from AO `assoc_ai`, falling back to AI `assoc_ao`).
     /// Includes curve/schedule selector associations.
     pub ao_to_ai: HashMap<u16, u16>,
     /// AI index → associated AO index (reverse of `ao_to_ai`).
@@ -82,6 +82,30 @@ impl ProfileIndex {
                     }
                 }
             }
+        }
+
+        // Some profiles specify a pair only on the AI side (e.g. AI268 → AO191).
+        // Recover those links so the control loop can write the associated output.
+        // Explicit AO associations take precedence in both directions.
+        for pt in profile.ai.all_ai_points_full() {
+            let Some(ao_idx) = pt
+                .assoc_ao
+                .as_deref()
+                .and_then(|assoc| assoc.strip_prefix("AO"))
+                .and_then(|index| index.parse::<u16>().ok())
+            else {
+                continue;
+            };
+            let Some(ao) = ao_points.get(&ao_idx) else {
+                continue;
+            };
+            if ao.assoc_ai.is_some() || ai_to_ao.contains_key(&pt.point_index) {
+                continue;
+            }
+            ao_to_ai.entry(ao_idx).or_insert_with(|| {
+                ai_to_ao.insert(pt.point_index, ao_idx);
+                pt.point_index
+            });
         }
 
         let mut bo_to_bi: HashMap<u16, u16> = HashMap::new();

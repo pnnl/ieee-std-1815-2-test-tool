@@ -46,6 +46,10 @@
         "should_pass": {
           "type": "boolean",
           "description": "Whether this test is expected to pass in the scenario."
+        },
+        "applicability_note": {
+          "type": "string",
+          "description": "Explains the scenario operation's applicability without changing the test outcome."
         }
       },
       "required": ["test_id", "should_pass"],

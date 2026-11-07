@@ -3,6 +3,8 @@ import type { TestName } from '@/api/generated'
 type ExpectedTest = {
   test_id: TestName
   should_pass: boolean
+  /** Explains the scenario operation's applicability; does not affect outcomes. */
+  applicability_note?: string
 }
 
 export type Scenario = {

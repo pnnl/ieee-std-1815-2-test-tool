@@ -16,6 +16,9 @@ use crate::update_profile::is_multiplex_selector_ao;
 pub struct ExpectedTest {
     pub test_id: TestName,
     pub should_pass: bool,
+    /// Explains the scenario operation's applicability without changing the test outcome.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub applicability_note: Option<String>,
 }
 
 /// A test scenario with its expected outcomes.
@@ -94,6 +97,7 @@ fn all_pass() -> Vec<ExpectedTest> {
         .map(|id: TestName| ExpectedTest {
             test_id: id,
             should_pass: true,
+            applicability_note: None,
         })
         .collect()
 }
@@ -103,6 +107,7 @@ fn all_fail() -> Vec<ExpectedTest> {
         .map(|id: TestName| ExpectedTest {
             test_id: id,
             should_pass: false,
+            applicability_note: None,
         })
         .collect()
 }
@@ -166,13 +171,14 @@ pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
         .map(|pt| pt.point_index)
         .collect();
 
-    // Unused for now until we fix the lower/upper bounds scenarios
     let bounds_expected_tests: Vec<ExpectedTest> = TestName::iter()
         .map(|test_id| {
             let should_pass = !test_has_ao_points_in_profile(&test_id, &ao_indices_in_profile);
             ExpectedTest {
                 test_id,
                 should_pass,
+                applicability_note: should_pass
+                    .then(|| "Bounds check N/A: no eligible AO points.".to_string()),
             }
         })
         .collect();
@@ -186,6 +192,7 @@ pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
             ExpectedTest {
                 test_id,
                 should_pass,
+                applicability_note: None,
             }
         })
         .collect();
@@ -196,6 +203,7 @@ pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
             ExpectedTest {
                 test_id,
                 should_pass,
+                applicability_note: None,
             }
         })
         .collect();
@@ -226,13 +234,17 @@ pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
         Scenario {
             id: ScenarioId::BelowLowerBounds.as_str().to_string(),
             name: "Lower Bounds".to_string(),
-            description: "Attempt to modify all points outside their minimum values.".to_string(),
+            description: "Attempt to modify all points outside their minimum values. \
+                Only tests with eligible AO points are expected to fail."
+                .to_string(),
             expected_tests: bounds_expected_tests.clone(),
         },
         Scenario {
             id: ScenarioId::AboveUpperBounds.as_str().to_string(),
             name: "Upper Bounds".to_string(),
-            description: "Attempt to modify all points outside their maximum values.".to_string(),
+            description: "Attempt to modify all points outside their maximum values. \
+                Only tests with eligible AO points are expected to fail."
+                .to_string(),
             expected_tests: bounds_expected_tests,
         },
         Scenario {
@@ -351,5 +363,92 @@ mod tests {
             .find(|t| t.test_id == TestName::MON_001);
         // MON_001 has no AO points → should pass
         assert_eq!(mon.map(|t| t.should_pass), Some(true));
+    }
+
+    #[test]
+    fn test_bounds_applicability_and_expected_failures() {
+        let scenarios = generate_scenarios(&load_default_profile());
+        for scenario in &scenarios {
+            if !matches!(scenario.id.as_str(), "lower_bounds" | "upper_bounds") {
+                assert!(
+                    scenario
+                        .expected_tests
+                        .iter()
+                        .all(|t| t.applicability_note.is_none())
+                );
+                continue;
+            }
+
+            let expected_failures: HashSet<_> = scenario
+                .expected_tests
+                .iter()
+                .filter(|t| !t.should_pass)
+                .map(|t| t.test_id)
+                .collect();
+            assert_eq!(
+                expected_failures,
+                HashSet::from([
+                    TestName::CONN_001,
+                    TestName::SERV_001,
+                    TestName::VRT_001,
+                    TestName::FRT_001,
+                    TestName::FW_001,
+                    TestName::DRCS_001,
+                    TestName::DVW_001,
+                    TestName::APL_001,
+                    TestName::CHG_001,
+                    TestName::CCM_001,
+                    TestName::APR1_001,
+                    TestName::APR2_001,
+                    TestName::APR3_001,
+                    TestName::AGC_001,
+                    TestName::APS_001,
+                    TestName::VW_001,
+                    TestName::FWC_001,
+                    TestName::CVAR_001,
+                    TestName::FPF_001,
+                    TestName::VV_001,
+                    TestName::WV_001,
+                    TestName::PFC_001,
+                    TestName::PSIG_001,
+                    TestName::SCHED_001,
+                    TestName::SCHED_002,
+                ])
+            );
+
+            // Covers MON/ALARM (no AO points) and CURVE tests (selectors only).
+            for test in &scenario.expected_tests {
+                assert_eq!(
+                    test.applicability_note.as_deref(),
+                    test.should_pass
+                        .then_some("Bounds check N/A: no eligible AO points.")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_bounds_applicability_when_ao_points_are_absent_from_profile() {
+        let mut profile = load_default_profile().into_unvalidated();
+        profile.ao = Default::default();
+        let profile = PicsProfile::into_validated(profile).unwrap();
+        for scenario in generate_scenarios(&profile)
+            .into_iter()
+            .filter(|s| matches!(s.id.as_str(), "lower_bounds" | "upper_bounds"))
+        {
+            assert!(scenario.expected_tests.iter().all(|test| {
+                test.should_pass
+                    && test.applicability_note.as_deref()
+                        == Some("Bounds check N/A: no eligible AO points.")
+            }));
+        }
+    }
+
+    #[test]
+    fn test_legacy_expected_test_omits_applicability_note() {
+        let json = serde_json::json!({ "test_id": "MON_001", "should_pass": true });
+        let expected: ExpectedTest = serde_json::from_value(json.clone()).unwrap();
+        assert!(expected.applicability_note.is_none());
+        assert_eq!(serde_json::to_value(expected).unwrap(), json);
     }
 }

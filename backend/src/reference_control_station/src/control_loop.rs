@@ -2,9 +2,9 @@
 //!
 //! Periodically compares AI readback values reported by the outstation against
 //! the expected values in the loaded PicsProfile and issues corrective AO writes
-//! for any mismatches.  Multiplexed structures (curves and schedules) are written
-//! unconditionally each tick because checking them would require manipulating the
-//! selector, which would disrupt the outstation's readback state.
+//! once per scenario and again for any mismatches. Multiplexed structures (curves
+//! and schedules) are written unconditionally each tick because checking them would
+//! require manipulating the selector, which would disrupt the outstation's readback state.
 //!
 //! BO points are driven by their associated BI state: if a profile BI is not `true`,
 //! the control loop sends a LATCH_ON to the paired BO.
@@ -86,8 +86,8 @@ async fn write_output_values_to_outstation(
 // ---------------------------------------------------------------------------
 
 /// For every AO in the profile whose associated AI is a base AI point with an expected
-/// value, compare the current AI readback against that value and issue a corrective
-/// write if they differ.
+/// value, write it at least once per scenario, then issue corrective writes whenever
+/// the current AI readback differs from the expected value.
 ///
 /// Curve and schedule AOs are intentionally skipped — they are managed by the dedicated
 /// curve/schedule writers which set the mux selector before writing data points.
@@ -101,6 +101,7 @@ async fn write_all_ao_to_outstation(state: &ControlStationState, association: &A
     // AI point (not a curve/schedule AI) and has a defined expected value.
     let writes: Vec<(u16, TransmissionI32)> = {
         let latest_input_values = state.latest_transmission_values.read().unwrap();
+        let sent_ao_indices = state.sent_ao_indices.read().unwrap();
 
         profile_index
             .ao_points
@@ -130,7 +131,7 @@ async fn write_all_ao_to_outstation(state: &ControlStationState, association: &A
                 };
 
                 let key = format!("analog_input:{ai_index}");
-                let needs_write = match latest_input_values.get(&key) {
+                let needs_write = !sent_ao_indices.contains(&ao_index) || match latest_input_values.get(&key) {
                     Some(current) => {
                         TransmissionI32(current["value"].as_f64().unwrap_or_else(|| panic!("Invalid value for analog input: AI{ai_index}: {current:?}")) as i32) != expected_transmission
                     }

@@ -22,6 +22,7 @@ mod tests {
         assert_eq!(scenario.name, "Configuration");
         assert_eq!(scenario.expected_tests.len(), 2);
         assert!(scenario.expected_tests[0].should_pass);
+        assert_eq!(scenario.expected_tests[0].applicability_note, None);
         assert!(!scenario.expected_tests[1].should_pass);
     }
 
@@ -66,6 +67,7 @@ mod tests {
             expected_tests: vec![ExpectedTest {
                 test_id: TestName::MON_001,
                 should_pass: true,
+                applicability_note: Some("Bounds check N/A: no eligible AO points.".to_string()),
             }],
         };
         let json = serde_json::to_value(&scenario).unwrap();
