@@ -17,6 +17,7 @@ import {
   updatePoint,
   type EquipmentGroup,
   type FlatPoint,
+  type PointSection,
 } from './profile/canonical'
 import { bucketValidationErrors } from './profile/validationBucketing'
 import {
@@ -103,7 +104,14 @@ function App() {
   const [showLoadModal, setShowLoadModal] = useState(false)
   const [showPreferencesModal, setShowPreferencesModal] = useState(false)
   const [showSaveAsModal, setShowSaveAsModal] = useState(false)
-  const [purposeFilter, setPurposeFilter] = useState<string[]>([])
+  const [purposeFilters, setPurposeFilters] = useState<
+    Record<PointSection, string[]>
+  >({
+    binary_outputs: [],
+    binary_inputs: [],
+    analog_outputs: [],
+    analog_inputs: [],
+  })
   const [preferences, setPreferences] = useState<Preferences>(() =>
     loadPreferences(),
   )
@@ -1046,8 +1054,13 @@ function App() {
                         tabName={tab.id}
                         profileData={profileData}
                         onPointUpdate={handlePointUpdate}
-                        purposeFilter={purposeFilter}
-                        onPurposeFilterChange={setPurposeFilter}
+                        purposeFilter={purposeFilters[tab.id]}
+                        onPurposeFilterChange={(value) =>
+                          setPurposeFilters((prev) => ({
+                            ...prev,
+                            [tab.id]: value,
+                          }))
+                        }
                         autoExpandSections={preferences.autoExpandSections}
                         errors={validationBuckets[tab.id]}
                       />

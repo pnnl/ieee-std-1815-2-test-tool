@@ -19,6 +19,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { Theme } from '@radix-ui/themes'
 import type { ComponentProps } from 'react'
 import App from './App'
+import { flattenSection } from './profile/canonical'
 import type {
   PicsProfile,
   ProfileListItem,
@@ -154,6 +155,78 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+})
+
+describe('Point purpose filters', () => {
+  it('keeps filters independent and remembers each selection when switching tabs', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await waitForBootstrapLoad()
+
+    await user.click(screen.getByRole('tab', { name: 'Binary Inputs' }))
+    await user.click(screen.getByRole('button', { name: 'All purposes...' }))
+    await user.click(screen.getByRole('button', { name: /^Alarm \(/ }))
+    await user.keyboard('{Escape}')
+
+    const binaryInputs = flattenSection(FULL_PROFILE, 'binary_inputs')
+    const alarmCount = binaryInputs.filter(
+      (point) => point.purpose === 'Alarm',
+    ).length
+    const filteredCount = `${alarmCount} of ${binaryInputs.length} points`
+    expect(screen.getByText(filteredCount)).toBeInTheDocument()
+
+    for (const [section, label] of [
+      ['binary_outputs', 'Binary Outputs'],
+      ['analog_outputs', 'Analog Outputs'],
+      ['analog_inputs', 'Analog Inputs'],
+    ] as const) {
+      await user.click(screen.getByRole('tab', { name: label }))
+      expect(
+        screen.getByRole('button', { name: 'All purposes...' }),
+      ).toBeInTheDocument()
+      const count = flattenSection(FULL_PROFILE, section).length
+      expect(
+        screen.getByText(`${count} of ${count} points`),
+      ).toBeInTheDocument()
+    }
+
+    await user.click(screen.getByRole('tab', { name: 'Binary Outputs' }))
+    await user.click(screen.getByRole('button', { name: 'All purposes...' }))
+    await user.click(screen.getByRole('button', { name: /^State \(/ }))
+    await user.keyboard('{Escape}')
+    const binaryOutputs = flattenSection(FULL_PROFILE, 'binary_outputs')
+    const stateCount = binaryOutputs.filter(
+      (point) => point.purpose === 'State',
+    ).length
+
+    await user.click(screen.getByRole('tab', { name: 'Binary Inputs' }))
+    expect(screen.getByText(filteredCount)).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /^Alarm \(/ }),
+    ).toBeInTheDocument()
+
+    // Clearing one tab's filter must not clear another tab's selection.
+    await user.click(screen.getByRole('button', { name: /^Alarm \(/ }))
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: /^Alarm \(/,
+      }),
+    )
+    await user.keyboard('{Escape}')
+    expect(
+      screen.getByText(
+        `${binaryInputs.length} of ${binaryInputs.length} points`,
+      ),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Binary Outputs' }))
+    expect(
+      screen.getByRole('button', { name: /^State \(/ }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(`${stateCount} of ${binaryOutputs.length} points`),
+    ).toBeInTheDocument()
+  })
 })
 
 describe('Adding curves through the backend', () => {
