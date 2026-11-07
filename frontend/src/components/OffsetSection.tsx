@@ -78,7 +78,7 @@ function OffsetSection({
     'Mandatory 1815',
   ]
   if (!isBinary) headers.push('Units')
-  if (showValueColumn) headers.push('Value')
+  if (showValueColumn) headers.push('Min', 'Value', 'Max')
 
   useEffect(() => {
     if (autoExpand) setIsExpanded(true)
@@ -96,7 +96,12 @@ function OffsetSection({
         DEFAULT_COLUMN_WIDTHS.ieee1815,
       ]
       if (!isBinary) widths.push(DEFAULT_COLUMN_WIDTHS.units)
-      if (showValueColumn) widths.push(DEFAULT_COLUMN_WIDTHS.value)
+      if (showValueColumn)
+        widths.push(
+          DEFAULT_COLUMN_WIDTHS.value,
+          DEFAULT_COLUMN_WIDTHS.value,
+          DEFAULT_COLUMN_WIDTHS.value,
+        )
       setColumnWidths(widths)
     }
   }, [isExpanded, columnWidths.length, isBinary, showValueColumn])

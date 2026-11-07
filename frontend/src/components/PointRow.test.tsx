@@ -57,6 +57,32 @@ function err(point: string, message: string): ValidationError {
   return { point, message }
 }
 
+describe('PointRow analog bounds', () => {
+  it.each([0, 5])('displays engineering bounds with offset %s', (offset) => {
+    renderRow(
+      makeAiPoint(0, {
+        minimum: 100,
+        maximum: 10000,
+        multiplier: 0.01,
+        offset,
+        value: 20000,
+      }),
+    )
+    const cells = screen.getAllByRole('cell')
+    expect(cells[8].textContent).toBe(String(1 + offset))
+    expect(cells[10].textContent).toBe(String(100 + offset))
+    expect(screen.getByRole('spinbutton')).toHaveValue(20000)
+  })
+
+  it('places the minimum before the input and maximum after it', () => {
+    renderRow(makeAiPoint(0, { minimum: -10, maximum: 100 }))
+    const cells = screen.getAllByRole('cell')
+    expect(cells[8]).toHaveTextContent('-10')
+    expect(cells[9]).toContainElement(screen.getByRole('spinbutton'))
+    expect(cells[10]).toHaveTextContent('100')
+  })
+})
+
 describe('PointRow error highlight', () => {
   it('renders unstyled when errors is omitted', () => {
     renderRow(makeAiPoint(0))
