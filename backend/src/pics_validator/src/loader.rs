@@ -25,7 +25,6 @@ use common::profile::scale_curve::{DependentVariableUnit, IndependentVariableUni
 
 pub struct Workbook {
     pub sheets: HashMap<String, Range<Data>>,
-    pub sheet_names: Vec<String>,
 }
 
 pub fn load_workbook(path: &Path) -> Result<Workbook> {
@@ -41,10 +40,7 @@ pub fn load_workbook(path: &Path) -> Result<Workbook> {
         }
     }
 
-    Ok(Workbook {
-        sheets,
-        sheet_names,
-    })
+    Ok(Workbook { sheets })
 }
 
 pub fn load_workbook_from_bytes(bytes: &[u8]) -> Result<Workbook> {
@@ -61,10 +57,7 @@ pub fn load_workbook_from_bytes(bytes: &[u8]) -> Result<Workbook> {
         }
     }
 
-    Ok(Workbook {
-        sheets,
-        sheet_names,
-    })
+    Ok(Workbook { sheets })
 }
 
 pub fn get_worksheet<'a>(wb: &'a Workbook, name: &str) -> Option<&'a Range<Data>> {

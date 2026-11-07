@@ -5,15 +5,12 @@ use std::collections::HashMap;
 use common::profile::values::TransmissionI32;
 
 const DEFAULT_CONTROL_BEHAVIOR: &str = "success";
-const DEFAULT_MAX_COUNT: u16 = 100;
 
 /// Top-level application config.
 #[derive(Debug)]
 pub(crate) struct AppConfig {
     /// DNP3 protocol settings.
     pub dnp3: Dnp3Config,
-    /// Log level string (e.g. "info", "debug").
-    pub log_level: String,
     /// Whether unsolicited responses are enabled.
     pub unsolicited_enabled: bool,
     /// Whether to accept time writes from the master.

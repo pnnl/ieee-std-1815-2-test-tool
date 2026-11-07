@@ -3,7 +3,6 @@
 const DEFAULT_TIME_SYNC_PROCEDURE: &str = "lan";
 const DEFAULT_MIN_DELAY_MS: u64 = 1000;
 const DEFAULT_MAX_DELAY_MS: u64 = 30000;
-const DEFAULT_MAX_COUNT: u16 = 100;
 
 /// Top-level application config.
 #[derive(Debug)]
@@ -24,8 +23,6 @@ pub(crate) struct AppConfig {
     pub databases: DatabasesConfig,
     /// How often the profile-driven control loop runs (seconds).
     pub control_loop_interval_secs: u64,
-    /// How often the conformance tests run (seconds).
-    pub conformance_loop_interval_secs: u64,
 }
 
 /// DNP3 transport config.
@@ -40,21 +37,10 @@ pub(crate) struct Dnp3Config {
 }
 
 /// Logging config.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct LoggingConfig {
-    /// Log level.
-    pub level: String,
     /// Optional JSONL output file for received data.
     pub data_file: String,
-}
-
-impl Default for LoggingConfig {
-    fn default() -> Self {
-        Self {
-            level: "info".to_string(),
-            data_file: String::new(),
-        }
-    }
 }
 
 /// Startup sequence settings.

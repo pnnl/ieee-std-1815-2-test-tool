@@ -1,6 +1,5 @@
 //! DNP3 Reference Control Station application.
 
-#[allow(dead_code)]
 mod config;
 mod conformance;
 mod control_loop;
@@ -79,9 +78,6 @@ struct CliArgs {
     /// How often the profile-driven control loop runs (seconds).
     #[arg(long, default_value_t = 10)]
     control_loop_interval: u64,
-    /// How often the conformance tests run (seconds).
-    #[arg(long, default_value_t = 10)]
-    conformance_loop_interval: u64,
 }
 
 /// AssociationHandler implementation.
@@ -110,9 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let scenario_id = Arc::new(Mutex::new(String::new()));
-    let conformance_messages = Arc::new(Mutex::new(Vec::new()));
-    let conformance_layer =
-        ConformanceTrackingLayer::new(conformance_messages, Arc::clone(&scenario_id));
+    let conformance_layer = ConformanceTrackingLayer::new(Arc::clone(&scenario_id));
 
     tracing_subscriber::registry()
         .with(
@@ -141,7 +135,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         profile_path: args.profile.clone(),
         databases: DatabasesConfig::default(),
         control_loop_interval_secs: args.control_loop_interval,
-        conformance_loop_interval_secs: args.conformance_loop_interval,
     };
 
     let control_station_address = EndpointAddress::try_new(app_config.dnp3.control_station_address)

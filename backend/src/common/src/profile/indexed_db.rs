@@ -43,11 +43,6 @@ impl<E: DatabaseEntry> IndexedEntryDatabase<E> {
         self.entries.get(&number)
     }
 
-    /// Look up an entry mutably by its 1-based number.
-    pub fn get_mut(&mut self, number: u16) -> Option<&mut E> {
-        self.entries.get_mut(&number)
-    }
-
     /// Return entry 1, used as the template for creating blank entries with matching AI indices.
     pub fn template_entry(&self) -> Option<&E> {
         self.entries.get(&1)

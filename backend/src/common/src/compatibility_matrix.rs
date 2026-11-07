@@ -7,6 +7,7 @@ use strum::EnumIter;
 #[cfg(feature = "utoipa")]
 use utoipa::ToSchema;
 
+// Retained for future functional tests that check compatibility between DER functions.
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum CompatibilityType {
     Compatible = 0,
@@ -79,6 +80,7 @@ impl ModeType {
 }
 
 /// Compatibility matrix matching "Table 58—Compatibility of functions"
+// Retained with MODE_COUNT for use when functional tests are implemented.
 #[allow(dead_code)]
 const MODE_COUNT: usize = <ModeType as strum::EnumCount>::COUNT;
 #[allow(dead_code)]

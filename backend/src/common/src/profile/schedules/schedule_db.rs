@@ -243,11 +243,6 @@ impl ScheduleDatabase {
         self.inner_db.get(schedule_number)
     }
 
-    /// Look up a schedule entry mutably by 1-based schedule number.
-    pub fn get_mut(&mut self, schedule_number: u16) -> Option<&mut ScheduleEntry> {
-        self.inner_db.get_mut(schedule_number)
-    }
-
     /// Set the currently active schedule number (1-based) and return all AI values for that entry.
     ///
     /// If the entry does not exist but is within `max_schedules`, a blank entry is created.

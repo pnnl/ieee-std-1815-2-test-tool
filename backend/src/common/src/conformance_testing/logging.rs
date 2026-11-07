@@ -6,7 +6,7 @@
 ///   automatically in run_outstation_simulation_steps.
 /// - The test runs
 /// - The test calls `log_conformance_result` with the serialized message
-/// - A custom `ConformanceTrackingLayer` captures these events and stores them in memory
+/// - A custom `ConformanceTrackingLayer` captures these events and emits them to stdout
 use std::io::Write;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -35,18 +35,14 @@ pub fn log_conformance_result(pass: bool, comments: Vec<SunSpecComment>) {
     }
 }
 
-/// A tracing layer that captures conformance testing events and stores them in memory.
+/// A tracing layer that captures conformance testing events and emits them to stdout.
 pub struct ConformanceTrackingLayer {
-    messages: Arc<Mutex<Vec<SunSpecMessage>>>,
     scenario_id: Arc<Mutex<String>>,
 }
 
 impl ConformanceTrackingLayer {
-    pub fn new(messages: Arc<Mutex<Vec<SunSpecMessage>>>, scenario_id: Arc<Mutex<String>>) -> Self {
-        Self {
-            messages,
-            scenario_id,
-        }
+    pub fn new(scenario_id: Arc<Mutex<String>>) -> Self {
+        Self { scenario_id }
     }
 }
 
@@ -103,35 +99,31 @@ where
             return;
         };
 
-        if let Ok(mut messages) = self.messages.lock() {
-            let current_scenario_id = self
-                .scenario_id
-                .lock()
-                .expect("scenario_id lock poisoned")
-                .clone();
+        let current_scenario_id = self
+            .scenario_id
+            .lock()
+            .expect("scenario_id lock poisoned")
+            .clone();
 
-            let message = SunSpecMessage {
-                test: test_name,
-                scenario_id: current_scenario_id,
-                timestamp: SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Time went backwards")
-                    .as_secs(),
-                pass: message.pass,
-                comments: message.comments,
-            };
+        let message = SunSpecMessage {
+            test: test_name,
+            scenario_id: current_scenario_id,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards")
+                .as_secs(),
+            pass: message.pass,
+            comments: message.comments,
+        };
 
-            // Print out the message in a way that can be easily parsed
-            // by the test runner.
-            if let Ok(json) = serde_json::to_string(&message) {
-                println!("MESA_CONFORMANCE_EVENT:{json}");
-                // Stdout is block-buffered when piped. Flush explicitly so the
-                // backend receives each result immediately rather than losing it
-                // if the process is killed (SIGKILL) before the buffer fills.
-                let _ = std::io::stdout().flush();
-            }
-
-            messages.push(message);
+        // Print out the message in a way that can be easily parsed
+        // by the test runner.
+        if let Ok(json) = serde_json::to_string(&message) {
+            println!("MESA_CONFORMANCE_EVENT:{json}");
+            // Stdout is block-buffered when piped. Flush explicitly so the
+            // backend receives each result immediately rather than losing it
+            // if the process is killed (SIGKILL) before the buffer fills.
+            let _ = std::io::stdout().flush();
         }
     }
 }
