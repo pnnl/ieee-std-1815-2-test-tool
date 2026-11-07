@@ -1101,32 +1101,13 @@ export function removeCurve(
 export function updateCurveHeader(
   profile: PicsProfile,
   curveIndex: number,
-  field: 'curve_type' | 'number_of_points' | 'x_units' | 'y_units',
+  field: 'curve_type' | 'x_units' | 'y_units',
   numericValue: number,
 ): PicsProfile {
   const curve = profile.AI.curves[curveIndex]
   if (!curve) return profile
   const next = structuredClone(profile)
   next.AI.curves[curveIndex][field].value = numericValue
-  if (field === 'number_of_points') {
-    // Clamp parallel arrays to the new length, padding with zero-valued
-    // copies of the last point if growing.
-    const zeroValue = (pt: AiPoint): AiPoint => {
-      pt.value = 0
-      return pt
-    }
-    const newCount = Math.max(0, numericValue | 0)
-    next.AI.curves[curveIndex].x_values = cloneClamp(
-      next.AI.curves[curveIndex].x_values,
-      newCount,
-      { onClone: zeroValue },
-    )
-    next.AI.curves[curveIndex].y_values = cloneClamp(
-      next.AI.curves[curveIndex].y_values,
-      newCount,
-      { onClone: zeroValue },
-    )
-  }
   return next
 }
 

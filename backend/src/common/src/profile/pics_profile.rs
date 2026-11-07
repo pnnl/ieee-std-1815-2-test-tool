@@ -152,6 +152,21 @@ impl PicsProfile {
         Ok(())
     }
 
+    /// Resize one curve without validating unrelated profile edits or saving it.
+    pub fn resize_curve_points(
+        &mut self,
+        curve_index: usize,
+        count: i64,
+    ) -> Result<(), ValidationErrors> {
+        let curve = self.ai.curves.get_mut(curve_index).ok_or_else(|| {
+            ValidationErrors::from_error(ValidationError {
+                point: format!("AI.curves[{curve_index}]"),
+                message: "Curve index is out of range".to_string(),
+            })
+        })?;
+        curve.resize_points(count)
+    }
+
     /// Append default curves and validate the entire profile, rolling back on failure.
     /// Returns the zero-based index of the first added curve.
     pub fn add_default_curves(&mut self, count: u16) -> Result<usize, ValidationErrors> {
@@ -263,6 +278,40 @@ impl Validate for PicsProfile {
 mod profile_index_tests {
     use super::*;
     use crate::profile::{profile_index::ProfileIndex, values::TransmissionI32};
+
+    #[test]
+    fn test_resize_curve_points_preserves_unrelated_invalid_edits() {
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile.ai.curves[0]
+            .curve_type
+            .set_value_unsafe(EngineeringF64(99.0));
+        profile.ai.curves[0]
+            .x_units
+            .set_value_unsafe(EngineeringF64(255.0));
+        profile.ai.points[0].set_value_unsafe(EngineeringF64(-999.0));
+        let original = profile.clone();
+        profile.resize_curve_points(0, 0).unwrap();
+        profile.resize_curve_points(0, 1).unwrap();
+        assert_eq!(
+            profile.ai.curves[0].curve_type,
+            original.ai.curves[0].curve_type
+        );
+        assert_eq!(profile.ai.curves[0].x_units, original.ai.curves[0].x_units);
+        assert_eq!(profile.ai.curves[1..], original.ai.curves[1..]);
+        assert_eq!(profile.ai.points, original.ai.points);
+        assert_eq!(profile.ao, original.ao);
+        assert!(profile.validate().is_err());
+    }
+
+    #[test]
+    fn test_resize_curve_points_invalid_index_is_atomic() {
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        let original = profile.clone();
+        for index in [profile.ai.curves.len(), usize::MAX] {
+            assert!(profile.resize_curve_points(index, 1).is_err());
+            assert_eq!(profile, original);
+        }
+    }
 
     #[test]
     fn test_add_default_curves_restores_profile_on_validation_failure() {
