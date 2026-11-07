@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input'
 import { NumberInput } from '@/components/ui/number-input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import TestStationSetup from './TestStationSetup'
 import {
   isValidIpOrLocal,
   isValidPort,
+  isReferenceOutstation,
   type Preferences,
 } from '../utils/preferences'
 import { toast } from 'sonner'
@@ -120,7 +122,7 @@ function PreferencesModal({
       case 'failed':
         return 'Failed'
       default:
-        return 'Test'
+        return 'Test connection'
     }
   }
 
@@ -141,7 +143,7 @@ function PreferencesModal({
     <AccessibleDialog
       isOpen={isOpen}
       onClose={onClose}
-      title="Preferences"
+      title="Settings"
       description="Editor preferences and DNP3 endpoint configuration for the test runner."
       contentClassName="sm:max-w-2xl max-h-[90vh] flex flex-col"
       footer={
@@ -178,14 +180,19 @@ function PreferencesModal({
           </div>
 
           {/* Outstation */}
+          <TestStationSetup preferences={preferences} />
           <div className="flex flex-col gap-1.5">
-            <p className="font-semibold text-sm">Outstation</p>
+            <p className="font-semibold text-sm">Outstation connection</p>
             <p className="text-xs text-muted-foreground">
-              IP address and port for the outstation (DNP3 server)
+              Use 127.0.0.1 or &quot;local&quot; to start the reference
+              outstation automatically. Enter a remote device’s IP address to
+              connect to your own outstation.
             </p>
-            <div className="flex items-start gap-1.5">
+            <div className="flex items-end gap-1.5">
               <div className="flex-1 flex flex-col gap-1">
+                <Label htmlFor="outstation-ip">Outstation IP address</Label>
                 <Input
+                  id="outstation-ip"
                   value={outstationIpInput}
                   onChange={(e) =>
                     handleIpChange(
@@ -202,9 +209,10 @@ function PreferencesModal({
                   <p className="text-xs text-danger">{outstationIpError}</p>
                 )}
               </div>
-              <span className="pt-2 text-sm">:</span>
               <div className="flex flex-col gap-1">
                 <NumberInput
+                  id="outstation-port"
+                  label="Port"
                   className="w-[100px]"
                   value={outstationPortInput}
                   onChange={(val) =>
@@ -231,6 +239,11 @@ function PreferencesModal({
                 {getTestButtonLabel(outstationTestStatus)}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Test connection checks whether the outstation is listening now.
+              {isReferenceOutstation(preferences.outstationIp) &&
+                ' The reference outstation only starts when you start a test run.'}
+            </p>
           </div>
         </div>
       </ScrollArea>

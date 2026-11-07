@@ -18,6 +18,7 @@ import {
   type Preferences,
   type DeviceUnderTest,
   savePreferences,
+  isReferenceOutstation,
 } from '../../utils/preferences'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
@@ -51,6 +52,7 @@ function TestRunnerTab({
   preferences,
   currentProfileName = null,
 }: TestRunnerTabProps) {
+  const referenceOutstation = isReferenceOutstation(preferences.outstationIp)
   const [processStatuses, setProcessStatuses] = useState<ProcessStatusMap>(
     new Map([
       ['test_runner', 'not started'],
@@ -179,7 +181,7 @@ function TestRunnerTab({
 
       // Loopback selects the reference outstation; other IPs select an external one.
       const outstationConfig = {
-        use_reference_outstation: preferences.outstationIp === '127.0.0.1',
+        use_reference_outstation: referenceOutstation,
         ip_address: preferences.outstationIp,
         port: preferences.outstationPort,
       }
@@ -406,21 +408,48 @@ function TestRunnerTab({
   }
 
   const renderedStatuses = []
+  const processLabels: Record<ProcessName, string> = {
+    test_runner: 'Test Runner',
+    control_station: 'Reference Control Station',
+    outstation: referenceOutstation
+      ? 'Reference Outstation'
+      : 'External Outstation',
+  }
+  const outstationEndpoint = `${referenceOutstation ? '127.0.0.1' : preferences.outstationIp}:${preferences.outstationPort}`
+  const processDescriptions: Partial<Record<ProcessName, string>> = {
+    control_station: 'Starts automatically for each run',
+    outstation: referenceOutstation
+      ? `Starts automatically · ${outstationEndpoint}`
+      : outstationEndpoint,
+  }
 
   for (const [processName, processStatus] of processStatuses.entries()) {
+    const externalOutstation =
+      processName === 'outstation' && !referenceOutstation
+    const statusClass = externalOutstation
+      ? styles.statusUnknown
+      : (PROCESS_STATUS_CLASSES[processStatus] ?? '')
     renderedStatuses.push(
-      <div key={processName} className={styles.statusRow}>
-        <div className={styles.statusMeta}>
-          <span
-            className={`${styles.statusIndicator} ${PROCESS_STATUS_CLASSES[processStatus] ?? ''}`}
-          ></span>
+      <div key={processName}>
+        <div className={styles.statusRow}>
           <span className={styles.statusLabel}>
-            {processName
-              .replace('_', ' ')
-              .replace(/\b\w/g, (c) => c.toUpperCase())}
+            {processLabels[processName]}
+            {statusClass && (
+              <span
+                aria-hidden="true"
+                className={`${styles.statusIndicator} ${statusClass}`}
+              />
+            )}
+          </span>
+          <span className={styles.statusText}>
+            {externalOutstation ? 'user-managed' : processStatus}
           </span>
         </div>
-        <span className={styles.statusText}>{processStatus}</span>
+        {processDescriptions[processName] && (
+          <p className={styles.statusDescription}>
+            {processDescriptions[processName]}
+          </p>
+        )}
       </div>,
     )
   }
@@ -473,9 +502,16 @@ function TestRunnerTab({
         >
           <aside className={styles.testRunnerSidebar}>
             <div className={styles.jobInfo}>
-              <div className={styles.statusList} aria-live="polite">
+              <div
+                className={styles.statusList}
+                aria-label="Test station status"
+                aria-live="polite"
+              >
                 {renderedStatuses}
               </div>
+              <p className={styles.statusHint}>
+                Configure the outstation in Settings.
+              </p>
             </div>
 
             <div className={styles.dutSection}>

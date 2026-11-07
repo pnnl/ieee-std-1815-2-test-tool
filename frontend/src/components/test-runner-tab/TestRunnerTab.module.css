@@ -82,13 +82,27 @@ button.iconButton > span.iconContainer {
   gap: 12px;
 }
 
-.statusMeta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.statusDescription,
+.statusHint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.statusDescription {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.statusHint {
+  margin: 8px 0 0;
 }
 
 .statusLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
   font-weight: 500;
   color: #2c3e50;
 }
@@ -96,6 +110,7 @@ button.iconButton > span.iconContainer {
 .statusIndicator {
   width: 12px;
   height: 12px;
+  flex-shrink: 0;
   border-radius: 50%;
   animation: pulse 2s infinite;
 }
@@ -151,6 +166,8 @@ button.iconButton > span.iconContainer {
 }
 
 .statusText {
+  flex-shrink: 0;
+  font-size: 12px;
   font-weight: 500;
   color: #34495e;
 }
@@ -238,7 +255,9 @@ button.iconButton > span.iconContainer {
 
 .testRunnerSidebar .jobInfo {
   width: 100%;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
 }
 
 .dutSection {

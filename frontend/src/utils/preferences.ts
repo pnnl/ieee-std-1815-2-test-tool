@@ -18,6 +18,13 @@ const DEFAULT_PREFERENCES: Preferences = {
   deviceUnderTest: 'outstation',
 }
 
+// Keep in sync with process_manager::is_loopback in the backend.
+export function isReferenceOutstation(address: string): boolean {
+  return ['local', 'localhost', '127.0.0.1'].includes(
+    address.trim().toLowerCase(),
+  )
+}
+
 export function isValidIpOrLocal(value: string): boolean {
   if (!value) return false
   if (value.toLowerCase() === 'local') return true
