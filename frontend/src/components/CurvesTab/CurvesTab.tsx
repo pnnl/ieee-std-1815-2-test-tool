@@ -42,6 +42,8 @@ interface CurvesTabProps {
   profileData: PicsProfile
   setProfileData: (data: PicsProfile) => void
   onAddCurves: (count?: number) => Promise<number | null>
+  onResizeCurvePoints: (curveIndex: number, count: number) => Promise<void>
+  isResizingCurvePoints: boolean
   // Curve-structural errors bucketed to this tab. No point rows or offset
   // groups here like PointsTab, so no group-badge or row-highlight
   // treatment: a tab badge plus this panel listing is the full scope.
@@ -96,6 +98,8 @@ function CurvesTab({
   profileData,
   setProfileData,
   onAddCurves,
+  onResizeCurvePoints,
+  isResizingCurvePoints,
   errors,
 }: CurvesTabProps) {
   const { enumsResponse } = useEnumData()
@@ -165,10 +169,7 @@ function CurvesTab({
     )
   }
 
-  const handleConfigChange = (
-    field: 'number_of_points' | 'x_units' | 'y_units',
-    value: string,
-  ) => {
+  const handleConfigChange = (field: 'x_units' | 'y_units', value: string) => {
     const numValue = parseInt(value)
     if (Number.isNaN(numValue)) {
       toast.error(`Invalid value for '${field}': '${value}'`)
@@ -258,11 +259,19 @@ function CurvesTab({
                   size="sm"
                   variant="outline"
                   onClick={handleAddCurve}
-                  disabled={currentCurveCount >= getMaxCurves(profileData)}
+                  disabled={
+                    isResizingCurvePoints ||
+                    currentCurveCount >= getMaxCurves(profileData)
+                  }
                 >
                   Add
                 </Button>
-                <Button size="sm" variant="outline" onClick={handleDeleteCurve}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDeleteCurve}
+                  disabled={isResizingCurvePoints}
+                >
                   Delete
                 </Button>
               </div>
@@ -303,12 +312,25 @@ function CurvesTab({
                     </p>
                   )}
                   <NumberInput
+                    key={selectedCurveIndex}
                     commitOnBlur
                     label="Number of Points"
                     value={curveConfig.number_of_points}
-                    onChange={(val) =>
-                      handleConfigChange('number_of_points', String(val))
-                    }
+                    disabled={isResizingCurvePoints}
+                    onChange={async (val) => {
+                      const count = Number(val)
+                      if (
+                        !Number.isInteger(count) ||
+                        count < 0 ||
+                        count > MAX_CURVE_POINTS
+                      ) {
+                        toast.error(
+                          `Number of points must be a whole number between 0 and ${MAX_CURVE_POINTS}`,
+                        )
+                        return
+                      }
+                      await onResizeCurvePoints(selectedCurveIndex, count)
+                    }}
                     min={0}
                     max={MAX_CURVE_POINTS}
                     size="xs"

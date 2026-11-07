@@ -8,7 +8,7 @@
 // `curveTypeRawValue`) in place of the fields that need a resolved entry.
 
 import { describe, it, expect, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Theme } from '@radix-ui/themes'
 import CurvesTab from './CurvesTab'
@@ -91,6 +91,10 @@ function renderCurvesTab(
   errors: ValidationError[] = [],
   onAddCurves = async (): Promise<number | null> => null,
   setProfileData: (profile: PicsProfile) => void = () => {},
+  onResizeCurvePoints: (
+    index: number,
+    count: number,
+  ) => Promise<void> = async () => {},
 ) {
   return render(
     <Theme>
@@ -101,6 +105,8 @@ function renderCurvesTab(
           profileData={profileData}
           setProfileData={setProfileData}
           onAddCurves={onAddCurves}
+          onResizeCurvePoints={onResizeCurvePoints}
+          isResizingCurvePoints={false}
           errors={errors}
         />
       </EnumDataContext.Provider>
@@ -113,7 +119,12 @@ describe('CurvesTab number editing', () => {
     const user = userEvent.setup()
     const profile = fullProfileJson as PicsProfile
     const setProfileData = vi.fn()
-    renderCurvesTab(profile, [], undefined, setProfileData)
+    let finish!: () => void
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const onResize = vi.fn(() => pending)
+    renderCurvesTab(profile, [], undefined, setProfileData, onResize)
     const input = screen.getByRole('spinbutton', { name: 'Number of Points' })
 
     await user.clear(input)
@@ -125,16 +136,17 @@ describe('CurvesTab number editing', () => {
 
     await user.tab()
 
-    expect(setProfileData).toHaveBeenCalledOnce()
-    const curve = setProfileData.mock.calls[0][0].AI.curves[0]
-    expect(curve.number_of_points.value).toBe(14)
-    expect(curve.x_values).toHaveLength(14)
-    expect(
-      curve.x_values.slice(0, profile.AI.curves[0].x_values.length),
-    ).toEqual(profile.AI.curves[0].x_values)
-    expect(
-      curve.y_values.slice(0, profile.AI.curves[0].y_values.length),
-    ).toEqual(profile.AI.curves[0].y_values)
+    expect(onResize).toHaveBeenCalledExactlyOnceWith(0, 14)
+    expect(setProfileData).not.toHaveBeenCalled()
+    expect(input).toHaveValue(14)
+    expect(screen.getByText('4 active')).toBeInTheDocument()
+
+    // A failed/no-op backend update leaves the canonical count authoritative.
+    await act(async () => {
+      finish()
+      await pending
+    })
+    await waitFor(() => expect(input).toHaveValue(4))
   })
 })
 
@@ -208,6 +220,8 @@ describe('CurvesTab with a structurally invalid curve_type', () => {
             profileData={profile}
             setProfileData={setProfileData}
             onAddCurves={async () => null}
+            onResizeCurvePoints={async () => {}}
+            isResizingCurvePoints={false}
             errors={[]}
           />
         </EnumDataContext.Provider>

@@ -7,6 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -65,6 +66,8 @@ const listProfiles = vi.fn()
 const saveProfile = vi.fn()
 const validateProfile = vi.fn()
 const addProfileCurve = vi.fn()
+const resizeProfileCurvePoints = vi.fn()
+const getEnums = vi.fn()
 
 // jsdom reports zero-size rectangles, so splitter hit testing can intercept
 // clicks on unrelated tabs. These tests exercise profile validation flows;
@@ -91,6 +94,9 @@ vi.mock('@/api/generated', async () => {
     saveProfile: (...args: unknown[]) => saveProfile(...args),
     validateProfile: (...args: unknown[]) => validateProfile(...args),
     addProfileCurve: (...args: unknown[]) => addProfileCurve(...args),
+    resizeProfileCurvePoints: (...args: unknown[]) =>
+      resizeProfileCurvePoints(...args),
+    getEnums: (...args: unknown[]) => getEnums(...args),
   }
 })
 
@@ -149,6 +155,22 @@ beforeEach(() => {
   })
   saveProfile.mockResolvedValue({ data: { message: 'ok' }, error: undefined })
   validateProfile.mockResolvedValue({ data: {}, error: undefined })
+  getEnums.mockResolvedValue({
+    data: {
+      action_types: [],
+      mode_types: [],
+      schedule_interval_units: [],
+      curve_x_units: [],
+      curve_y_units: [],
+      curve_types: [
+        {
+          variant: 'HvrtMustTrip',
+          display_name: 'HVRT Must Trip',
+          std_number: 9,
+        },
+      ],
+    },
+  })
 })
 
 afterEach(() => {
@@ -205,6 +227,121 @@ describe('Adding curves through the backend', () => {
     )
     expect(screen.getByRole('spinbutton', { name: 'Curves' })).toHaveValue(0)
     expect(saveProfile).not.toHaveBeenCalled()
+  })
+})
+
+describe('Resizing curve points through the backend', () => {
+  async function openEmptyCurve() {
+    const profile = structuredClone(SMALL_AI_PROFILE)
+    const curve = structuredClone(FULL_PROFILE.AI.curves[0])
+    curve.number_of_points.value = 0
+    curve.x_values = []
+    curve.y_values = []
+    profile.AI.curves = [curve]
+    getProfile.mockResolvedValueOnce({ data: profile })
+    renderApp()
+    await waitForBootstrapLoad()
+    await userEvent.click(screen.getByRole('tab', { name: /Curves/ }))
+    const input = await screen.findByRole('spinbutton', {
+      name: 'Number of Points',
+    })
+    return { profile, input }
+  }
+
+  function onePointResponse(profile: PicsProfile) {
+    const updated = structuredClone(profile)
+    updated.AI.curves[0].number_of_points.value = 1
+    updated.AI.curves[0].x_values = [
+      structuredClone(FULL_PROFILE.AI.curves[0].x_values[0]),
+    ]
+    updated.AI.curves[0].y_values = [
+      structuredClone(FULL_PROFILE.AI.curves[0].y_values[0]),
+    ]
+    return { data: { profile: updated } }
+  }
+
+  it('shows the count optimistically but waits for returned points', async () => {
+    let finish!: (response: ReturnType<typeof onePointResponse>) => void
+    resizeProfileCurvePoints.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const { profile, input } = await openEmptyCurve()
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.blur(input)
+    expect(input).toHaveValue(1)
+    expect(screen.getByText('0 active')).toBeInTheDocument()
+    expect(input).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+    expect(resizeProfileCurvePoints).toHaveBeenCalledExactlyOnceWith({
+      body: { profile, curve_index: 0, count: 1 },
+    })
+    await act(async () => finish(onePointResponse(profile)))
+    await waitFor(() =>
+      expect(screen.getByText('1 active')).toBeInTheDocument(),
+    )
+    expect(input).toHaveValue(1)
+    expect(input).not.toBeDisabled()
+    expect(saveProfile).not.toHaveBeenCalled()
+  })
+
+  it('restores the authoritative count and reports a backend error', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    resizeProfileCurvePoints.mockResolvedValueOnce({
+      error: {
+        errors: { errors: [{ point: 'AI330', message: 'Cannot resize' }] },
+      },
+    })
+    const { input } = await openEmptyCurve()
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.blur(input)
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('Cannot resize'),
+    )
+    await waitFor(() => expect(input).toHaveValue(0))
+    expect(screen.getByText('0 active')).toBeInTheDocument()
+    expect(saveProfile).not.toHaveBeenCalled()
+  })
+
+  it('does not overwrite a newer unit edit with a stale response', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    let finish!: (response: ReturnType<typeof onePointResponse>) => void
+    resizeProfileCurvePoints.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const { profile, input } = await openEmptyCurve()
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.blur(input)
+    fireEvent.change(screen.getByLabelText('X-Axis Units'), {
+      target: { value: '29' },
+    })
+    await act(async () => finish(onePointResponse(profile)))
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        'The profile changed while resizing curve points. Please retry.',
+      ),
+    )
+    expect(screen.getByLabelText('X-Axis Units')).toHaveValue('29')
+    await waitFor(() => expect(input).toHaveValue(0))
+    expect(screen.getByText('0 active')).toBeInTheDocument()
+  })
+
+  it('restores the count after a thrown transport failure', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    resizeProfileCurvePoints.mockRejectedValueOnce(
+      new Error('Network unavailable'),
+    )
+    const { input } = await openEmptyCurve()
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.blur(input)
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('Network unavailable'),
+    )
+    await waitFor(() => expect(input).toHaveValue(0))
+    expect(input).not.toBeDisabled()
   })
 })
 

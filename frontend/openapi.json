@@ -220,6 +220,46 @@
         }
       }
     },
+    "/api/profiles/curves/points": {
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "operationId": "resizeProfileCurvePoints",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResizeProfileCurvePointsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated profile, without saving",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResizeProfileCurvePointsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid count, curve index, or new points",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/profiles/parse-xlsx": {
       "post": {
         "tags": [
@@ -2705,6 +2745,42 @@
           "seed",
           "working"
         ]
+      },
+      "ResizeProfileCurvePointsRequest": {
+        "type": "object",
+        "required": [
+          "profile",
+          "curve_index",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Absolute target number of point pairs (0 through 100).",
+            "maximum": 100,
+            "minimum": 0
+          },
+          "curve_index": {
+            "type": "integer",
+            "description": "Zero-based index of the curve to resize.",
+            "minimum": 0
+          },
+          "profile": {
+            "$ref": "#/components/schemas/PicsProfile"
+          }
+        }
+      },
+      "ResizeProfileCurvePointsResponse": {
+        "type": "object",
+        "required": [
+          "profile"
+        ],
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/PicsProfile"
+          }
+        }
       },
       "SaveProfileRequest": {
         "type": "object",

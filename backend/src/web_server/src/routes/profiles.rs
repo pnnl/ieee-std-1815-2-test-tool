@@ -75,6 +75,21 @@ pub struct AddProfileCurveResponse {
     pub added_curve_index: usize,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ResizeProfileCurvePointsRequest {
+    pub profile: PicsProfile,
+    /// Zero-based index of the curve to resize.
+    pub curve_index: usize,
+    /// Absolute target number of point pairs (0 through 100).
+    #[schema(minimum = 0, maximum = 100)]
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ResizeProfileCurvePointsResponse {
+    pub profile: PicsProfile,
+}
+
 /// Reject profile names that could escape the profiles directory.
 fn validate_profile_name(name: &str) -> poem::Result<()> {
     if name.is_empty()
@@ -349,6 +364,31 @@ pub async fn add_profile_curve(
 
 #[utoipa::path(
     post,
+    path = "/api/profiles/curves/points",
+    tag = "profiles",
+    operation_id = "resizeProfileCurvePoints",
+    request_body = ResizeProfileCurvePointsRequest,
+    responses(
+        (status = 200, description = "Updated profile, without saving", body = ResizeProfileCurvePointsResponse),
+        (status = 400, description = "Invalid count, curve index, or new points", body = ValidationErrorsResponse)
+    )
+)]
+#[handler]
+pub async fn resize_profile_curve_points(
+    Json(mut body): Json<ResizeProfileCurvePointsRequest>,
+) -> poem::Result<Json<ResizeProfileCurvePointsResponse>> {
+    body.profile
+        .resize_curve_points(body.curve_index, body.count)
+        .map_err(|errors| {
+            poem::Error::from_response(ValidationErrorsResponse { errors }.into_response())
+        })?;
+    Ok(Json(ResizeProfileCurvePointsResponse {
+        profile: body.profile,
+    }))
+}
+
+#[utoipa::path(
+    post,
     path = "/api/profiles",
     tag = "profiles",
     request_body = SaveProfileRequest,
@@ -572,6 +612,7 @@ pub fn routes() -> Route {
         .at("/:name", get(get_profile).delete(delete_profile))
         .at("/validate", post(validate_profile))
         .at("/curves", post(add_profile_curve))
+        .at("/curves/points", post(resize_profile_curve_points))
 }
 
 #[cfg(test)]
@@ -581,6 +622,59 @@ mod tests {
     use poem::middleware::AddDataEndpoint;
     use poem::test::{TestClient, TestResponse};
     use std::fs;
+
+    #[tokio::test]
+    async fn test_resize_curve_points_returns_profile_without_persisting() {
+        let tmp = setup_test_data_dir(false, &[("seed", "unchanged")], &[]);
+        let client = TestClient::new(test_profiles_app(tmp.path().to_str().unwrap()));
+        let mut profile = PicsProfile::load_full_profile().into_unvalidated();
+        profile.resize_curve_points(0, 0).unwrap();
+        profile.ai.curves[0]
+            .curve_type
+            .set_value_unsafe(common::profile::values::EngineeringF64(99.0));
+        let response = client
+            .post("/curves/points")
+            .body_json(&serde_json::json!({ "profile": profile, "curve_index": 0, "count": 3 }))
+            .send()
+            .await;
+        response.assert_status_is_ok();
+        let body = parse_json(response).await;
+        let updated: PicsProfile = serde_json::from_value(body["profile"].clone()).unwrap();
+        assert_eq!(
+            updated.ai.curves[0].number_of_points.value(),
+            common::profile::values::EngineeringF64(3.0)
+        );
+        assert_eq!(updated.ai.curves[0].x_values.len(), 3);
+        assert_eq!(updated.ai.curves[0].y_values.len(), 3);
+        assert_eq!(
+            updated.ai.curves[0].curve_type,
+            profile.ai.curves[0].curve_type
+        );
+        assert_eq!(updated.ai.curves[1..], profile.ai.curves[1..]);
+        assert_eq!(updated.ai.points, profile.ai.points);
+        assert_eq!(fs::read_dir(tmp.path().join("working")).unwrap().count(), 0);
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("profiles/seed.json")).unwrap(),
+            "unchanged"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resize_curve_points_structured_errors() {
+        let profile = PicsProfile::load_full_profile().into_unvalidated();
+        let client = TestClient::new(Route::new().nest("/", routes()));
+        for (curve_index, count) in [(0, -1), (0, 101), (profile.ai.curves.len(), 1)] {
+            let response = client.post("/curves/points")
+                .body_json(&serde_json::json!({ "profile": profile, "curve_index": curve_index, "count": count }))
+                .send().await;
+            response.assert_status(poem::http::StatusCode::BAD_REQUEST);
+            let body = parse_json(response).await;
+            let errors = body["errors"]["errors"].as_array().unwrap();
+            assert!(!errors.is_empty());
+            assert!(errors[0]["point"].is_string());
+            assert!(errors[0]["message"].is_string());
+        }
+    }
 
     #[tokio::test]
     async fn test_add_profile_curve_from_empty() {
