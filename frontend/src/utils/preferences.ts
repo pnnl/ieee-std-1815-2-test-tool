@@ -1,6 +1,6 @@
 const STORAGE_KEY = 'mesa-profile-editor-preferences'
 
-export type DeviceUnderTest = 'control_station' | 'outstation'
+export type DeviceUnderTest = 'outstation'
 
 export interface Preferences {
   autoExpandSections: boolean
