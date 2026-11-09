@@ -16,7 +16,7 @@ use common::uids::{ai_uid::AiUid, ao_uid::AoUid, bi_uid::BiUid, bo_uid::BoUid};
 use common::{
     conformance_testing::{
         logging::log_conformance_result,
-        message_structure::{SunSpecComment, TestName},
+        message_structure::{ConformanceCheck, SunSpecComment, TestName},
     },
     profile::validation::ValidationErrors,
 };
@@ -41,6 +41,7 @@ fn validate_ai_received(state: &ControlStationState, uid: AiUid) -> SunSpecComme
     SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AI{index}"),
+        check: ConformanceCheck::ReceivedFromOutstation,
         value: if passed {
             "Received".into()
         } else {
@@ -70,6 +71,7 @@ fn validate_bi_received(state: &ControlStationState, uid: BiUid) -> SunSpecComme
     SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("BI{index}"),
+        check: ConformanceCheck::ReceivedFromOutstation,
         value: if passed {
             "Received".into()
         } else {
@@ -94,6 +96,7 @@ fn validate_ao_sent(state: &ControlStationState, uid: AoUid) -> SunSpecComment {
     SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
+        check: ConformanceCheck::WrittenToOutstation,
         value: if passed {
             "Sent".into()
         } else {
@@ -134,6 +137,7 @@ fn validate_ai_in_range(state: &ControlStationState, uid: AiUid) -> SunSpecComme
     SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AI{index}"),
+        check: ConformanceCheck::WithinProfileRange,
         value,
         message,
         passed,
@@ -163,6 +167,7 @@ fn validate_ao_in_range(state: &ControlStationState, uid: AoUid) -> SunSpecComme
     SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
+        check: ConformanceCheck::WithinProfileRange,
         value,
         message,
         passed,
@@ -176,6 +181,7 @@ fn validate_bo_sent(state: &ControlStationState, uid: BoUid) -> SunSpecComment {
     SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("BO{index}"),
+        check: ConformanceCheck::WrittenToOutstation,
         value: if passed {
             "Sent".into()
         } else {
@@ -215,6 +221,7 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                 comments.push(SunSpecComment {
                     uid: format!("{selector_uid:?}"),
                     index: format!("Curve {entry_number}"),
+                    check: ConformanceCheck::CurveReadbackMatchesProfile,
                     value: "No entry".into(),
                     message: format!(
                         "Curve {entry_number} has no database entry (out of max range)"
@@ -226,6 +233,7 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                 comments.push(SunSpecComment {
                     uid: format!("{selector_uid:?}"),
                     index: format!("Curve {entry_number}"),
+                    check: ConformanceCheck::CurveReadbackMatchesProfile,
                     value: "No readback".into(),
                     message: format!("Curve {entry_number}: no readback received from outstation"),
                     passed: false,
@@ -248,6 +256,7 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                         comments.push(SunSpecComment {
                             uid: format!("{selector_uid:?}"),
                             index: format!("Curve {entry_number}"),
+                            check: ConformanceCheck::CurveReadbackMatchesProfile,
                             value: String::new(),
                             message: format!("Curve {entry_number}: scaling error: {err}"),
                             passed: false,
@@ -268,6 +277,7 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                             comments.push(SunSpecComment {
                                     uid: format!("{selector_uid:?}"),
                                     index: format!("Curve {entry_number} {}", point_value.key()),
+                                    check: ConformanceCheck::CurveReadbackMatchesProfile,
                                     value: point_value.to_string(),
                                     message: format!(
                                         "For a control station curve point, the control station wrote that value to the outstation, but the outstation read back a different value. Curve #{}, Point {}: expected {}, got {}",
@@ -279,6 +289,7 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                             comments.push(SunSpecComment {
                                 uid: format!("{selector_uid:?}"),
                                 index: format!("Curve {entry_number} {}", point_value.key()),
+                                check: ConformanceCheck::CurveReadbackMatchesProfile,
                                 value: point_value.to_string(),
                                 message: format!("Curve {entry_number} {} readback matches profile value {expected}", point_value.key()),
                                 passed: true,
@@ -310,6 +321,7 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                 comments.push(SunSpecComment {
                     uid: selector_uid.clone(),
                     index: format!("BC Schedule {entry_number}"),
+                    check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                     value: "No entry".into(),
                     message: format!(
                         "BC Schedule {entry_number} has no database entry (out of max range)"
@@ -321,6 +333,7 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                 comments.push(SunSpecComment {
                     uid: selector_uid.clone(),
                     index: format!("BC Schedule {entry_number}"),
+                    check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                     value: "No readback".into(),
                     message: format!(
                         "BC Schedule {entry_number}: no readback received from outstation"
@@ -345,6 +358,7 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                             comments.push(SunSpecComment {
                                 uid: selector_uid.clone(),
                                 index: format!("BC Schedule {entry_number}"),
+                                check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                 value: String::new(),
                                 message: format!(
                                     "BC Schedule {entry_number}: scaling error: {err}"
@@ -361,6 +375,7 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                             comments.push(SunSpecComment {
                                     uid: selector_uid.clone(),
                                     index: format!("BC Schedule {entry_number} {}", point_value.key()),
+                                    check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                     value: point_value.to_string(),
                                     message: format!(
                                         "BC Schedule {entry_number} {} readback {} does not match profile value {}",
@@ -372,6 +387,7 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                             comments.push(SunSpecComment {
                                 uid: selector_uid.clone(),
                                 index: format!("BC Schedule {entry_number} {}", point_value.key()),
+                                check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                 value: point_value.to_string(),
                                 message: format!("BC Schedule {entry_number} {} readback matches profile value {expected}", point_value.key()),
                                 passed: true,
@@ -403,6 +419,7 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                 comments.push(SunSpecComment {
                     uid: selector_uid.clone(),
                     index: format!("Schedule {entry_number}"),
+                    check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                     value: "No entry".into(),
                     message: format!(
                         "Schedule {entry_number} has no database entry (out of max range)"
@@ -414,6 +431,7 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                 comments.push(SunSpecComment {
                     uid: selector_uid.clone(),
                     index: format!("Schedule {entry_number}"),
+                    check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                     value: "No readback".into(),
                     message: format!(
                         "Schedule {entry_number}: no readback received from outstation"
@@ -438,6 +456,7 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                             comments.push(SunSpecComment {
                                 uid: selector_uid.clone(),
                                 index: format!("Schedule {entry_number}"),
+                                check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                 value: String::new(),
                                 message: format!("Schedule {entry_number}: scaling error: {err}"),
                                 passed: false,
@@ -452,6 +471,7 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                             comments.push(SunSpecComment {
                                     uid: selector_uid.clone(),
                                     index: format!("Schedule {entry_number} {}", point_value.key()),
+                                    check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                     value: point_value.to_string(),
                                     message: format!(
                                         "Schedule {entry_number} {} readback {} does not match profile value {}",
@@ -463,6 +483,7 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                             comments.push(SunSpecComment {
                                 uid: selector_uid.clone(),
                                 index: format!("Schedule {entry_number} {}", point_value.key()),
+                                check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                 value: point_value.to_string(),
                                 message: format!("Schedule {entry_number} {} readback matches profile value {expected}", point_value.key()),
                                 passed: true,
@@ -871,6 +892,25 @@ mod tests {
         assert!(events[0].pass);
         assert_eq!(events[0].comments.len(), 6);
         assert!(events[0].comments.iter().all(|comment| comment.passed));
+        assert_eq!(
+            events[0]
+                .comments
+                .iter()
+                .map(|comment| comment.check)
+                .collect::<Vec<_>>(),
+            vec![
+                ConformanceCheck::ReceivedFromOutstation,
+                ConformanceCheck::ReceivedFromOutstation,
+                ConformanceCheck::WrittenToOutstation,
+                ConformanceCheck::WrittenToOutstation,
+                ConformanceCheck::WithinProfileRange,
+                ConformanceCheck::WithinProfileRange,
+            ]
+        );
+        let serialized =
+            serde_json::to_value(&events[0].comments[0]).expect("serialize conformance comment");
+        assert_eq!(serialized["check"], "received_from_outstation");
+        assert_eq!(serialized["passed"], true);
         assert!(!events[1].pass);
         assert_eq!(
             events[1]

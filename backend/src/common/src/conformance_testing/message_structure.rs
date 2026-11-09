@@ -40,11 +40,25 @@ pub enum TestName {
     PSIG_001,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub enum ConformanceCheck {
+    ReceivedFromOutstation,
+    WrittenToOutstation,
+    WithinProfileRange,
+    CurveReadbackMatchesProfile,
+    ScheduleReadbackMatchesProfile,
+    PresentInProfile,
+    WrittenByControlStation,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SunSpecComment {
     pub uid: String,
     /// AI27
     pub index: String,
+    pub check: ConformanceCheck,
     /// Current value of the data point​. String since this is only
     /// for display purposes.
     pub value: String,
@@ -67,4 +81,45 @@ pub struct SunSpecMessage {
 pub struct TestEvent {
     pub pass: bool,
     pub comments: Vec<SunSpecComment>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ConformanceCheck;
+
+    #[test]
+    fn conformance_check_identifiers_round_trip() {
+        let checks = [
+            (
+                ConformanceCheck::ReceivedFromOutstation,
+                "received_from_outstation",
+            ),
+            (
+                ConformanceCheck::WrittenToOutstation,
+                "written_to_outstation",
+            ),
+            (ConformanceCheck::WithinProfileRange, "within_profile_range"),
+            (
+                ConformanceCheck::CurveReadbackMatchesProfile,
+                "curve_readback_matches_profile",
+            ),
+            (
+                ConformanceCheck::ScheduleReadbackMatchesProfile,
+                "schedule_readback_matches_profile",
+            ),
+            (ConformanceCheck::PresentInProfile, "present_in_profile"),
+            (
+                ConformanceCheck::WrittenByControlStation,
+                "written_by_control_station",
+            ),
+        ];
+
+        for (check, identifier) in checks {
+            let serialized = serde_json::to_value(check).expect("serialize check");
+            assert_eq!(serialized, identifier);
+            let deserialized: ConformanceCheck =
+                serde_json::from_value(serialized).expect("deserialize check");
+            assert_eq!(deserialized, check);
+        }
+    }
 }

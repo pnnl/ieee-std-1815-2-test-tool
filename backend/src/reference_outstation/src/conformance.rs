@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use common::conformance_testing::{
     logging::log_conformance_result,
-    message_structure::{SunSpecComment, TestName},
+    message_structure::{ConformanceCheck, SunSpecComment, TestName},
 };
 use common::uids::{ai_uid::AiUid, ao_uid::AoUid, bi_uid::BiUid, bo_uid::BoUid};
 use tracing::{Level, span};
@@ -39,6 +39,7 @@ fn validate_ai_present(state: &AppState, uid: AiUid) -> Option<SunSpecComment> {
     Some(SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AI{index}"),
+        check: ConformanceCheck::PresentInProfile,
         value: "Not present".into(),
         message: format!("AI{index} is not defined in the loaded PicsProfile"),
         passed: false,
@@ -60,6 +61,7 @@ fn validate_bi_present(state: &AppState, uid: BiUid) -> Option<SunSpecComment> {
     Some(SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("BI{index}"),
+        check: ConformanceCheck::PresentInProfile,
         value: "Not present".into(),
         message: format!("BI{index} is not defined in the loaded PicsProfile"),
         passed: false,
@@ -75,6 +77,7 @@ fn validate_ao_written(state: &AppState, uid: AoUid) -> Option<SunSpecComment> {
     Some(SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
+        check: ConformanceCheck::WrittenByControlStation,
         value: "Not written".into(),
         message: format!("AO{index} has not been written by the control station"),
         passed: false,
@@ -88,6 +91,7 @@ fn validate_ao_in_range(state: &AppState, uid: AoUid) -> Option<SunSpecComment> 
     Some(SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
+        check: ConformanceCheck::WithinProfileRange,
         value: format!("{value}"),
         message: format!(
             "AO{index} command value {value} is out of the profile range [{min}, {max}]"
@@ -105,6 +109,7 @@ fn validate_bo_written(state: &AppState, uid: BoUid) -> Option<SunSpecComment> {
     Some(SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("BO{index}"),
+        check: ConformanceCheck::WrittenByControlStation,
         value: "Not written".into(),
         message: format!("BO{index} has not been written by the control station"),
         passed: false,
