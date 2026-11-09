@@ -182,9 +182,9 @@ describe('CurvesTab with a structurally invalid curve_type', () => {
       screen.getByRole('heading', { name: 'HVRT Must Trip' }),
     ).toBeInTheDocument()
 
-    const select = screen.getByLabelText('Select Curve')
-    ;(select as HTMLSelectElement).value = '1'
-    select.dispatchEvent(new Event('change', { bubbles: true }))
+    fireEvent.change(screen.getByLabelText('Select Curve'), {
+      target: { value: '1' },
+    })
 
     expect(
       await screen.findByText('Invalid curve type (99)'),
