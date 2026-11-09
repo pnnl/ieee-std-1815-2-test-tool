@@ -1,4 +1,5 @@
 import { Input } from '@/components/ui/input'
+import PointDescription from '@/components/PointDescription'
 import { TableRow, TableCell } from '@/components/ui/table'
 import type { FlatPoint, FlatAiPoint } from '@/profile/canonical'
 import type { ValidationError } from '@/api/generated'
@@ -86,7 +87,7 @@ function PointRow({
         className="whitespace-normal break-words"
         style={{ width: columnWidths[1] ? `${columnWidths[1]}px` : undefined }}
       >
-        {point.name || ''}
+        <PointDescription text={point.name || ''} />
       </TableCell>
 
       <TableCell
