@@ -115,8 +115,22 @@ fn validate_ao_sent(state: &ControlStationState, uid: AoUid) -> SunSpecComment {
 }
 
 /// Reports whether an AI range violation has been recorded for `uid`.
-fn validate_ai_in_range(state: &ControlStationState, uid: AiUid) -> SunSpecComment {
+fn validate_ai_in_range(state: &ControlStationState, uid: AiUid) -> Option<SunSpecComment> {
     let index = uid as u16;
+    if !state
+        .profile_index
+        .read()
+        .unwrap()
+        .ai_points
+        .contains_key(&index)
+        || !state
+            .latest_transmission_values
+            .read()
+            .unwrap()
+            .contains_key(&format!("analog_input:{index}"))
+    {
+        return None;
+    }
     let violation = state
         .ai_range_violations
         .read()
@@ -134,19 +148,33 @@ fn validate_ai_in_range(state: &ControlStationState, uid: AiUid) -> SunSpecComme
             format!("AI{index} has no recorded range violation"),
         ),
     };
-    SunSpecComment {
+    Some(SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AI{index}"),
         check: ConformanceCheck::WithinProfileRange,
         value,
         message,
         passed,
-    }
+    })
 }
 
 /// Reports whether an AO readback range violation has been recorded for `uid`.
-fn validate_ao_in_range(state: &ControlStationState, uid: AoUid) -> SunSpecComment {
+fn validate_ao_in_range(state: &ControlStationState, uid: AoUid) -> Option<SunSpecComment> {
     let index = uid as u16;
+    if !state
+        .profile_index
+        .read()
+        .unwrap()
+        .ao_points
+        .contains_key(&index)
+        || !state
+            .latest_transmission_values
+            .read()
+            .unwrap()
+            .contains_key(&format!("analog_output:{index}"))
+    {
+        return None;
+    }
     let violation = state
         .ao_range_violations
         .read()
@@ -164,14 +192,14 @@ fn validate_ao_in_range(state: &ControlStationState, uid: AoUid) -> SunSpecComme
             format!("AO{index} has no recorded range violation"),
         ),
     };
-    SunSpecComment {
+    Some(SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
         check: ConformanceCheck::WithinProfileRange,
         value,
         message,
         passed,
-    }
+    })
 }
 
 /// Reports whether the BO point at `uid` has been sent to the outstation.
@@ -510,8 +538,16 @@ fn run_test(
     comments.extend(bi_uids.iter().map(|&uid| validate_bi_received(state, uid)));
     comments.extend(ao_uids.iter().map(|&uid| validate_ao_sent(state, uid)));
     comments.extend(bo_uids.iter().map(|&uid| validate_bo_sent(state, uid)));
-    comments.extend(ai_uids.iter().map(|&uid| validate_ai_in_range(state, uid)));
-    comments.extend(ao_uids.iter().map(|&uid| validate_ao_in_range(state, uid)));
+    comments.extend(
+        ai_uids
+            .iter()
+            .filter_map(|&uid| validate_ai_in_range(state, uid)),
+    );
+    comments.extend(
+        ao_uids
+            .iter()
+            .filter_map(|&uid| validate_ao_in_range(state, uid)),
+    );
     log_conformance_result(comments.iter().all(|comment| comment.passed), comments);
 }
 
@@ -840,11 +876,25 @@ mod tests {
         assert!(!validate_bi_received(&state, bi).passed);
         assert!(!validate_ao_sent(&state, ao).passed);
         assert!(!validate_bo_sent(&state, bo).passed);
-        assert_eq!(
-            validate_ai_in_range(&state, ai).value,
-            "No violation recorded"
+        assert!(validate_ai_in_range(&state, ai).is_none());
+        assert!(validate_ao_in_range(&state, ao).is_none());
+
+        let initial_events = Arc::new(Mutex::new(Vec::new()));
+        let subscriber =
+            tracing_subscriber::registry().with(EventCapture(Arc::clone(&initial_events)));
+        tracing::subscriber::with_default(subscriber, || {
+            run_test(&state, &[ai], &[bi], &[ao], &[bo]);
+        });
+        let initial_events = initial_events.lock().expect("lock captured events");
+        assert_eq!(initial_events.len(), 1);
+        assert!(!initial_events[0].pass);
+        assert_eq!(initial_events[0].comments.len(), 4);
+        assert!(
+            initial_events[0]
+                .comments
+                .iter()
+                .all(|comment| comment.check != ConformanceCheck::WithinProfileRange)
         );
-        assert!(validate_ao_in_range(&state, ao).passed);
 
         state
             .latest_transmission_values
@@ -864,6 +914,15 @@ mod tests {
             );
         state.record_ao_write(ao as u16);
         state.record_bo_write(bo as u16);
+        assert!(validate_ao_in_range(&state, ao).is_none());
+        state
+            .latest_transmission_values
+            .write()
+            .expect("lock received values")
+            .insert(
+                format!("analog_output:{}", ao as u16),
+                serde_json::Value::Null,
+            );
         assert!(validate_ai_received(&state, ai).passed);
         assert!(validate_bi_received(&state, bi).passed);
         assert!(validate_ao_sent(&state, ao).passed);
@@ -922,6 +981,36 @@ mod tests {
         );
         assert_eq!(events[1].comments[4].value, "11");
         assert_eq!(events[1].comments[5].value, "12");
+    }
+
+    #[test]
+    fn range_checks_require_points_in_the_profile() {
+        let state = test_state();
+        let ai = AiUid::Connect_DCTE3_WinTms;
+        let ao = AoUid::Connect_DCTE3_WinTms;
+        let profile = state.profile.read().expect("lock profile");
+        let mut profile_index = ProfileIndex::from_profile(&profile);
+        profile_index.ai_points.remove(&(ai as u16));
+        profile_index.ao_points.remove(&(ao as u16));
+        *state.profile_index.write().expect("lock profile index") = Arc::new(profile_index);
+        drop(profile);
+
+        let mut received = state
+            .latest_transmission_values
+            .write()
+            .expect("lock received values");
+        received.insert(
+            format!("analog_input:{}", ai as u16),
+            serde_json::Value::Null,
+        );
+        received.insert(
+            format!("analog_output:{}", ao as u16),
+            serde_json::Value::Null,
+        );
+        drop(received);
+
+        assert!(validate_ai_in_range(&state, ai).is_none());
+        assert!(validate_ao_in_range(&state, ao).is_none());
     }
 
     #[test]
