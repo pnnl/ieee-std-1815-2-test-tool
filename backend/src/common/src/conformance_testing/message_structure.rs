@@ -49,7 +49,9 @@ pub struct SunSpecComment {
     /// for display purposes.
     pub value: String,
     /// IEEE 1815.2 clause/statement that was failed​
-    pub issue: String,
+    pub message: String,
+    /// Whether the check passed or failed.
+    pub passed: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -85,7 +85,7 @@ fn format_conformance_log(payload: &serde_json::Value, should_pass: Option<bool>
             .get("comments")
             .and_then(|v| v.as_array())
             .and_then(|arr| arr.first())
-            .and_then(|c| c.get("issue"))
+            .and_then(|c| c.get("message"))
             .and_then(|v| v.as_str())
         {
             line = format!("{line} - {first_issue}");

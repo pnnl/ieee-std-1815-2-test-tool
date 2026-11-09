@@ -28,98 +28,169 @@ use crate::state::{ControlStationState, RangeViolation};
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Returns a comment if the AI point at `uid` has **not been received** from the outstation.
-fn validate_ai_received(state: &ControlStationState, uid: AiUid) -> Option<SunSpecComment> {
+/// Reports whether the AI point at `uid` has been received from the outstation.
+fn validate_ai_received(state: &ControlStationState, uid: AiUid) -> SunSpecComment {
     let index = uid as u16;
     let key = format!("analog_input:{index}");
-    if state
+    let passed = state
         .latest_transmission_values
         .read()
         .unwrap()
-        .contains_key(&key)
-    {
-        return None;
-    }
-    Some(SunSpecComment {
+        .contains_key(&key);
+
+    SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AI{index}"),
-        value: "Not received".into(),
-        issue: format!("AI{index} has not been received from the outstation"),
-    })
+        value: if passed {
+            "Received".into()
+        } else {
+            "Not received".into()
+        },
+        message: format!(
+            "AI{index} has {} from the outstation",
+            if passed {
+                "been received"
+            } else {
+                "not been received"
+            }
+        ),
+        passed,
+    }
 }
 
-/// Returns a comment if the BI point at `uid` has **not been received** from the outstation.
-fn validate_bi_received(state: &ControlStationState, uid: BiUid) -> Option<SunSpecComment> {
+/// Reports whether the BI point at `uid` has been received from the outstation.
+fn validate_bi_received(state: &ControlStationState, uid: BiUid) -> SunSpecComment {
     let index = uid as u16;
     let key = format!("binary_input:{index}");
-    if state
+    let passed = state
         .latest_transmission_values
         .read()
         .unwrap()
-        .contains_key(&key)
-    {
-        return None;
-    }
-    Some(SunSpecComment {
+        .contains_key(&key);
+    SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("BI{index}"),
-        value: "Not received".into(),
-        issue: format!("BI{index} has not been received from the outstation"),
-    })
+        value: if passed {
+            "Received".into()
+        } else {
+            "Not received".into()
+        },
+        message: format!(
+            "BI{index} has {} from the outstation",
+            if passed {
+                "been received"
+            } else {
+                "not been received"
+            }
+        ),
+        passed,
+    }
 }
 
-/// Returns a comment if the AO point at `uid` has **not been sent** to the outstation.
-fn validate_ao_sent(state: &ControlStationState, uid: AoUid) -> Option<SunSpecComment> {
+/// Reports whether the AO point at `uid` has been sent to the outstation.
+fn validate_ao_sent(state: &ControlStationState, uid: AoUid) -> SunSpecComment {
     let index = uid as u16;
-    if state.sent_ao_indices.read().unwrap().contains(&index) {
-        return None;
-    }
-    Some(SunSpecComment {
+    let passed = state.sent_ao_indices.read().unwrap().contains(&index);
+    SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
-        value: "Not sent".into(),
-        issue: format!("AO{index} has not been written to the outstation"),
-    })
+        value: if passed {
+            "Sent".into()
+        } else {
+            "Not sent".into()
+        },
+        message: format!(
+            "AO{index} has {} to the outstation",
+            if passed {
+                "been written"
+            } else {
+                "not been written"
+            }
+        ),
+        passed,
+    }
 }
 
-/// Returns a comment if the most recent AI readback value for `uid` was out of range.
-fn validate_ai_in_range(state: &ControlStationState, uid: AiUid) -> Option<SunSpecComment> {
+/// Reports whether an AI range violation has been recorded for `uid`.
+fn validate_ai_in_range(state: &ControlStationState, uid: AiUid) -> SunSpecComment {
     let index = uid as u16;
-    let RangeViolation { value, min, max } =
-        *state.ai_range_violations.read().unwrap().get(&index)?;
-    Some(SunSpecComment {
+    let violation = state
+        .ai_range_violations
+        .read()
+        .unwrap()
+        .get(&index)
+        .copied();
+    let passed = violation.is_none();
+    let (value, message) = match violation {
+        Some(RangeViolation { value, min, max }) => (
+            value.to_string(),
+            format!("AI{index} value {value} is out of the profile range [{min}, {max}]"),
+        ),
+        None => (
+            "No violation recorded".into(),
+            format!("AI{index} has no recorded range violation"),
+        ),
+    };
+    SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AI{index}"),
-        value: format!("{value}"),
-        issue: format!("AI{index} value {value} is out of the profile range [{min}, {max}]"),
-    })
+        value,
+        message,
+        passed,
+    }
 }
 
-/// Returns a comment if the most recent AO status readback value for `uid` was out of range.
-fn validate_ao_in_range(state: &ControlStationState, uid: AoUid) -> Option<SunSpecComment> {
+/// Reports whether an AO readback range violation has been recorded for `uid`.
+fn validate_ao_in_range(state: &ControlStationState, uid: AoUid) -> SunSpecComment {
     let index = uid as u16;
-    let RangeViolation { value, min, max } =
-        *state.ao_range_violations.read().unwrap().get(&index)?;
-    Some(SunSpecComment {
+    let violation = state
+        .ao_range_violations
+        .read()
+        .unwrap()
+        .get(&index)
+        .copied();
+    let passed = violation.is_none();
+    let (value, message) = match violation {
+        Some(RangeViolation { value, min, max }) => (
+            value.to_string(),
+            format!("AO{index} value {value} is out of the profile range [{min}, {max}]"),
+        ),
+        None => (
+            "No violation recorded".into(),
+            format!("AO{index} has no recorded range violation"),
+        ),
+    };
+    SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
-        value: format!("{value}"),
-        issue: format!("AO{index} value {value} is out of the profile range [{min}, {max}]"),
-    })
+        value,
+        message,
+        passed,
+    }
 }
 
-/// Returns a comment if the BO point at `uid` has **not been sent** to the outstation.
-fn validate_bo_sent(state: &ControlStationState, uid: BoUid) -> Option<SunSpecComment> {
+/// Reports whether the BO point at `uid` has been sent to the outstation.
+fn validate_bo_sent(state: &ControlStationState, uid: BoUid) -> SunSpecComment {
     let index = uid as u16;
-    if state.sent_bo_indices.read().unwrap().contains(&index) {
-        return None;
-    }
-    Some(SunSpecComment {
+    let passed = state.sent_bo_indices.read().unwrap().contains(&index);
+    SunSpecComment {
         uid: format!("{uid:?}"),
         index: format!("BO{index}"),
-        value: "Not sent".into(),
-        issue: format!("BO{index} has not been written to the outstation"),
-    })
+        value: if passed {
+            "Sent".into()
+        } else {
+            "Not sent".into()
+        },
+        message: format!(
+            "BO{index} has {} to the outstation",
+            if passed {
+                "been written"
+            } else {
+                "not been written"
+            }
+        ),
+        passed,
+    }
 }
 
 /// Validate curve readback state against the PICS profile.
@@ -145,7 +216,10 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                     uid: format!("{selector_uid:?}"),
                     index: format!("Curve {entry_number}"),
                     value: "No entry".into(),
-                    issue: format!("Curve {entry_number} has no database entry (out of max range)"),
+                    message: format!(
+                        "Curve {entry_number} has no database entry (out of max range)"
+                    ),
+                    passed: false,
                 });
             }
             Some(written) if written.is_empty() => {
@@ -153,7 +227,8 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                     uid: format!("{selector_uid:?}"),
                     index: format!("Curve {entry_number}"),
                     value: "No readback".into(),
-                    issue: format!("Curve {entry_number}: no readback received from outstation"),
+                    message: format!("Curve {entry_number}: no readback received from outstation"),
+                    passed: false,
                 });
             }
             Some(written) => {
@@ -174,7 +249,8 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                             uid: format!("{selector_uid:?}"),
                             index: format!("Curve {entry_number}"),
                             value: String::new(),
-                            issue: format!("Curve {entry_number}: scaling error: {err}"),
+                            message: format!("Curve {entry_number}: scaling error: {err}"),
+                            passed: false,
                         });
                         continue;
                     }
@@ -193,11 +269,20 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                                     uid: format!("{selector_uid:?}"),
                                     index: format!("Curve {entry_number} {}", point_value.key()),
                                     value: point_value.to_string(),
-                                    issue: format!(
+                                    message: format!(
                                         "For a control station curve point, the control station wrote that value to the outstation, but the outstation read back a different value. Curve #{}, Point {}: expected {}, got {}",
                                         entry_number, point_value.key(), expected, point_value
                                     ),
+                                    passed: false,
                                 });
+                        } else {
+                            comments.push(SunSpecComment {
+                                uid: format!("{selector_uid:?}"),
+                                index: format!("Curve {entry_number} {}", point_value.key()),
+                                value: point_value.to_string(),
+                                message: format!("Curve {entry_number} {} readback matches profile value {expected}", point_value.key()),
+                                passed: true,
+                            });
                         }
                     }
                 }
@@ -226,9 +311,10 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                     uid: selector_uid.clone(),
                     index: format!("BC Schedule {entry_number}"),
                     value: "No entry".into(),
-                    issue: format!(
+                    message: format!(
                         "BC Schedule {entry_number} has no database entry (out of max range)"
                     ),
+                    passed: false,
                 });
             }
             Some(written) if written.is_empty() => {
@@ -236,9 +322,10 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                     uid: selector_uid.clone(),
                     index: format!("BC Schedule {entry_number}"),
                     value: "No readback".into(),
-                    issue: format!(
+                    message: format!(
                         "BC Schedule {entry_number}: no readback received from outstation"
                     ),
+                    passed: false,
                 });
             }
             Some(written) => {
@@ -259,7 +346,10 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                                 uid: selector_uid.clone(),
                                 index: format!("BC Schedule {entry_number}"),
                                 value: String::new(),
-                                issue: format!("BC Schedule {entry_number}: scaling error: {err}"),
+                                message: format!(
+                                    "BC Schedule {entry_number}: scaling error: {err}"
+                                ),
+                                passed: false,
                             });
                             continue;
                         }
@@ -272,11 +362,20 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                                     uid: selector_uid.clone(),
                                     index: format!("BC Schedule {entry_number} {}", point_value.key()),
                                     value: point_value.to_string(),
-                                    issue: format!(
+                                    message: format!(
                                         "BC Schedule {entry_number} {} readback {} does not match profile value {}",
                                         point_value.key(), point_value, expected
                                     ),
+                                    passed: false,
                                 });
+                        } else {
+                            comments.push(SunSpecComment {
+                                uid: selector_uid.clone(),
+                                index: format!("BC Schedule {entry_number} {}", point_value.key()),
+                                value: point_value.to_string(),
+                                message: format!("BC Schedule {entry_number} {} readback matches profile value {expected}", point_value.key()),
+                                passed: true,
+                            });
                         }
                     }
                 }
@@ -305,9 +404,10 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                     uid: selector_uid.clone(),
                     index: format!("Schedule {entry_number}"),
                     value: "No entry".into(),
-                    issue: format!(
+                    message: format!(
                         "Schedule {entry_number} has no database entry (out of max range)"
                     ),
+                    passed: false,
                 });
             }
             Some(written) if written.is_empty() => {
@@ -315,7 +415,10 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                     uid: selector_uid.clone(),
                     index: format!("Schedule {entry_number}"),
                     value: "No readback".into(),
-                    issue: format!("Schedule {entry_number}: no readback received from outstation"),
+                    message: format!(
+                        "Schedule {entry_number}: no readback received from outstation"
+                    ),
+                    passed: false,
                 });
             }
             Some(written) => {
@@ -336,7 +439,8 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                                 uid: selector_uid.clone(),
                                 index: format!("Schedule {entry_number}"),
                                 value: String::new(),
-                                issue: format!("Schedule {entry_number}: scaling error: {err}"),
+                                message: format!("Schedule {entry_number}: scaling error: {err}"),
+                                passed: false,
                             });
                             continue;
                         }
@@ -349,11 +453,20 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                                     uid: selector_uid.clone(),
                                     index: format!("Schedule {entry_number} {}", point_value.key()),
                                     value: point_value.to_string(),
-                                    issue: format!(
+                                    message: format!(
                                         "Schedule {entry_number} {} readback {} does not match profile value {}",
                                         point_value.key(), point_value, expected
                                     ),
+                                    passed: false,
                                 });
+                        } else {
+                            comments.push(SunSpecComment {
+                                uid: selector_uid.clone(),
+                                index: format!("Schedule {entry_number} {}", point_value.key()),
+                                value: point_value.to_string(),
+                                message: format!("Schedule {entry_number} {} readback matches profile value {expected}", point_value.key()),
+                                passed: true,
+                            });
                         }
                     }
                 }
@@ -372,37 +485,13 @@ fn run_test(
     bo_uids: &[BoUid],
 ) {
     let mut comments = Vec::new();
-    comments.extend(
-        ai_uids
-            .iter()
-            .filter_map(|&uid| validate_ai_received(state, uid)),
-    );
-    comments.extend(
-        bi_uids
-            .iter()
-            .filter_map(|&uid| validate_bi_received(state, uid)),
-    );
-    comments.extend(
-        ao_uids
-            .iter()
-            .filter_map(|&uid| validate_ao_sent(state, uid)),
-    );
-    comments.extend(
-        bo_uids
-            .iter()
-            .filter_map(|&uid| validate_bo_sent(state, uid)),
-    );
-    comments.extend(
-        ai_uids
-            .iter()
-            .filter_map(|&uid| validate_ai_in_range(state, uid)),
-    );
-    comments.extend(
-        ao_uids
-            .iter()
-            .filter_map(|&uid| validate_ao_in_range(state, uid)),
-    );
-    log_conformance_result(comments.is_empty(), comments);
+    comments.extend(ai_uids.iter().map(|&uid| validate_ai_received(state, uid)));
+    comments.extend(bi_uids.iter().map(|&uid| validate_bi_received(state, uid)));
+    comments.extend(ao_uids.iter().map(|&uid| validate_ao_sent(state, uid)));
+    comments.extend(bo_uids.iter().map(|&uid| validate_bo_sent(state, uid)));
+    comments.extend(ai_uids.iter().map(|&uid| validate_ai_in_range(state, uid)));
+    comments.extend(ao_uids.iter().map(|&uid| validate_ao_in_range(state, uid)));
+    log_conformance_result(comments.iter().all(|comment| comment.passed), comments);
 }
 
 // ---------------------------------------------------------------------------
@@ -439,52 +528,28 @@ fn op_001(state: &ControlStationState) {
 fn curve_001(state: &ControlStationState) {
     let pts = common::conformance_testing::point_lists::curve_001();
     let mut comments = Vec::new();
-    comments.extend(
-        pts.bi
-            .iter()
-            .filter_map(|&uid| validate_bi_received(state, uid)),
-    );
-    comments.extend(
-        pts.ao
-            .iter()
-            .filter_map(|&uid| validate_ao_sent(state, uid)),
-    );
+    comments.extend(pts.bi.iter().map(|&uid| validate_bi_received(state, uid)));
+    comments.extend(pts.ao.iter().map(|&uid| validate_ao_sent(state, uid)));
     comments.extend(validate_curves_from_outstation(state));
-    log_conformance_result(comments.is_empty(), comments);
+    log_conformance_result(comments.iter().all(|comment| comment.passed), comments);
 }
 
 fn curve_002(state: &ControlStationState) {
     let pts = common::conformance_testing::point_lists::curve_002();
     let mut comments = Vec::new();
-    comments.extend(
-        pts.bi
-            .iter()
-            .filter_map(|&uid| validate_bi_received(state, uid)),
-    );
-    comments.extend(
-        pts.ao
-            .iter()
-            .filter_map(|&uid| validate_ao_sent(state, uid)),
-    );
+    comments.extend(pts.bi.iter().map(|&uid| validate_bi_received(state, uid)));
+    comments.extend(pts.ao.iter().map(|&uid| validate_ao_sent(state, uid)));
     comments.extend(validate_curves_from_outstation(state));
-    log_conformance_result(comments.is_empty(), comments);
+    log_conformance_result(comments.iter().all(|comment| comment.passed), comments);
 }
 
 fn curve_003(state: &ControlStationState) {
     let pts = common::conformance_testing::point_lists::curve_003();
     let mut comments = Vec::new();
-    comments.extend(
-        pts.bi
-            .iter()
-            .filter_map(|&uid| validate_bi_received(state, uid)),
-    );
-    comments.extend(
-        pts.ao
-            .iter()
-            .filter_map(|&uid| validate_ao_sent(state, uid)),
-    );
+    comments.extend(pts.bi.iter().map(|&uid| validate_bi_received(state, uid)));
+    comments.extend(pts.ao.iter().map(|&uid| validate_ao_sent(state, uid)));
     comments.extend(validate_curves_from_outstation(state));
-    log_conformance_result(comments.is_empty(), comments);
+    log_conformance_result(comments.iter().all(|comment| comment.passed), comments);
 }
 
 fn vrt_001(state: &ControlStationState) {
@@ -595,55 +660,23 @@ fn psig_001(state: &ControlStationState) {
 fn sched_001(state: &ControlStationState) {
     let pts = common::conformance_testing::point_lists::sched_001();
     let mut comments = Vec::new();
-    comments.extend(
-        pts.ai
-            .iter()
-            .filter_map(|&uid| validate_ai_received(state, uid)),
-    );
-    comments.extend(
-        pts.bi
-            .iter()
-            .filter_map(|&uid| validate_bi_received(state, uid)),
-    );
-    comments.extend(
-        pts.ao
-            .iter()
-            .filter_map(|&uid| validate_ao_sent(state, uid)),
-    );
-    comments.extend(
-        pts.bo
-            .iter()
-            .filter_map(|&uid| validate_bo_sent(state, uid)),
-    );
+    comments.extend(pts.ai.iter().map(|&uid| validate_ai_received(state, uid)));
+    comments.extend(pts.bi.iter().map(|&uid| validate_bi_received(state, uid)));
+    comments.extend(pts.ao.iter().map(|&uid| validate_ao_sent(state, uid)));
+    comments.extend(pts.bo.iter().map(|&uid| validate_bo_sent(state, uid)));
     comments.extend(validate_schedule_bc_readback(state));
-    log_conformance_result(comments.is_empty(), comments);
+    log_conformance_result(comments.iter().all(|comment| comment.passed), comments);
 }
 
 fn sched_002(state: &ControlStationState) {
     let pts = common::conformance_testing::point_lists::sched_002();
     let mut comments = Vec::new();
-    comments.extend(
-        pts.ai
-            .iter()
-            .filter_map(|&uid| validate_ai_received(state, uid)),
-    );
-    comments.extend(
-        pts.bi
-            .iter()
-            .filter_map(|&uid| validate_bi_received(state, uid)),
-    );
-    comments.extend(
-        pts.ao
-            .iter()
-            .filter_map(|&uid| validate_ao_sent(state, uid)),
-    );
-    comments.extend(
-        pts.bo
-            .iter()
-            .filter_map(|&uid| validate_bo_sent(state, uid)),
-    );
+    comments.extend(pts.ai.iter().map(|&uid| validate_ai_received(state, uid)));
+    comments.extend(pts.bi.iter().map(|&uid| validate_bi_received(state, uid)));
+    comments.extend(pts.ao.iter().map(|&uid| validate_ao_sent(state, uid)));
+    comments.extend(pts.bo.iter().map(|&uid| validate_bo_sent(state, uid)));
     comments.extend(validate_schedule_readback(state));
-    log_conformance_result(comments.is_empty(), comments);
+    log_conformance_result(comments.iter().all(|comment| comment.passed), comments);
 }
 
 // ---------------------------------------------------------------------------
@@ -702,4 +735,258 @@ pub fn run_conformance_tests(state: &Arc<ControlStationState>) {
     run!(PSIG_001, psig_001);
     run!(SCHED_001, sched_001);
     run!(SCHED_002, sched_002);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::{HashMap, HashSet};
+    use std::sync::{Arc, Mutex, RwLock};
+
+    use common::conformance_testing::message_structure::TestEvent;
+    use common::profile::values::TransmissionI32;
+    use common::profile::{
+        CurveDatabase, DatabasesConfig, PicsProfile, ProfileIndex, ScheduleBCDatabase,
+        ScheduleDatabase,
+    };
+    use tracing::{
+        Event, Subscriber,
+        field::{Field, Visit},
+    };
+    use tracing_subscriber::{Layer, layer::Context, prelude::*};
+
+    use super::*;
+
+    struct EventCapture(Arc<Mutex<Vec<TestEvent>>>);
+
+    impl<S: Subscriber> Layer<S> for EventCapture {
+        fn on_event(&self, event: &Event<'_>, _context: Context<'_, S>) {
+            struct EventVisitor<'a>(&'a Mutex<Vec<TestEvent>>);
+
+            impl Visit for EventVisitor<'_> {
+                fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+                    if field.name() == "event_json" {
+                        self.0.lock().expect("lock captured events").push(
+                            serde_json::from_str(&format!("{value:?}"))
+                                .expect("parse conformance event"),
+                        );
+                    }
+                }
+            }
+
+            event.record(&mut EventVisitor(&self.0));
+        }
+    }
+
+    fn test_state() -> ControlStationState {
+        let profile = Arc::new(PicsProfile::load_full_profile());
+        let config = DatabasesConfig::from_profile(&profile);
+        ControlStationState {
+            latest_transmission_values: RwLock::new(HashMap::new()),
+            profile_index: RwLock::new(Arc::new(ProfileIndex::from_profile(&profile))),
+            outstation_curve_database: RwLock::new(CurveDatabase::from_profile(
+                &profile,
+                config.max_curves,
+                AiUid::Curve_DGSMn_InCrv,
+            )),
+            schedule_bc_database: RwLock::new(ScheduleBCDatabase::from_profile(
+                &profile,
+                config.max_schedules_bc,
+                AiUid::BC_Scheduling_BC_FSCC_Schd,
+            )),
+            schedule_database: RwLock::new(ScheduleDatabase::from_profile(
+                &profile,
+                config.max_schedules,
+                AiUid::Scheduling_FSCC_Schd,
+            )),
+            profile: RwLock::new(profile),
+            sent_ao_indices: RwLock::new(HashSet::new()),
+            sent_bo_indices: RwLock::new(HashSet::new()),
+            ai_range_violations: RwLock::new(HashMap::new()),
+            ao_range_violations: RwLock::new(HashMap::new()),
+            scenario_id: Arc::new(Mutex::new(String::new())),
+        }
+    }
+
+    #[test]
+    fn point_checks_report_successes_and_failures() {
+        let state = test_state();
+        let ai = AiUid::Connect_DCTE3_WinTms;
+        let bi = BiUid::Monitoring_CSWI_Pos_1;
+        let ao = AoUid::Connect_DCTE3_WinTms;
+        let bo = BoUid::Monitoring_CSWI_Pos;
+
+        assert!(!validate_ai_received(&state, ai).passed);
+        assert!(!validate_bi_received(&state, bi).passed);
+        assert!(!validate_ao_sent(&state, ao).passed);
+        assert!(!validate_bo_sent(&state, bo).passed);
+        assert_eq!(
+            validate_ai_in_range(&state, ai).value,
+            "No violation recorded"
+        );
+        assert!(validate_ao_in_range(&state, ao).passed);
+
+        state
+            .latest_transmission_values
+            .write()
+            .expect("lock received values")
+            .insert(
+                format!("analog_input:{}", ai as u16),
+                serde_json::Value::Null,
+            );
+        state
+            .latest_transmission_values
+            .write()
+            .expect("lock received values")
+            .insert(
+                format!("binary_input:{}", bi as u16),
+                serde_json::Value::Null,
+            );
+        state.record_ao_write(ao as u16);
+        state.record_bo_write(bo as u16);
+        assert!(validate_ai_received(&state, ai).passed);
+        assert!(validate_bi_received(&state, bi).passed);
+        assert!(validate_ao_sent(&state, ao).passed);
+        assert!(validate_bo_sent(&state, bo).passed);
+
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let subscriber = tracing_subscriber::registry().with(EventCapture(Arc::clone(&events)));
+        tracing::subscriber::with_default(subscriber, || {
+            run_test(&state, &[ai], &[bi], &[ao], &[bo]);
+            state.record_ai_range_violation(
+                ai as u16,
+                TransmissionI32(11),
+                TransmissionI32(0),
+                TransmissionI32(10),
+            );
+            state.record_ao_range_violation(
+                ao as u16,
+                TransmissionI32(12),
+                TransmissionI32(0),
+                TransmissionI32(10),
+            );
+            run_test(&state, &[ai], &[bi], &[ao], &[bo]);
+        });
+        let events = events.lock().expect("lock captured events");
+        assert_eq!(events.len(), 2);
+        assert!(events[0].pass);
+        assert_eq!(events[0].comments.len(), 6);
+        assert!(events[0].comments.iter().all(|comment| comment.passed));
+        assert!(!events[1].pass);
+        assert_eq!(
+            events[1]
+                .comments
+                .iter()
+                .filter(|comment| !comment.passed)
+                .count(),
+            2
+        );
+        assert_eq!(events[1].comments[4].value, "11");
+        assert_eq!(events[1].comments[5].value, "12");
+    }
+
+    #[test]
+    fn readback_checks_report_matches_and_mismatches() {
+        let state = test_state();
+        let profile = state.profile.read().expect("lock profile");
+        let curve = AiValue::try_from(&profile.ai.curves[0].curve_type).expect("valid curve value");
+        let schedule_bc = AiValue::try_from(
+            profile.ai.schedules_bc[0]
+                .iter_points()
+                .into_iter()
+                .find(|point| point.assoc_ao.is_some())
+                .expect("BC schedule has a writable point"),
+        )
+        .expect("valid BC schedule value");
+        let schedule = AiValue::try_from(
+            profile.ai.schedules[0]
+                .iter_points()
+                .into_iter()
+                .find(|point| point.assoc_ao.is_some())
+                .expect("schedule has a writable point"),
+        )
+        .expect("valid schedule value");
+        drop(profile);
+
+        state
+            .outstation_curve_database
+            .write()
+            .expect("lock curve database")
+            .update_value(curve.index, curve.value);
+        state
+            .schedule_bc_database
+            .write()
+            .expect("lock BC schedule database")
+            .update_value(schedule_bc.index, schedule_bc.value);
+        state
+            .schedule_database
+            .write()
+            .expect("lock schedule database")
+            .update_value(schedule.index, schedule.value);
+
+        for (comments, index) in [
+            (
+                validate_curves_from_outstation(&state),
+                format!("Curve 1 AI{}", curve.index),
+            ),
+            (
+                validate_schedule_bc_readback(&state),
+                format!("BC Schedule 1 AI{}", schedule_bc.index),
+            ),
+            (
+                validate_schedule_readback(&state),
+                format!("Schedule 1 AI{}", schedule.index),
+            ),
+        ] {
+            assert!(
+                comments
+                    .iter()
+                    .any(|comment| comment.index == index && comment.passed),
+                "missing passing comment for {index}"
+            );
+        }
+
+        state
+            .outstation_curve_database
+            .write()
+            .expect("lock curve database")
+            .update_value(curve.index, TransmissionI32(curve.value.0.wrapping_add(1)));
+        state
+            .schedule_bc_database
+            .write()
+            .expect("lock BC schedule database")
+            .update_value(
+                schedule_bc.index,
+                TransmissionI32(schedule_bc.value.0.wrapping_add(1)),
+            );
+        state
+            .schedule_database
+            .write()
+            .expect("lock schedule database")
+            .update_value(
+                schedule.index,
+                TransmissionI32(schedule.value.0.wrapping_add(1)),
+            );
+
+        for (comments, index) in [
+            (
+                validate_curves_from_outstation(&state),
+                format!("Curve 1 AI{}", curve.index),
+            ),
+            (
+                validate_schedule_bc_readback(&state),
+                format!("BC Schedule 1 AI{}", schedule_bc.index),
+            ),
+            (
+                validate_schedule_readback(&state),
+                format!("Schedule 1 AI{}", schedule.index),
+            ),
+        ] {
+            assert!(
+                comments
+                    .iter()
+                    .any(|comment| comment.index == index && !comment.passed),
+                "missing failing comment for {index}"
+            );
+        }
+    }
 }

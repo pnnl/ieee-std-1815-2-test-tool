@@ -40,7 +40,8 @@ fn validate_ai_present(state: &AppState, uid: AiUid) -> Option<SunSpecComment> {
         uid: format!("{uid:?}"),
         index: format!("AI{index}"),
         value: "Not present".into(),
-        issue: format!("AI{index} is not defined in the loaded PicsProfile"),
+        message: format!("AI{index} is not defined in the loaded PicsProfile"),
+        passed: false,
     })
 }
 
@@ -60,7 +61,8 @@ fn validate_bi_present(state: &AppState, uid: BiUid) -> Option<SunSpecComment> {
         uid: format!("{uid:?}"),
         index: format!("BI{index}"),
         value: "Not present".into(),
-        issue: format!("BI{index} is not defined in the loaded PicsProfile"),
+        message: format!("BI{index} is not defined in the loaded PicsProfile"),
+        passed: false,
     })
 }
 
@@ -74,7 +76,8 @@ fn validate_ao_written(state: &AppState, uid: AoUid) -> Option<SunSpecComment> {
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
         value: "Not written".into(),
-        issue: format!("AO{index} has not been written by the control station"),
+        message: format!("AO{index} has not been written by the control station"),
+        passed: false,
     })
 }
 
@@ -86,9 +89,10 @@ fn validate_ao_in_range(state: &AppState, uid: AoUid) -> Option<SunSpecComment> 
         uid: format!("{uid:?}"),
         index: format!("AO{index}"),
         value: format!("{value}"),
-        issue: format!(
+        message: format!(
             "AO{index} command value {value} is out of the profile range [{min}, {max}]"
         ),
+        passed: false,
     })
 }
 
@@ -102,7 +106,8 @@ fn validate_bo_written(state: &AppState, uid: BoUid) -> Option<SunSpecComment> {
         uid: format!("{uid:?}"),
         index: format!("BO{index}"),
         value: "Not written".into(),
-        issue: format!("BO{index} has not been written by the control station"),
+        message: format!("BO{index} has not been written by the control station"),
+        passed: false,
     })
 }
 

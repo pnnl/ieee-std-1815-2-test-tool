@@ -69,7 +69,8 @@ export type SunSpecComment = {
   uid: string
   index: string // e.g AO25
   value: string
-  issue: string
+  message: string
+  passed: boolean
 }
 
 // General events
