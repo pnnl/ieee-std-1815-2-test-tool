@@ -21,6 +21,10 @@ function resultRank(result: PointResult | undefined): number {
   return result.passed ? 2 : 0
 }
 
+function isNotApplicable(row: { index: string }, check: SortColumn): boolean {
+  return check === 'written_to_outstation' && /^(AI|BI)\d+$/.test(row.index)
+}
+
 export default function PointResultsTable({
   profile,
   results,
@@ -42,8 +46,12 @@ export default function PointResultsTable({
       if (sort.column === 'index' || sort.column === 'name') {
         comparison = compareText(first[sort.column], second[sort.column])
       } else {
-        const firstResult = first.checks[sort.column]
-        const secondResult = second.checks[sort.column]
+        const firstResult = isNotApplicable(first, sort.column)
+          ? undefined
+          : first.checks[sort.column]
+        const secondResult = isNotApplicable(second, sort.column)
+          ? undefined
+          : second.checks[sort.column]
         comparison = resultRank(firstResult) - resultRank(secondResult)
       }
       if (comparison === 0) return compareText(first.index, second.index)
@@ -108,7 +116,8 @@ export default function PointResultsTable({
                 <th scope="row">{row.index}</th>
                 <td>{row.name}</td>
                 {POINT_CHECKS.map(({ check, label }) => {
-                  const result = row.checks[check]
+                  const notApplicable = isNotApplicable(row, check)
+                  const result = notApplicable ? undefined : row.checks[check]
                   let outcome = 'No information'
                   let icon = (
                     <Minus
@@ -117,7 +126,10 @@ export default function PointResultsTable({
                       aria-hidden="true"
                     />
                   )
-                  if (result?.passed) {
+                  if (notApplicable) {
+                    outcome = 'Not applicable'
+                    icon = <>n/a</>
+                  } else if (result?.passed) {
                     outcome = 'Passed'
                     icon = (
                       <Check

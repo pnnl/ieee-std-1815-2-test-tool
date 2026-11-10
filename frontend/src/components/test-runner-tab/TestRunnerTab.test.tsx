@@ -425,6 +425,81 @@ describe('handleDownload enabled when testResults is non-empty', () => {
 describe('point results', () => {
   afterEach(() => MockEventSource.reset())
 
+  it('shows n/a for writes to input points without an associated output', () => {
+    const profile = {
+      ...fakeProfile,
+      AI: {
+        ...fakeProfile.AI,
+        points: [
+          { point_index: 12, name: 'Input only' },
+          { point_index: 13, name: 'Paired input' },
+        ],
+      },
+      AO: {
+        ...fakeProfile.AO,
+        points: [{ point_index: 5, assoc_ai: 'AI13' }, { point_index: 6 }],
+      },
+      BI: {
+        ...fakeProfile.BI,
+        points: [
+          { point_index: 7, name: 'Binary input only' },
+          { point_index: 8, name: 'Paired binary input' },
+        ],
+      },
+      BO: { ...fakeProfile.BO, points: [{ point_index: 9, assoc_bi: 'BI8' }] },
+    } as PicsProfile
+    render(
+      <PointResultsTable
+        profile={profile}
+        results={{
+          test: {
+            event_type: 'conformance_test_result',
+            scenario_id: 'scenario',
+            test: 'MON_001',
+            timestamp: 1,
+            passed: false,
+            comments: [
+              {
+                uid: 'uid',
+                index: 'AI12',
+                check: 'written_to_outstation',
+                value: '',
+                message: 'Not written',
+                passed: false,
+              },
+            ],
+          },
+        }}
+      />,
+    )
+
+    expect(
+      screen.getByRole('cell', {
+        name: 'AI12, Written to outstation: Not applicable',
+      }),
+    ).toHaveTextContent('n/a')
+    expect(
+      screen.getByRole('cell', {
+        name: 'AO5 / AI13, Written to outstation: No information',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', {
+        name: 'AO6, Written to outstation: No information',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', {
+        name: 'BI7, Written to outstation: Not applicable',
+      }),
+    ).toHaveTextContent('n/a')
+    expect(
+      screen.getByRole('cell', {
+        name: 'BO9 / BI8, Written to outstation: No information',
+      }),
+    ).toBeInTheDocument()
+  })
+
   it('shows associated AI and AO outcomes on one row', () => {
     const profile = {
       ...fakeProfile,
@@ -585,7 +660,7 @@ describe('point results', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Sort by Written to outstation' }),
     )
-    expect(indices()).toEqual(['AI3', 'AI10', 'AI2'])
+    expect(indices()).toEqual(['AI2', 'AI3', 'AI10'])
     fireEvent.click(
       screen.getByRole('button', { name: 'Sort by Within profile range' }),
     )
@@ -649,9 +724,9 @@ describe('point results', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByRole('cell', {
-        name: 'AI12, Written to outstation: No information',
+        name: 'AI12, Written to outstation: Not applicable',
       }),
-    ).toBeInTheDocument()
+    ).toHaveTextContent('n/a')
 
     await act(async () => {
       eventSource.simulateConformanceResult('sc-002', 'MON_001', false, [
