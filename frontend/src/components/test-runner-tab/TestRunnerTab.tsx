@@ -35,6 +35,7 @@ const PROCESS_STATUS_CLASSES: Partial<Record<ProcessStatus, string>> = {
 import type { PicsProfile } from '@/api/generated'
 import { toast } from 'sonner'
 import TestResultsTree from './TestResultsTree'
+import PointResultsTable from './PointResultsTable'
 import { type Scenario, fetchScenarios } from './scenarios'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -360,7 +361,6 @@ function TestRunnerTab({
 
   const handleClearLogs = () => {
     setLogs([])
-    setTestResults({})
     logIdCounterRef.current = 0
   }
 
@@ -585,6 +585,9 @@ function TestRunnerTab({
         />
         <Panel id="test-runner-logs" minSize="250px">
           <div className={styles.testRunnerLogs}>
+            {deviceUnderTest === 'outstation' && (
+              <PointResultsTable profile={profileData} results={testResults} />
+            )}
             <div className={styles.logControls}>
               <div className={styles.logFilterGroup}>
                 <span className={styles.filterLabel}>Filter:</span>

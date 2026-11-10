@@ -9,7 +9,7 @@ import {
   triggerBundleDownload,
   type BundleInput,
 } from './exportBundle'
-import type { ConformanceTestResult } from './types'
+import type { ConformanceTestResult, SunSpecComment } from './types'
 import type { Scenario } from './scenarios'
 import type { PicsProfile } from '@/api/generated'
 
@@ -390,9 +390,23 @@ describe('computeSummary: outcome counts', () => {
 
 describe('buildResultsJson: comments forwarded verbatim', () => {
   it('includes comments array verbatim from the ConformanceTestResult', () => {
-    const comments = [
-      { uid: 'u1', index: 'AO25', value: '42', issue: 'none' },
-      { uid: 'u2', index: 'AO26', value: '0', issue: 'check' },
+    const comments: SunSpecComment[] = [
+      {
+        uid: 'u1',
+        index: 'AO25',
+        check: 'within_profile_range',
+        value: '42',
+        message: 'In range',
+        passed: true,
+      },
+      {
+        uid: 'u2',
+        index: 'AO26',
+        check: 'within_profile_range',
+        value: '0',
+        message: 'Out of range',
+        passed: false,
+      },
     ]
     const input = makeInput({
       results: {

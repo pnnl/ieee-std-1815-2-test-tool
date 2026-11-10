@@ -68,10 +68,20 @@ export type ConformanceTestResult = {
 export type SunSpecComment = {
   uid: string
   index: string // e.g AO25
+  check: ConformanceCheck
   value: string
   message: string
   passed: boolean
 }
+
+export type ConformanceCheck =
+  | 'received_from_outstation'
+  | 'written_to_outstation'
+  | 'within_profile_range'
+  | 'curve_readback_matches_profile'
+  | 'schedule_readback_matches_profile'
+  | 'present_in_profile'
+  | 'written_by_control_station'
 
 // General events
 export type TestRunnerEvent = {

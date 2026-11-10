@@ -1,0 +1,67 @@
+.results {
+  min-width: 0;
+  margin-bottom: 12px;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.scrollArea {
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid #e1e6ee;
+  border-radius: 4px;
+}
+
+.table {
+  width: 100%;
+  min-width: 660px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #e1e6ee;
+  text-align: left;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f7f9fc;
+  font-weight: 600;
+}
+
+.table tbody th {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.table .resultCell {
+  text-align: center;
+}
+
+.resultCell svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.passed {
+  color: #168047;
+}
+
+.failed {
+  color: #c0392b;
+}
+
+.unknown {
+  color: #7f8c8d;
+}

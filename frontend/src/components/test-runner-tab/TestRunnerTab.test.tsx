@@ -15,7 +15,7 @@ import * as exportBundle from './exportBundle'
 import * as sonner from 'sonner'
 import type { PicsProfile } from '@/api/generated'
 import type { Preferences } from '../../utils/preferences'
-import type { LogSource, ProcessStatus } from './types'
+import type { LogSource, ProcessStatus, SunSpecComment } from './types'
 import { fetchScenarios } from './scenarios'
 
 // ---------------------------------------------------------------------------
@@ -68,6 +68,7 @@ class MockEventSource {
     scenarioId: string,
     testId: string,
     passed: boolean,
+    comments: SunSpecComment[] = [],
   ) {
     if (this.onmessage) {
       // The SSE envelope wraps the conformance object in the `message` field,
@@ -79,7 +80,7 @@ class MockEventSource {
         scenario_id: scenarioId,
         passed,
         timestamp: Date.now(),
-        comments: [],
+        comments,
       }
       this.onmessage({
         data: JSON.stringify({
@@ -116,7 +117,21 @@ class MockEventSource {
 // Minimal prop stubs
 // ---------------------------------------------------------------------------
 
-const fakeProfile = {} as PicsProfile
+const fakeProfile = {
+  AI: {
+    points: [{ point_index: 12, name: 'Test point' }],
+    meters: [],
+    ders: [],
+    inverters: [],
+    batteries: [],
+    curves: [],
+    schedules: [],
+    schedules_bc: [],
+  },
+  BI: { points: [], meters: [], ders: [], inverters: [], batteries: [] },
+  AO: { points: [], meters: [], inverters: [], batteries: [] },
+  BO: { points: [] },
+} as unknown as PicsProfile
 
 const fakePreferences: Preferences = {
   outstationIp: '127.0.0.1',
@@ -399,6 +414,64 @@ describe('handleDownload enabled when testResults is non-empty', () => {
   })
 })
 
+describe('point results', () => {
+  afterEach(() => MockEventSource.reset())
+
+  it('updates profile rows from conformance events and retains unknown checks', async () => {
+    const eventSource = await renderWithLogs([])
+    expect(screen.getByRole('rowheader', { name: 'AI12' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', {
+        name: 'AI12, Received from outstation: No information',
+      }),
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      eventSource.simulateConformanceResult('sc-001', 'MON_001', false, [
+        {
+          uid: 'uid',
+          index: 'AI12',
+          check: 'received_from_outstation',
+          value: 'Not received',
+          message: 'AI12 has not been received',
+          passed: false,
+        },
+        {
+          uid: 'uid',
+          index: 'AI12',
+          check: 'within_profile_range',
+          value: 'In range',
+          message: 'AI12 is within range',
+          passed: true,
+        },
+      ])
+    })
+
+    expect(
+      screen.getByRole('cell', {
+        name: 'AI12, Received from outstation: Failed. AI12 has not been received',
+      }),
+    ).toHaveAttribute('title', 'AI12 has not been received')
+    expect(
+      screen.getByRole('cell', {
+        name: 'AI12, Within profile range: Passed. AI12 is within range',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', {
+        name: 'AI12, Written to outstation: No information',
+      }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /clear logs/i }))
+    expect(
+      screen.getByRole('cell', {
+        name: 'AI12, Received from outstation: Failed. AI12 has not been received',
+      }),
+    ).toBeInTheDocument()
+  })
+})
+
 describe('pending test status', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -594,20 +667,17 @@ describe('handleCopyLogs toast paths', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Clear Logs resets Download button
-//
-// Clearing logs also resets testResults, so the Download button must
-// re-disable after Clear Logs is clicked.
+// Clear Logs preserves results and Download.
 // ---------------------------------------------------------------------------
 
-describe('handleClearLogs resets Download button', () => {
+describe('handleClearLogs preserves Download button', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
     MockEventSource.reset()
   })
 
-  it('re-disables Download after Clear Logs resets testResults', async () => {
+  it('keeps Download enabled after Clear Logs', async () => {
     vi.spyOn(exportBundle, 'triggerBundleDownload').mockImplementation(() => {})
 
     const es = await renderWithLogs([])
@@ -623,15 +693,15 @@ describe('handleClearLogs resets Download button', () => {
       ).not.toBeDisabled()
     })
 
-    // Click Clear Logs: this resets both logs and testResults.
     const clearBtn = screen.getByRole('button', { name: /clear logs/i })
     await act(async () => {
       fireEvent.click(clearBtn)
     })
 
-    // Download must be disabled again because testResults is now empty.
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^download$/i })).toBeDisabled()
+      expect(
+        screen.getByRole('button', { name: /^download$/i }),
+      ).not.toBeDisabled()
     })
   })
 })
