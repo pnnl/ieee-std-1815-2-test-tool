@@ -4,6 +4,9 @@
 //! required for a given conformance test. Both the reference control station and the
 //! reference outstation call these functions so the point lists stay in one place.
 
+use std::collections::HashSet;
+
+use crate::profile::ProfileIndex;
 use crate::uids::{ai_uid::AiUid, ao_uid::AoUid, bi_uid::BiUid, bo_uid::BoUid};
 
 /// The set of UID slices required for a single conformance test.
@@ -16,6 +19,76 @@ pub struct ConformancePoints {
     pub ao: &'static [AoUid],
     /// Binary output UIDs required for this test.
     pub bo: &'static [BoUid],
+}
+
+/// Profile point indices not included in any conformance test point list.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct ResidualPoints {
+    pub ai: Vec<u16>,
+    pub bi: Vec<u16>,
+    pub ao: Vec<u16>,
+    pub bo: Vec<u16>,
+}
+
+/// Calculate the uncovered points in the loaded profile.
+pub fn residual(profile: &ProfileIndex) -> ResidualPoints {
+    let lists = [
+        mon_001(),
+        alarm_001(),
+        conn_001(),
+        serv_001(),
+        op_001(),
+        curve_001(),
+        curve_002(),
+        curve_003(),
+        vrt_001(),
+        frt_001(),
+        fw_001(),
+        drcs_001(),
+        dvw_001(),
+        apl_001(),
+        chg_001(),
+        ccm_001(),
+        apr1_001(),
+        apr2_001(),
+        apr3_001(),
+        agc_001(),
+        aps_001(),
+        vw_001(),
+        fwc_001(),
+        cvar_001(),
+        fpf_001(),
+        vv_001(),
+        wv_001(),
+        pfc_001(),
+        psig_001(),
+        sched_001(),
+        sched_002(),
+    ];
+
+    macro_rules! uncovered {
+        ($field:ident, $points:ident) => {{
+            let covered: HashSet<u16> = lists
+                .iter()
+                .flat_map(|list| list.$field.iter().map(|uid| *uid as u16))
+                .collect();
+            let mut residual: Vec<u16> = profile
+                .$points
+                .keys()
+                .filter(|index| !covered.contains(index))
+                .copied()
+                .collect();
+            residual.sort_unstable();
+            residual
+        }};
+    }
+
+    ResidualPoints {
+        ai: uncovered!(ai, ai_points),
+        bi: uncovered!(bi, bi_points),
+        ao: uncovered!(ao, ao_points),
+        bo: uncovered!(bo, bo_points),
+    }
 }
 
 /// Point list for the MON-001 (Monitoring) conformance test.
@@ -1028,5 +1101,61 @@ pub fn sched_002() -> ConformancePoints {
             AoUid::Scheduling_FSCHn_NumEntr,
         ],
         bo: &[],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::PicsProfile;
+
+    #[test]
+    fn residual_contains_only_uncovered_profile_points() {
+        let profile = PicsProfile::load_full_profile();
+        let mut index = ProfileIndex::from_profile(&profile);
+        let ai_point = index
+            .ai_points
+            .values()
+            .next()
+            .expect("full profile has AI points")
+            .clone();
+        let bi_point = index
+            .bi_points
+            .values()
+            .next()
+            .expect("full profile has BI points")
+            .clone();
+        let ao_point = index
+            .ao_points
+            .values()
+            .next()
+            .expect("full profile has AO points")
+            .clone();
+        let bo_point = index
+            .bo_points
+            .values()
+            .next()
+            .expect("full profile has BO points")
+            .clone();
+        index.ai_points.insert(u16::MAX, ai_point);
+        index.bi_points.insert(u16::MAX, bi_point);
+        index.ao_points.insert(u16::MAX, ao_point);
+        index.bo_points.insert(u16::MAX, bo_point);
+
+        let points = residual(&index);
+        for indices in [&points.ai, &points.bi, &points.ao, &points.bo] {
+            assert!(indices.contains(&u16::MAX));
+            assert!(indices.windows(2).all(|pair| pair[0] < pair[1]));
+        }
+        assert!(!points.ai.contains(&(mon_001().ai[0] as u16)));
+        assert!(!points.bi.contains(&(alarm_001().bi[0] as u16)));
+        assert!(!points.ao.contains(&(conn_001().ao[0] as u16)));
+        assert!(!points.bo.contains(&(conn_001().bo[0] as u16)));
+
+        index.ai_points.clear();
+        index.bi_points.clear();
+        index.ao_points.clear();
+        index.bo_points.clear();
+        assert_eq!(residual(&index), ResidualPoints::default());
     }
 }
