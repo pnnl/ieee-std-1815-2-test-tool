@@ -304,7 +304,7 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                         if point_value != expected {
                             comments.push(SunSpecComment {
                                     uid: format!("{selector_uid:?}"),
-                                    index: format!("Curve {entry_number} {}", point_value.key()),
+                                    index: point_value.key().to_string(),
                                     check: ConformanceCheck::CurveReadbackMatchesProfile,
                                     value: point_value.to_string(),
                                     message: format!(
@@ -316,7 +316,7 @@ fn validate_curves_from_outstation(state: &ControlStationState) -> Vec<SunSpecCo
                         } else {
                             comments.push(SunSpecComment {
                                 uid: format!("{selector_uid:?}"),
-                                index: format!("Curve {entry_number} {}", point_value.key()),
+                                index: point_value.key().to_string(),
                                 check: ConformanceCheck::CurveReadbackMatchesProfile,
                                 value: point_value.to_string(),
                                 message: format!("Curve {entry_number} {} readback matches profile value {expected}", point_value.key()),
@@ -402,7 +402,7 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                         if point_value != expected {
                             comments.push(SunSpecComment {
                                     uid: selector_uid.clone(),
-                                    index: format!("BC Schedule {entry_number} {}", point_value.key()),
+                                    index: point_value.key().to_string(),
                                     check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                     value: point_value.to_string(),
                                     message: format!(
@@ -414,7 +414,7 @@ fn validate_schedule_bc_readback(state: &ControlStationState) -> Vec<SunSpecComm
                         } else {
                             comments.push(SunSpecComment {
                                 uid: selector_uid.clone(),
-                                index: format!("BC Schedule {entry_number} {}", point_value.key()),
+                                index: point_value.key().to_string(),
                                 check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                 value: point_value.to_string(),
                                 message: format!("BC Schedule {entry_number} {} readback matches profile value {expected}", point_value.key()),
@@ -498,7 +498,7 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                         if point_value != expected {
                             comments.push(SunSpecComment {
                                     uid: selector_uid.clone(),
-                                    index: format!("Schedule {entry_number} {}", point_value.key()),
+                                    index: point_value.key().to_string(),
                                     check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                     value: point_value.to_string(),
                                     message: format!(
@@ -510,7 +510,7 @@ fn validate_schedule_readback(state: &ControlStationState) -> Vec<SunSpecComment
                         } else {
                             comments.push(SunSpecComment {
                                 uid: selector_uid.clone(),
-                                index: format!("Schedule {entry_number} {}", point_value.key()),
+                                index: point_value.key().to_string(),
                                 check: ConformanceCheck::ScheduleReadbackMatchesProfile,
                                 value: point_value.to_string(),
                                 message: format!("Schedule {entry_number} {} readback matches profile value {expected}", point_value.key()),
@@ -1052,24 +1052,27 @@ mod tests {
             .expect("lock schedule database")
             .update_value(schedule.index, schedule.value);
 
-        for (comments, index) in [
+        for (comments, index, entry) in [
             (
                 validate_curves_from_outstation(&state),
-                format!("Curve 1 AI{}", curve.index),
+                format!("AI{}", curve.index),
+                "Curve 1",
             ),
             (
                 validate_schedule_bc_readback(&state),
-                format!("BC Schedule 1 AI{}", schedule_bc.index),
+                format!("AI{}", schedule_bc.index),
+                "BC Schedule 1",
             ),
             (
                 validate_schedule_readback(&state),
-                format!("Schedule 1 AI{}", schedule.index),
+                format!("AI{}", schedule.index),
+                "Schedule 1",
             ),
         ] {
             assert!(
-                comments
-                    .iter()
-                    .any(|comment| comment.index == index && comment.passed),
+                comments.iter().any(|comment| comment.index == index
+                    && comment.passed
+                    && comment.message.contains(entry)),
                 "missing passing comment for {index}"
             );
         }
@@ -1096,24 +1099,27 @@ mod tests {
                 TransmissionI32(schedule.value.0.wrapping_add(1)),
             );
 
-        for (comments, index) in [
+        for (comments, index, entry) in [
             (
                 validate_curves_from_outstation(&state),
-                format!("Curve 1 AI{}", curve.index),
+                format!("AI{}", curve.index),
+                "Curve #1",
             ),
             (
                 validate_schedule_bc_readback(&state),
-                format!("BC Schedule 1 AI{}", schedule_bc.index),
+                format!("AI{}", schedule_bc.index),
+                "BC Schedule 1",
             ),
             (
                 validate_schedule_readback(&state),
-                format!("Schedule 1 AI{}", schedule.index),
+                format!("AI{}", schedule.index),
+                "Schedule 1",
             ),
         ] {
             assert!(
-                comments
-                    .iter()
-                    .any(|comment| comment.index == index && !comment.passed),
+                comments.iter().any(|comment| comment.index == index
+                    && !comment.passed
+                    && comment.message.contains(entry)),
                 "missing failing comment for {index}"
             );
         }

@@ -8,8 +8,16 @@
  * assertions can be made against real state.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+  within,
+} from '@testing-library/react'
 import TestRunnerTab from './TestRunnerTab'
+import PointResultsTable from './PointResultsTable'
 import * as downloadLogs from './downloadLogs'
 import * as exportBundle from './exportBundle'
 import * as sonner from 'sonner'
@@ -417,6 +425,188 @@ describe('handleDownload enabled when testResults is non-empty', () => {
 describe('point results', () => {
   afterEach(() => MockEventSource.reset())
 
+  it('shows associated AI and AO outcomes on one row', () => {
+    const profile = {
+      ...fakeProfile,
+      AI: {
+        ...fakeProfile.AI,
+        points: [{ point_index: 12, name: 'Test point' }],
+      },
+      AO: { ...fakeProfile.AO, points: [{ point_index: 5, assoc_ai: 'AI12' }] },
+    } as PicsProfile
+    const comment: SunSpecComment = {
+      uid: 'uid',
+      index: 'AI12',
+      check: 'received_from_outstation',
+      value: '',
+      message: 'Received',
+      passed: true,
+    }
+    render(
+      <PointResultsTable
+        profile={profile}
+        results={{
+          test: {
+            event_type: 'conformance_test_result',
+            scenario_id: 'scenario',
+            test: 'MON_001',
+            timestamp: 1,
+            passed: true,
+            comments: [
+              comment,
+              {
+                ...comment,
+                index: 'AO5',
+                check: 'written_to_outstation',
+                message: 'Written',
+              },
+            ],
+          },
+        }}
+      />,
+    )
+    expect(screen.getAllByRole('rowheader')).toHaveLength(1)
+    expect(
+      screen.getByRole('rowheader', { name: 'AO5 / AI12' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', {
+        name: 'AO5 / AI12, Received from outstation: Passed. AI12: Received',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', {
+        name: 'AO5 / AI12, Written to outstation: Passed. AO5: Written',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('sorts point, name, and check columns in both directions', () => {
+    const profile = {
+      ...fakeProfile,
+      AI: {
+        ...fakeProfile.AI,
+        points: [
+          { point_index: 10, name: 'Alpha' },
+          { point_index: 2, name: 'Zulu' },
+          { point_index: 3, name: 'Middle' },
+        ],
+      },
+    } as PicsProfile
+    const comment: SunSpecComment = {
+      uid: 'uid',
+      index: 'AI2',
+      check: 'received_from_outstation',
+      value: '',
+      message: 'Not received',
+      passed: false,
+    }
+    render(
+      <PointResultsTable
+        profile={profile}
+        results={{
+          test: {
+            event_type: 'conformance_test_result',
+            scenario_id: 'scenario',
+            test: 'MON_001',
+            timestamp: 1,
+            passed: false,
+            comments: [
+              comment,
+              { ...comment, index: 'AI10', passed: true },
+              { ...comment, index: 'AI3', check: 'written_to_outstation' },
+              {
+                ...comment,
+                index: 'AI2',
+                check: 'written_to_outstation',
+                passed: true,
+              },
+              { ...comment, index: 'AI10', check: 'within_profile_range' },
+              {
+                ...comment,
+                index: 'AI3',
+                check: 'within_profile_range',
+                passed: true,
+              },
+              {
+                ...comment,
+                index: 'AI3',
+                check: 'curve_readback_matches_profile',
+              },
+              {
+                ...comment,
+                index: 'AI2',
+                check: 'curve_readback_matches_profile',
+                passed: true,
+              },
+              {
+                ...comment,
+                index: 'AI10',
+                check: 'schedule_readback_matches_profile',
+              },
+              {
+                ...comment,
+                index: 'AI3',
+                check: 'schedule_readback_matches_profile',
+                passed: true,
+              },
+            ],
+          },
+        }}
+      />,
+    )
+
+    const columnHeaders = within(screen.getByRole('table')).getAllByRole(
+      'columnheader',
+    )
+    expect(columnHeaders[2]).toHaveTextContent('Written to outstation')
+    expect(columnHeaders[3]).toHaveTextContent('Received from outstation')
+
+    const indices = () =>
+      screen.getAllByRole('rowheader').map((row) => row.textContent)
+    const received = screen.getByRole('button', {
+      name: 'Sort by Received from outstation',
+    })
+    fireEvent.click(received)
+    expect(indices()).toEqual(['AI2', 'AI3', 'AI10'])
+    expect(received.closest('th')).toHaveAttribute('aria-sort', 'ascending')
+    fireEvent.click(received)
+    expect(indices()).toEqual(['AI10', 'AI3', 'AI2'])
+    expect(received.closest('th')).toHaveAttribute('aria-sort', 'descending')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Name' }))
+    expect(indices()).toEqual(['AI10', 'AI3', 'AI2'])
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Name' }))
+    expect(indices()).toEqual(['AI2', 'AI3', 'AI10'])
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Point' }))
+    expect(indices()).toEqual(['AI2', 'AI3', 'AI10'])
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Point' }))
+    expect(indices()).toEqual(['AI10', 'AI3', 'AI2'])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Sort by Written to outstation' }),
+    )
+    expect(indices()).toEqual(['AI3', 'AI10', 'AI2'])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Sort by Within profile range' }),
+    )
+    expect(indices()).toEqual(['AI10', 'AI2', 'AI3'])
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Sort by Curve readback matches profile',
+      }),
+    )
+    expect(indices()).toEqual(['AI3', 'AI10', 'AI2'])
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Sort by Schedule readback matches profile',
+      }),
+    )
+    expect(indices()).toEqual(['AI10', 'AI2', 'AI3'])
+    expect(
+      within(screen.getByRole('table')).getAllByRole('columnheader'),
+    ).toHaveLength(7)
+  })
+
   it('updates profile rows from conformance events and retains unknown checks', async () => {
     const eventSource = await renderWithLogs([])
     expect(screen.getByRole('rowheader', { name: 'AI12' })).toBeInTheDocument()
@@ -460,6 +650,24 @@ describe('point results', () => {
     expect(
       screen.getByRole('cell', {
         name: 'AI12, Written to outstation: No information',
+      }),
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      eventSource.simulateConformanceResult('sc-002', 'MON_001', false, [
+        {
+          uid: 'uid',
+          index: 'AI12',
+          check: 'within_profile_range',
+          value: 'Out of range',
+          message: 'AI12 is out of range',
+          passed: false,
+        },
+      ])
+    })
+    expect(
+      screen.getByRole('cell', {
+        name: 'AI12, Within profile range: Failed. AI12 is within range. AI12 is out of range',
       }),
     ).toBeInTheDocument()
 

@@ -19,7 +19,7 @@
 
 .table {
   width: 100%;
-  min-width: 660px;
+  min-width: 980px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
@@ -38,6 +38,18 @@
   z-index: 1;
   background: #f7f9fc;
   font-weight: 600;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sortButton svg {
+  flex-shrink: 0;
 }
 
 .table tbody th {
