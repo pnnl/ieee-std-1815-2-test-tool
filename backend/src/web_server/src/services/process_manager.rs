@@ -81,14 +81,25 @@ fn format_conformance_log(payload: &serde_json::Value, should_pass: Option<bool>
         None => format!("{test}: {status}"),
     };
     if !passed {
-        if let Some(first_issue) = payload
+        let issues: Vec<&str> = payload
             .get("comments")
             .and_then(|v| v.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|c| c.get("message"))
-            .and_then(|v| v.as_str())
-        {
-            line = format!("{line} - {first_issue}");
+            .into_iter()
+            .flatten()
+            .filter(|comment| {
+                comment.get("passed").and_then(|value| value.as_bool()) == Some(false)
+            })
+            .filter_map(|comment| comment.get("message").and_then(|value| value.as_str()))
+            .collect();
+        if !issues.is_empty() {
+            let shown = issues.len().min(5);
+            line = format!("{line} - {}", issues[..shown].join("; "));
+            if issues.len() > shown {
+                line = format!(
+                    "{line}; {} more failed checks (see exported results)",
+                    issues.len() - shown
+                );
+            }
         }
     }
     line
@@ -886,6 +897,36 @@ mod tests {
         assert_eq!(
             format_conformance_log(&payload, Some(true)),
             "[ ] MON_001: FAIL"
+        );
+    }
+
+    #[test]
+    fn test_format_conformance_log_reports_only_failed_checks() {
+        let payload = serde_json::json!({
+            "test": "RESIDUAL",
+            "passed": false,
+            "comments": [
+                {"passed": true, "message": "AI0 has been received from the outstation"},
+                {"passed": false, "message": "AO3 has not been written to the outstation"},
+                {"passed": false, "message": "BO4 has not been written to the outstation"}
+            ]
+        });
+        assert_eq!(
+            format_conformance_log(&payload, Some(true)),
+            "[ ] RESIDUAL: FAIL - AO3 has not been written to the outstation; BO4 has not been written to the outstation"
+        );
+    }
+
+    #[test]
+    fn test_format_conformance_log_summarizes_many_failures() {
+        let comments: Vec<_> = (0..7)
+            .map(|index| serde_json::json!({"passed": false, "message": format!("AO{index} failed")}))
+            .collect();
+        let payload =
+            serde_json::json!({"test": "RESIDUAL", "passed": false, "comments": comments});
+        assert_eq!(
+            format_conformance_log(&payload, Some(true)),
+            "[ ] RESIDUAL: FAIL - AO0 failed; AO1 failed; AO2 failed; AO3 failed; AO4 failed; 2 more failed checks (see exported results)"
         );
     }
 

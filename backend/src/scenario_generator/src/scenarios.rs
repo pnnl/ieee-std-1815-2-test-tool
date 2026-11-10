@@ -373,6 +373,19 @@ mod tests {
     }
 
     #[test]
+    fn residual_includes_aos_without_configured_ai_values() {
+        let profile = load_default_profile();
+        let mut index = ProfileIndex::from_profile(&profile);
+        index.ao_points.retain(|point_index, _| *point_index == 3);
+        let ao_indices = HashSet::from([3]);
+        assert!(test_has_ao_points_in_profile(
+            &TestName::RESIDUAL,
+            &ao_indices,
+            &index
+        ));
+    }
+
+    #[test]
     fn test_bounds_applicability_and_expected_failures() {
         let scenarios = generate_scenarios(&load_default_profile());
         for scenario in &scenarios {

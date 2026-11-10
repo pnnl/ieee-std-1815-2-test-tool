@@ -14,9 +14,11 @@
 //! scenario orchestrator to trigger an immediate cycle after a `new_scenario`
 //! command instead of waiting for the next periodic tick.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
+use common::profile::ProfileIndex;
 use common::profile::values::TransmissionI32;
 use dnp3::app::control::{CommandStatus, Group12Var1, Group41Var1, OpType};
 use dnp3::master::{
@@ -85,9 +87,8 @@ async fn write_output_values_to_outstation(
 // Plain AO sync
 // ---------------------------------------------------------------------------
 
-/// For every AO in the profile whose associated AI is a base AI point with an expected
-/// value, write it at least once per scenario, then issue corrective writes whenever
-/// the current AI readback differs from the expected value.
+/// Write base AO/AI pairs and AOs without configured AI values at least once per scenario.
+/// Correct paired values whenever the current AI readback differs from the profile.
 ///
 /// Curve and schedule AOs are intentionally skipped — they are managed by the dedicated
 /// curve/schedule writers which set the mux selector before writing data points.
@@ -97,17 +98,35 @@ async fn write_all_ao_to_outstation(state: &ControlStationState, association: &A
         Arc::clone(&guard)
     };
 
-    // Collect (ao_index, expected_raw_value) pairs where the associated AI is a base
-    // AI point (not a curve/schedule AI) and has a defined expected value.
-    let writes: Vec<(u16, TransmissionI32)> = {
+    let writes = {
         let latest_input_values = state.latest_transmission_values.read().unwrap();
         let sent_ao_indices = state.sent_ao_indices.read().unwrap();
+        pending_ao_writes(&profile_index, &latest_input_values, &sent_ao_indices)
+    };
 
-        profile_index
+    for (ao_index, value) in writes {
+        write_ao(state, association, ao_index, value).await;
+    }
+}
+
+fn pending_ao_writes(
+    profile_index: &ProfileIndex,
+    latest_input_values: &HashMap<String, serde_json::Value>,
+    sent_ao_indices: &HashSet<u16>,
+) -> Vec<(u16, TransmissionI32)> {
+    profile_index
             .ao_points
             .keys()
             .filter_map(|&ao_index| {
-                let ai_index = profile_index.ao_to_ai.get(&ao_index)?;
+                let Some(ai_index) = profile_index
+                    .ao_to_ai
+                    .get(&ao_index)
+                    .filter(|ai_index| profile_index.ai_points.contains_key(ai_index))
+                else {
+                    let ao_point = &profile_index.ao_points[&ao_index];
+                    let value = TransmissionI32(0).clamp(ao_point.minimum(), ao_point.maximum());
+                    return (!sent_ao_indices.contains(&ao_index)).then_some((ao_index, value));
+                };
 
                 // Skip AOs associated with curve/schedule AI points — those are
                 // managed by write_curves / write_schedules_bc / write_schedules.
@@ -145,11 +164,6 @@ async fn write_all_ao_to_outstation(state: &ControlStationState, association: &A
                 }
             })
             .collect()
-    };
-
-    for (ao_index, value) in writes {
-        write_ao(state, association, ao_index, value).await;
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -485,6 +499,52 @@ async fn write_bo(state: &ControlStationState, association: &AssociationHandle, 
         }
         Err(err) => {
             tracing::warn!("Control loop: BO{bo_index} LATCH_ON failed: {err}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common::profile::PicsProfile;
+
+    #[test]
+    fn plain_ao_writes_include_outputs_without_configured_ai_values() {
+        let profile = PicsProfile::load_full_profile();
+        let index = ProfileIndex::from_profile(&profile);
+        let writes = pending_ao_writes(&index, &HashMap::new(), &HashSet::new());
+        for ao_index in [3, 18, 19, 20, 47, 257, 448, 2011, 2208, 3066, 3409, 20008] {
+            let point = &index.ao_points[&ao_index];
+            let (_, value) = writes
+                .iter()
+                .find(|(pending_index, _)| *pending_index == ao_index)
+                .expect("AO without a configured AI must be written");
+            assert!(*value >= point.minimum() && *value <= point.maximum());
+        }
+        assert!(!writes.iter().any(|(ao_index, _)| *ao_index == 249));
+
+        let sent: HashSet<_> = writes.iter().map(|(ao_index, _)| *ao_index).collect();
+        let repeated = pending_ao_writes(&index, &HashMap::new(), &sent);
+        assert!(!repeated.iter().any(|(ao_index, _)| *ao_index == 3));
+        assert!(!repeated.iter().any(|(ao_index, _)| *ao_index == 257));
+    }
+
+    #[test]
+    fn unpaired_ao_values_respect_nonzero_bounds() {
+        let profile = PicsProfile::load_full_profile();
+        let mut index = ProfileIndex::from_profile(&profile);
+        index.ao_points.retain(|ao_index, _| *ao_index == 3);
+        for (minimum, maximum, expected) in [(10, 20, 10), (-20, -10, -10)] {
+            index
+                .ao_points
+                .get_mut(&3)
+                .expect("AO3")
+                .set_transmission_bounds(TransmissionI32(minimum), TransmissionI32(maximum))
+                .expect("valid bounds");
+            assert_eq!(
+                pending_ao_writes(&index, &HashMap::new(), &HashSet::new()),
+                vec![(3, TransmissionI32(expected))]
+            );
         }
     }
 }

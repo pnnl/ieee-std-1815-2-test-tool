@@ -26,6 +26,7 @@ function resultRank(result: PointResult | undefined): number {
 function isNotApplicable(row: PointResultRow, check: CheckColumn): boolean {
   return (
     (check === 'written_to_outstation' && /^(AI|BI)\d+$/.test(row.index)) ||
+    (check === 'received_from_outstation' && /^(AO|BO)\d+$/.test(row.index)) ||
     (check === 'within_profile_range' &&
       (row.index.startsWith('BI') || row.index.startsWith('BO'))) ||
     (check === 'curve_readback_matches_profile' &&

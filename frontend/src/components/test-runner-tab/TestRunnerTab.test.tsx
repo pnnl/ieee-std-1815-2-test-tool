@@ -683,7 +683,7 @@ describe('point results', () => {
     }
   })
 
-  it('shows n/a for writes to input points without an associated output', () => {
+  it('shows n/a for writes to standalone inputs and receives from standalone outputs', () => {
     const profile = {
       ...fakeProfile,
       AI: {
@@ -704,7 +704,10 @@ describe('point results', () => {
           { point_index: 8, name: 'Paired binary input' },
         ],
       },
-      BO: { ...fakeProfile.BO, points: [{ point_index: 9, assoc_bi: 'BI8' }] },
+      BO: {
+        ...fakeProfile.BO,
+        points: [{ point_index: 9, assoc_bi: 'BI8' }, { point_index: 10 }],
+      },
     } as PicsProfile
     render(
       <PointResultsTable
@@ -756,6 +759,20 @@ describe('point results', () => {
         name: 'BO9 / BI8, Written to outstation: No information',
       }),
     ).toBeInTheDocument()
+    for (const index of ['AO6', 'BO10']) {
+      expect(
+        screen.getByRole('cell', {
+          name: `${index}, Received from outstation: Not applicable`,
+        }),
+      ).toHaveTextContent('n/a')
+    }
+    for (const index of ['AI12', 'BI7', 'AO5 / AI13', 'BO9 / BI8']) {
+      expect(
+        screen.getByRole('cell', {
+          name: `${index}, Received from outstation: No information`,
+        }),
+      ).toBeInTheDocument()
+    }
   })
 
   it('shows associated AI and AO outcomes on one row', () => {

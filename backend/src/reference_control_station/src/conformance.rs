@@ -985,6 +985,41 @@ mod tests {
     }
 
     #[test]
+    fn residual_requires_writes_without_configured_ai_values() {
+        let state = test_state();
+        let profile = state.profile.read().expect("lock profile");
+        let mut profile_index = ProfileIndex::from_profile(&profile);
+        drop(profile);
+        assert!(!profile_index.ao_to_ai.contains_key(&3));
+        assert_eq!(profile_index.ao_to_ai.get(&257), Some(&341));
+        assert!(!profile_index.ai_points.contains_key(&341));
+        profile_index.ai_points.clear();
+        profile_index.bi_points.clear();
+        profile_index.bo_points.clear();
+        profile_index
+            .ao_points
+            .retain(|index, _| *index == 3 || *index == 257);
+        *state.profile_index.write().expect("lock profile index") = Arc::new(profile_index);
+
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let subscriber = tracing_subscriber::registry().with(EventCapture(Arc::clone(&events)));
+        tracing::subscriber::with_default(subscriber, || {
+            residual(&state);
+            state.record_ao_write(3);
+            state.record_ao_write(257);
+            residual(&state);
+        });
+        let events = events.lock().expect("lock captured events");
+        assert_eq!(events.len(), 2);
+        assert!(!events[0].pass);
+        assert_eq!(events[0].comments.len(), 2);
+        assert!(events[0].comments.iter().all(|comment| !comment.passed));
+        assert!(events[1].pass);
+        assert_eq!(events[1].comments.len(), 2);
+        assert!(events[1].comments.iter().all(|comment| comment.passed));
+    }
+
+    #[test]
     fn run_test_checks_points_without_generated_uids() {
         let state = test_state();
         let profile = state.profile_index.read().expect("lock profile index");
