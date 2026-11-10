@@ -551,32 +551,37 @@ describe('point results', () => {
     )
 
     expect(
-      screen.getByRole('cell', {
-        name: 'AO60002 / AI60001, Curve readback matches profile: Passed. AI60001: Curve matches',
-      }),
+      screen.getByLabelText(
+        'AO60002 / AI60001, Curve readback matches profile: Passed. AI60001: Curve matches',
+        { selector: 'td' },
+      ),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('cell', {
-        name: 'AO60004 / AI60003, Schedule readback matches profile: Failed. AI60003: Schedule differs',
-      }),
+      screen.getByLabelText(
+        'AO60004 / AI60003, Schedule readback matches profile: Failed. AI60003: Schedule differs',
+        { selector: 'td' },
+      ),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('cell', {
-        name: 'AI60006, Schedule readback matches profile: No information',
-      }),
+      screen.getByLabelText(
+        'AI60006, Schedule readback matches profile: No information',
+        { selector: 'td' },
+      ),
     ).toBeInTheDocument()
     for (const index of ['AI60009', 'AI60010']) {
       expect(
-        screen.getByRole('cell', {
-          name: `${index}, Curve readback matches profile: No information`,
-        }),
+        screen.getByLabelText(
+          `${index}, Curve readback matches profile: No information`,
+          { selector: 'td' },
+        ),
       ).toBeInTheDocument()
     }
     for (const index of ['AI60011', 'AI60012']) {
       expect(
-        screen.getByRole('cell', {
-          name: `${index}, Schedule readback matches profile: No information`,
-        }),
+        screen.getByLabelText(
+          `${index}, Schedule readback matches profile: No information`,
+          { selector: 'td' },
+        ),
       ).toBeInTheDocument()
     }
     for (const index of ['AI12', 'BI7', 'BO8', 'AI60005', 'AI60008']) {
@@ -585,21 +590,23 @@ describe('point results', () => {
         'Schedule readback matches profile',
       ]) {
         expect(
-          screen.getByRole('cell', {
-            name: `${index}, ${label}: Not applicable`,
+          screen.getByLabelText(`${index}, ${label}: Not applicable`, {
+            selector: 'td',
           }),
         ).toHaveTextContent('n/a')
       }
     }
     expect(
-      screen.getByRole('cell', {
-        name: 'AO60002 / AI60001, Schedule readback matches profile: Not applicable',
-      }),
+      screen.getByLabelText(
+        'AO60002 / AI60001, Schedule readback matches profile: Not applicable',
+        { selector: 'td' },
+      ),
     ).toHaveTextContent('n/a')
     expect(
-      screen.getByRole('cell', {
-        name: 'AO60004 / AI60003, Curve readback matches profile: Not applicable',
-      }),
+      screen.getByLabelText(
+        'AO60004 / AI60003, Curve readback matches profile: Not applicable',
+        { selector: 'td' },
+      ),
     ).toHaveTextContent('n/a')
 
     fireEvent.click(
