@@ -2883,7 +2883,6 @@
         "type": "string",
         "enum": [
           "MON_001",
-          "RESIDUAL",
           "SCHED_001",
           "SCHED_002",
           "ALARM_001",
@@ -2913,7 +2912,8 @@
           "VV_001",
           "WV_001",
           "PFC_001",
-          "PSIG_001"
+          "PSIG_001",
+          "RESIDUAL"
         ]
       },
       "TransmissionI32": {

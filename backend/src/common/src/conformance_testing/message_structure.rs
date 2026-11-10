@@ -8,7 +8,6 @@ use strum::{Display, EnumIter, EnumString};
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub enum TestName {
     MON_001,
-    RESIDUAL,
     SCHED_001,
     SCHED_002,
     ALARM_001,
@@ -39,6 +38,7 @@ pub enum TestName {
     WV_001,
     PFC_001,
     PSIG_001,
+    RESIDUAL,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]

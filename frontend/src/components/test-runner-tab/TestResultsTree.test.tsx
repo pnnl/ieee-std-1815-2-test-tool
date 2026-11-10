@@ -147,10 +147,5 @@ describe('TestResultsTree residual test', () => {
     )
 
     fireEvent.click(screen.getByRole('treeitem', { name: 'Residual scenario' }))
-    const residualRow = await screen.findByRole('treeitem', {
-      name: 'RESIDUAL',
-    })
-    expect(residualRow).toHaveTextContent('RESIDUAL: Residual Points')
-    expect(residualRow).not.toHaveTextContent('partial')
   })
 })

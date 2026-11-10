@@ -367,7 +367,6 @@ pub fn run_conformance_tests(state: &Arc<AppState>) {
     }
 
     run!(MON_001, mon_001);
-    run!(RESIDUAL, residual);
     run!(ALARM_001, alarm_001);
     run!(CONN_001, conn_001);
     run!(SERV_001, serv_001);
@@ -398,4 +397,5 @@ pub fn run_conformance_tests(state: &Arc<AppState>) {
     run!(PSIG_001, psig_001);
     run!(SCHED_001, sched_001);
     run!(SCHED_002, sched_002);
+    run!(RESIDUAL, residual);
 }
