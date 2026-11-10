@@ -22,6 +22,7 @@ import * as downloadLogs from './downloadLogs'
 import * as exportBundle from './exportBundle'
 import * as sonner from 'sonner'
 import type { PicsProfile } from '@/api/generated'
+import fullProfileJson from '../../../../data/profiles/full.json'
 import type { Preferences } from '../../utils/preferences'
 import type { LogSource, ProcessStatus, SunSpecComment } from './types'
 import { fetchScenarios } from './scenarios'
@@ -425,6 +426,256 @@ describe('handleDownload enabled when testResults is non-empty', () => {
 describe('point results', () => {
   afterEach(() => MockEventSource.reset())
 
+  it('shows readback checks only for applicable curve and schedule points', () => {
+    const fullProfile = fullProfileJson as PicsProfile
+    const curve = fullProfile.AI.curves[0]
+    const schedule = fullProfile.AI.schedules[0]
+    const scheduleBc = fullProfile.AI.schedules_bc[0]
+    const profile = {
+      ...fakeProfile,
+      AI: {
+        ...fakeProfile.AI,
+        curves: [
+          {
+            ...curve,
+            curve_type: {
+              ...curve.curve_type,
+              point_index: 60001,
+              assoc_ao: 'AO60002',
+            },
+            x_values: [
+              { ...curve.curve_type, point_index: 60009, assoc_ao: null },
+            ],
+            y_values: [
+              { ...curve.curve_type, point_index: 60010, assoc_ao: null },
+            ],
+          },
+        ],
+        schedules: [
+          {
+            ...schedule,
+            identity: {
+              ...schedule.identity,
+              point_index: 60003,
+              assoc_ao: 'AO60004',
+            },
+            status: { ...schedule.status, point_index: 60005, assoc_ao: null },
+            time_offsets: [
+              { ...schedule.identity, point_index: 60011, assoc_ao: 'AO60011' },
+            ],
+            action_types: [],
+            action_indexes: [],
+            values: [],
+          },
+        ],
+        schedules_bc: [
+          {
+            ...scheduleBc,
+            identity: {
+              ...scheduleBc.identity,
+              point_index: 60006,
+              assoc_ao: 'AO60007',
+            },
+            status: {
+              ...scheduleBc.status,
+              point_index: 60008,
+              assoc_ao: null,
+            },
+            time_offsets: [
+              {
+                ...scheduleBc.identity,
+                point_index: 60012,
+                assoc_ao: 'AO60012',
+              },
+            ],
+            values: [],
+          },
+        ],
+      },
+      AO: {
+        ...fakeProfile.AO,
+        points: [
+          {
+            ...fullProfile.AO.points[0],
+            point_index: 60002,
+            assoc_ai: 'AI60001',
+          },
+          {
+            ...fullProfile.AO.points[0],
+            point_index: 60004,
+            assoc_ai: 'AI60003',
+          },
+        ],
+      },
+      BI: {
+        ...fakeProfile.BI,
+        points: [{ ...fullProfile.BI.points[0], point_index: 7 }],
+      },
+      BO: {
+        ...fakeProfile.BO,
+        points: [{ ...fullProfile.BO.points[0], point_index: 8 }],
+      },
+    } as PicsProfile
+    const comment: SunSpecComment = {
+      uid: 'uid',
+      index: 'AI60001',
+      check: 'curve_readback_matches_profile',
+      value: '',
+      message: 'Curve matches',
+      passed: true,
+    }
+    render(
+      <PointResultsTable
+        profile={profile}
+        results={{
+          test: {
+            event_type: 'conformance_test_result',
+            scenario_id: 'scenario',
+            test: 'MON_001',
+            timestamp: 1,
+            passed: false,
+            comments: [
+              comment,
+              {
+                ...comment,
+                index: 'AI60003',
+                check: 'schedule_readback_matches_profile',
+                message: 'Schedule differs',
+                passed: false,
+              },
+              { ...comment, index: 'AI12', passed: false },
+            ],
+          },
+        }}
+      />,
+    )
+
+    expect(
+      screen.getByRole('cell', {
+        name: 'AO60002 / AI60001, Curve readback matches profile: Passed. AI60001: Curve matches',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', {
+        name: 'AO60004 / AI60003, Schedule readback matches profile: Failed. AI60003: Schedule differs',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', {
+        name: 'AI60006, Schedule readback matches profile: No information',
+      }),
+    ).toBeInTheDocument()
+    for (const index of ['AI60009', 'AI60010']) {
+      expect(
+        screen.getByRole('cell', {
+          name: `${index}, Curve readback matches profile: No information`,
+        }),
+      ).toBeInTheDocument()
+    }
+    for (const index of ['AI60011', 'AI60012']) {
+      expect(
+        screen.getByRole('cell', {
+          name: `${index}, Schedule readback matches profile: No information`,
+        }),
+      ).toBeInTheDocument()
+    }
+    for (const index of ['AI12', 'BI7', 'BO8', 'AI60005', 'AI60008']) {
+      for (const label of [
+        'Curve readback matches profile',
+        'Schedule readback matches profile',
+      ]) {
+        expect(
+          screen.getByRole('cell', {
+            name: `${index}, ${label}: Not applicable`,
+          }),
+        ).toHaveTextContent('n/a')
+      }
+    }
+    expect(
+      screen.getByRole('cell', {
+        name: 'AO60002 / AI60001, Schedule readback matches profile: Not applicable',
+      }),
+    ).toHaveTextContent('n/a')
+    expect(
+      screen.getByRole('cell', {
+        name: 'AO60004 / AI60003, Curve readback matches profile: Not applicable',
+      }),
+    ).toHaveTextContent('n/a')
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Sort by Curve readback matches profile',
+      }),
+    )
+    const sortedRows = screen.getAllByRole('rowheader')
+    expect(sortedRows[sortedRows.length - 1]).toHaveTextContent(
+      'AO60002 / AI60001',
+    )
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Sort by Schedule readback matches profile',
+      }),
+    )
+    expect(screen.getAllByRole('rowheader')[0]).toHaveTextContent(
+      'AO60004 / AI60003',
+    )
+  })
+
+  it('shows n/a for range checks on binary points and pairs', () => {
+    const profile = {
+      ...fakeProfile,
+      AI: { ...fakeProfile.AI, points: [{ point_index: 12 }] },
+      AO: { ...fakeProfile.AO, points: [{ point_index: 5 }] },
+      BI: {
+        ...fakeProfile.BI,
+        points: [{ point_index: 7 }, { point_index: 8 }],
+      },
+      BO: {
+        ...fakeProfile.BO,
+        points: [{ point_index: 9, assoc_bi: 'BI8' }, { point_index: 10 }],
+      },
+    } as PicsProfile
+    render(
+      <PointResultsTable
+        profile={profile}
+        results={{
+          test: {
+            event_type: 'conformance_test_result',
+            scenario_id: 'scenario',
+            test: 'MON_001',
+            timestamp: 1,
+            passed: false,
+            comments: [
+              {
+                uid: 'uid',
+                index: 'BI7',
+                check: 'within_profile_range',
+                value: '',
+                message: 'Unexpected binary range result',
+                passed: false,
+              },
+            ],
+          },
+        }}
+      />,
+    )
+
+    for (const index of ['BI7', 'BO10', 'BO9 / BI8']) {
+      expect(
+        screen.getByRole('cell', {
+          name: `${index}, Within profile range: Not applicable`,
+        }),
+      ).toHaveTextContent('n/a')
+    }
+    for (const index of ['AI12', 'AO5']) {
+      expect(
+        screen.getByRole('cell', {
+          name: `${index}, Within profile range: No information`,
+        }),
+      ).toBeInTheDocument()
+    }
+  })
+
   it('shows n/a for writes to input points without an associated output', () => {
     const profile = {
       ...fakeProfile,
@@ -634,8 +885,9 @@ describe('point results', () => {
     const columnHeaders = within(screen.getByRole('table')).getAllByRole(
       'columnheader',
     )
-    expect(columnHeaders[2]).toHaveTextContent('Written to outstation')
-    expect(columnHeaders[3]).toHaveTextContent('Received from outstation')
+    expect(columnHeaders[2]).toHaveTextContent('Status')
+    expect(columnHeaders[3]).toHaveTextContent('Written to outstation')
+    expect(columnHeaders[4]).toHaveTextContent('Received from outstation')
 
     const indices = () =>
       screen.getAllByRole('rowheader').map((row) => row.textContent)
@@ -670,16 +922,81 @@ describe('point results', () => {
         name: 'Sort by Curve readback matches profile',
       }),
     )
-    expect(indices()).toEqual(['AI3', 'AI10', 'AI2'])
+    expect(indices()).toEqual(['AI2', 'AI3', 'AI10'])
     fireEvent.click(
       screen.getByRole('button', {
         name: 'Sort by Schedule readback matches profile',
       }),
     )
-    expect(indices()).toEqual(['AI10', 'AI2', 'AI3'])
+    expect(indices()).toEqual(['AI2', 'AI3', 'AI10'])
     expect(
       within(screen.getByRole('table')).getAllByRole('columnheader'),
-    ).toHaveLength(7)
+    ).toHaveLength(8)
+  })
+
+  it('sorts overall status by failed, unknown, and passed checks', () => {
+    const profile = {
+      ...fakeProfile,
+      BI: {
+        ...fakeProfile.BI,
+        points: [{ point_index: 1 }, { point_index: 2 }, { point_index: 3 }],
+      },
+    } as PicsProfile
+    const comment: SunSpecComment = {
+      uid: 'uid',
+      index: 'BI1',
+      check: 'received_from_outstation',
+      value: '',
+      message: 'Received',
+      passed: true,
+    }
+    render(
+      <PointResultsTable
+        profile={profile}
+        results={{
+          test: {
+            event_type: 'conformance_test_result',
+            scenario_id: 'scenario',
+            test: 'MON_001',
+            timestamp: 1,
+            passed: false,
+            comments: [
+              comment,
+              {
+                ...comment,
+                index: 'BI1',
+                check: 'within_profile_range',
+                passed: false,
+              },
+              { ...comment, index: 'BI3', passed: false },
+              { ...comment, index: 'AI12', passed: false },
+            ],
+          },
+        }}
+      />,
+    )
+
+    const indices = () =>
+      screen.getAllByRole('rowheader').map((row) => row.textContent)
+    const status = screen.getByRole('button', { name: 'Sort by Status' })
+    expect(status.closest('th')).toHaveAttribute('aria-sort', 'ascending')
+    expect(indices()).toEqual(['AI12', 'BI3', 'BI2', 'BI1'])
+    expect(
+      screen.getByRole('cell', { name: 'AI12, Status: Failed' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', { name: 'BI3, Status: Failed' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', { name: 'BI2, Status: No information' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', { name: 'BI1, Status: Passed' }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(status)
+    expect(status.closest('th')).toHaveAttribute('aria-sort', 'descending')
+    expect(indices()).toEqual(['BI1', 'BI2', 'AI12', 'BI3'])
   })
 
   it('updates profile rows from conformance events and retains unknown checks', async () => {

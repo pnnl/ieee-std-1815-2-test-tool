@@ -15,7 +15,7 @@ use common::conformance_testing::{
     logging::log_conformance_result,
     message_structure::{ConformanceCheck, SunSpecComment, TestName},
 };
-use common::uids::{ai_uid::AiUid, ao_uid::AoUid, bi_uid::BiUid, bo_uid::BoUid};
+use common::profile::{AiPoint, AoPoint, BiPoint, BoPoint};
 use tracing::{Level, span};
 
 use crate::state::AppState;
@@ -25,8 +25,8 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 /// Returns a comment if the AI point at `uid` is **not present** in the profile.
-fn validate_ai_present(state: &AppState, uid: AiUid) -> Option<SunSpecComment> {
-    let index = uid as u16;
+fn validate_ai_present(state: &AppState, uid: &AiPoint) -> Option<SunSpecComment> {
+    let index = uid.point_index;
     if state
         .profile_index
         .read()
@@ -37,7 +37,7 @@ fn validate_ai_present(state: &AppState, uid: AiUid) -> Option<SunSpecComment> {
         return None;
     }
     Some(SunSpecComment {
-        uid: format!("{uid:?}"),
+        uid: uid.iec_61850_uid.clone(),
         index: format!("AI{index}"),
         check: ConformanceCheck::PresentInProfile,
         value: "Not present".into(),
@@ -47,8 +47,8 @@ fn validate_ai_present(state: &AppState, uid: AiUid) -> Option<SunSpecComment> {
 }
 
 /// Returns a comment if the BI point at `uid` is **not present** in the profile.
-fn validate_bi_present(state: &AppState, uid: BiUid) -> Option<SunSpecComment> {
-    let index = uid as u16;
+fn validate_bi_present(state: &AppState, uid: &BiPoint) -> Option<SunSpecComment> {
+    let index = uid.point_index;
     if state
         .profile_index
         .read()
@@ -59,7 +59,7 @@ fn validate_bi_present(state: &AppState, uid: BiUid) -> Option<SunSpecComment> {
         return None;
     }
     Some(SunSpecComment {
-        uid: format!("{uid:?}"),
+        uid: uid.iec_61850_uid.clone(),
         index: format!("BI{index}"),
         check: ConformanceCheck::PresentInProfile,
         value: "Not present".into(),
@@ -69,13 +69,13 @@ fn validate_bi_present(state: &AppState, uid: BiUid) -> Option<SunSpecComment> {
 }
 
 /// Returns a comment if the AO point at `uid` has **not been written** by the control station.
-fn validate_ao_written(state: &AppState, uid: AoUid) -> Option<SunSpecComment> {
-    let index = uid as u16;
+fn validate_ao_written(state: &AppState, uid: &AoPoint) -> Option<SunSpecComment> {
+    let index = uid.point_index;
     if state.received_ao_indices.read().unwrap().contains(&index) {
         return None;
     }
     Some(SunSpecComment {
-        uid: format!("{uid:?}"),
+        uid: uid.iec_61850_uid.clone(),
         index: format!("AO{index}"),
         check: ConformanceCheck::WrittenByControlStation,
         value: "Not written".into(),
@@ -85,11 +85,11 @@ fn validate_ao_written(state: &AppState, uid: AoUid) -> Option<SunSpecComment> {
 }
 
 /// Returns a comment if the most recent AO command value for `uid` was out of the profile range.
-fn validate_ao_in_range(state: &AppState, uid: AoUid) -> Option<SunSpecComment> {
-    let index = uid as u16;
+fn validate_ao_in_range(state: &AppState, uid: &AoPoint) -> Option<SunSpecComment> {
+    let index = uid.point_index;
     let (value, min, max) = *state.ao_range_violations.read().unwrap().get(&index)?;
     Some(SunSpecComment {
-        uid: format!("{uid:?}"),
+        uid: uid.iec_61850_uid.clone(),
         index: format!("AO{index}"),
         check: ConformanceCheck::WithinProfileRange,
         value: format!("{value}"),
@@ -101,13 +101,13 @@ fn validate_ao_in_range(state: &AppState, uid: AoUid) -> Option<SunSpecComment> 
 }
 
 /// Returns a comment if the BO point at `uid` has **not been written** by the control station.
-fn validate_bo_written(state: &AppState, uid: BoUid) -> Option<SunSpecComment> {
-    let index = uid as u16;
+fn validate_bo_written(state: &AppState, uid: &BoPoint) -> Option<SunSpecComment> {
+    let index = uid.point_index;
     if state.received_bo_indices.read().unwrap().contains(&index) {
         return None;
     }
     Some(SunSpecComment {
-        uid: format!("{uid:?}"),
+        uid: uid.iec_61850_uid.clone(),
         index: format!("BO{index}"),
         check: ConformanceCheck::WrittenByControlStation,
         value: "Not written".into(),
@@ -118,36 +118,36 @@ fn validate_bo_written(state: &AppState, uid: BoUid) -> Option<SunSpecComment> {
 
 fn run_test(
     state: &AppState,
-    ai_uids: &[AiUid],
-    bi_uids: &[BiUid],
-    ao_uids: &[AoUid],
-    bo_uids: &[BoUid],
+    ai_uids: &[AiPoint],
+    bi_uids: &[BiPoint],
+    ao_uids: &[AoPoint],
+    bo_uids: &[BoPoint],
 ) {
     let mut comments = Vec::new();
     comments.extend(
         ai_uids
             .iter()
-            .filter_map(|&uid| validate_ai_present(state, uid)),
+            .filter_map(|uid| validate_ai_present(state, uid)),
     );
     comments.extend(
         bi_uids
             .iter()
-            .filter_map(|&uid| validate_bi_present(state, uid)),
+            .filter_map(|uid| validate_bi_present(state, uid)),
     );
     comments.extend(
         ao_uids
             .iter()
-            .filter_map(|&uid| validate_ao_written(state, uid)),
+            .filter_map(|uid| validate_ao_written(state, uid)),
     );
     comments.extend(
         bo_uids
             .iter()
-            .filter_map(|&uid| validate_bo_written(state, uid)),
+            .filter_map(|uid| validate_bo_written(state, uid)),
     );
     comments.extend(
         ao_uids
             .iter()
-            .filter_map(|&uid| validate_ao_in_range(state, uid)),
+            .filter_map(|uid| validate_ao_in_range(state, uid)),
     );
     log_conformance_result(comments.is_empty(), comments);
 }
@@ -157,158 +157,195 @@ fn run_test(
 // ---------------------------------------------------------------------------
 
 fn mon_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::mon_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::mon_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
+}
+
+fn residual(state: &AppState) {
+    let pts =
+        common::conformance_testing::point_lists::residual(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn alarm_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::alarm_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::alarm_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn conn_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::conn_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::conn_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn serv_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::serv_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::serv_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn op_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::op_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::op_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn curve_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::curve_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::curve_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn curve_002(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::curve_002();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::curve_002(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn curve_003(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::curve_003();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::curve_003(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn vrt_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::vrt_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::vrt_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn frt_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::frt_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::frt_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn fw_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::fw_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::fw_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn drcs_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::drcs_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::drcs_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn dvw_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::dvw_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::dvw_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn apl_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::apl_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::apl_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn chg_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::chg_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::chg_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn ccm_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::ccm_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::ccm_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn apr1_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::apr1_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::apr1_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn apr2_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::apr2_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::apr2_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn apr3_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::apr3_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::apr3_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn agc_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::agc_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::agc_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn aps_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::aps_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::aps_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn vw_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::vw_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::vw_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn fwc_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::fwc_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::fwc_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn cvar_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::cvar_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::cvar_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn fpf_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::fpf_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::fpf_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn vv_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::vv_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::vv_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn wv_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::wv_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::wv_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn pfc_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::pfc_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::pfc_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn psig_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::psig_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::psig_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn sched_001(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::sched_001();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::sched_001(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 fn sched_002(state: &AppState) {
-    let pts = common::conformance_testing::point_lists::sched_002();
-    run_test(state, pts.ai, pts.bi, pts.ao, pts.bo);
+    let pts =
+        common::conformance_testing::point_lists::sched_002(&state.profile_index.read().unwrap());
+    run_test(state, &pts.ai, &pts.bi, &pts.ao, &pts.bo);
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +367,7 @@ pub fn run_conformance_tests(state: &Arc<AppState>) {
     }
 
     run!(MON_001, mon_001);
+    run!(RESIDUAL, residual);
     run!(ALARM_001, alarm_001);
     run!(CONN_001, conn_001);
     run!(SERV_001, serv_001);

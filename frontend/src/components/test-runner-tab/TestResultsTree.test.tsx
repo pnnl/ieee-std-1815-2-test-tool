@@ -125,3 +125,32 @@ describe('TestResultsTree applicability notes', () => {
     },
   )
 })
+
+describe('TestResultsTree residual test', () => {
+  it('shows residual points as an implemented test', async () => {
+    const scenario: Scenario = {
+      id: 'residual',
+      name: 'Residual scenario',
+      description: 'Residual scenario',
+      expected_tests: [{ test_id: 'RESIDUAL', should_pass: true }],
+    }
+
+    render(
+      <TestResultsTree
+        scenarios={[scenario]}
+        results={{}}
+        hasStarted={false}
+        enabledScenarios={{ residual: true }}
+        onToggleScenario={vi.fn()}
+        onSetAllScenarios={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('treeitem', { name: 'Residual scenario' }))
+    const residualRow = await screen.findByRole('treeitem', {
+      name: 'RESIDUAL',
+    })
+    expect(residualRow).toHaveTextContent('RESIDUAL: Residual Points')
+    expect(residualRow).not.toHaveTextContent('partial')
+  })
+})

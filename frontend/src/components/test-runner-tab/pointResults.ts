@@ -27,6 +27,8 @@ export type PointResultRow = {
   index: string
   name: string
   checks: Partial<Record<PointCheck, PointResult>>
+  curveReadbackApplicable: boolean
+  scheduleReadbackApplicable: boolean
 }
 
 export function buildPointResults(
@@ -47,8 +49,27 @@ export function buildPointResults(
     )
     for (const point of points) {
       const index = `${point.kind.toUpperCase()}${point.point_index}`
-      if (!rows.has(index)) {
-        rows.set(index, { index, name: point.name, checks: {} })
+      let row = rows.get(index)
+      if (!row) {
+        row = {
+          index,
+          name: point.name,
+          checks: {},
+          curveReadbackApplicable: false,
+          scheduleReadbackApplicable: false,
+        }
+        rows.set(index, row)
+      }
+      if (point.kind === 'ai') {
+        if (point.locator.group.startsWith('curve_')) {
+          row.curveReadbackApplicable = true
+        }
+        if (
+          point.locator.group.startsWith('schedule_') &&
+          point.assoc_ao != null
+        ) {
+          row.scheduleReadbackApplicable = true
+        }
       }
     }
   }

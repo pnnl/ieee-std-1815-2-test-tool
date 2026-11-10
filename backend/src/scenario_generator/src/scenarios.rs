@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
 use common::conformance_testing::point_lists;
-use common::profile::PicsProfile;
+use common::profile::{AoPoint, PicsProfile, ProfileIndex};
 
 use crate::update_profile::is_multiplex_selector_ao;
 
@@ -115,39 +115,44 @@ fn all_fail() -> Vec<ExpectedTest> {
 /// Returns true if the test has at least one AO point that exists in the profile.
 /// Tests with AO points will fail for lower/upper bounds scenarios because those
 /// scenarios set AO write values outside the outstation's accepted range.
-fn test_has_ao_points_in_profile(test_id: &TestName, ao_indices_in_profile: &HashSet<u16>) -> bool {
+fn test_has_ao_points_in_profile(
+    test_id: &TestName,
+    ao_indices_in_profile: &HashSet<u16>,
+    profile: &ProfileIndex,
+) -> bool {
     let ao_uids = match test_id {
-        TestName::MON_001 => points_to_ao_indices(point_lists::mon_001().ao),
-        TestName::ALARM_001 => points_to_ao_indices(point_lists::alarm_001().ao),
-        TestName::CONN_001 => points_to_ao_indices(point_lists::conn_001().ao),
-        TestName::SERV_001 => points_to_ao_indices(point_lists::serv_001().ao),
-        TestName::OP_001 => points_to_ao_indices(point_lists::op_001().ao),
-        TestName::CURVE_001 => points_to_ao_indices(point_lists::curve_001().ao),
-        TestName::CURVE_002 => points_to_ao_indices(point_lists::curve_002().ao),
-        TestName::CURVE_003 => points_to_ao_indices(point_lists::curve_003().ao),
-        TestName::VRT_001 => points_to_ao_indices(point_lists::vrt_001().ao),
-        TestName::FRT_001 => points_to_ao_indices(point_lists::frt_001().ao),
-        TestName::FW_001 => points_to_ao_indices(point_lists::fw_001().ao),
-        TestName::DRCS_001 => points_to_ao_indices(point_lists::drcs_001().ao),
-        TestName::DVW_001 => points_to_ao_indices(point_lists::dvw_001().ao),
-        TestName::APL_001 => points_to_ao_indices(point_lists::apl_001().ao),
-        TestName::CHG_001 => points_to_ao_indices(point_lists::chg_001().ao),
-        TestName::CCM_001 => points_to_ao_indices(point_lists::ccm_001().ao),
-        TestName::APR1_001 => points_to_ao_indices(point_lists::apr1_001().ao),
-        TestName::APR2_001 => points_to_ao_indices(point_lists::apr2_001().ao),
-        TestName::APR3_001 => points_to_ao_indices(point_lists::apr3_001().ao),
-        TestName::AGC_001 => points_to_ao_indices(point_lists::agc_001().ao),
-        TestName::APS_001 => points_to_ao_indices(point_lists::aps_001().ao),
-        TestName::VW_001 => points_to_ao_indices(point_lists::vw_001().ao),
-        TestName::FWC_001 => points_to_ao_indices(point_lists::fwc_001().ao),
-        TestName::CVAR_001 => points_to_ao_indices(point_lists::cvar_001().ao),
-        TestName::FPF_001 => points_to_ao_indices(point_lists::fpf_001().ao),
-        TestName::VV_001 => points_to_ao_indices(point_lists::vv_001().ao),
-        TestName::WV_001 => points_to_ao_indices(point_lists::wv_001().ao),
-        TestName::PFC_001 => points_to_ao_indices(point_lists::pfc_001().ao),
-        TestName::PSIG_001 => points_to_ao_indices(point_lists::psig_001().ao),
-        TestName::SCHED_001 => points_to_ao_indices(point_lists::sched_001().ao),
-        TestName::SCHED_002 => points_to_ao_indices(point_lists::sched_002().ao),
+        TestName::MON_001 => points_to_ao_indices(&point_lists::mon_001(profile).ao),
+        TestName::RESIDUAL => points_to_ao_indices(&point_lists::residual(profile).ao),
+        TestName::ALARM_001 => points_to_ao_indices(&point_lists::alarm_001(profile).ao),
+        TestName::CONN_001 => points_to_ao_indices(&point_lists::conn_001(profile).ao),
+        TestName::SERV_001 => points_to_ao_indices(&point_lists::serv_001(profile).ao),
+        TestName::OP_001 => points_to_ao_indices(&point_lists::op_001(profile).ao),
+        TestName::CURVE_001 => points_to_ao_indices(&point_lists::curve_001(profile).ao),
+        TestName::CURVE_002 => points_to_ao_indices(&point_lists::curve_002(profile).ao),
+        TestName::CURVE_003 => points_to_ao_indices(&point_lists::curve_003(profile).ao),
+        TestName::VRT_001 => points_to_ao_indices(&point_lists::vrt_001(profile).ao),
+        TestName::FRT_001 => points_to_ao_indices(&point_lists::frt_001(profile).ao),
+        TestName::FW_001 => points_to_ao_indices(&point_lists::fw_001(profile).ao),
+        TestName::DRCS_001 => points_to_ao_indices(&point_lists::drcs_001(profile).ao),
+        TestName::DVW_001 => points_to_ao_indices(&point_lists::dvw_001(profile).ao),
+        TestName::APL_001 => points_to_ao_indices(&point_lists::apl_001(profile).ao),
+        TestName::CHG_001 => points_to_ao_indices(&point_lists::chg_001(profile).ao),
+        TestName::CCM_001 => points_to_ao_indices(&point_lists::ccm_001(profile).ao),
+        TestName::APR1_001 => points_to_ao_indices(&point_lists::apr1_001(profile).ao),
+        TestName::APR2_001 => points_to_ao_indices(&point_lists::apr2_001(profile).ao),
+        TestName::APR3_001 => points_to_ao_indices(&point_lists::apr3_001(profile).ao),
+        TestName::AGC_001 => points_to_ao_indices(&point_lists::agc_001(profile).ao),
+        TestName::APS_001 => points_to_ao_indices(&point_lists::aps_001(profile).ao),
+        TestName::VW_001 => points_to_ao_indices(&point_lists::vw_001(profile).ao),
+        TestName::FWC_001 => points_to_ao_indices(&point_lists::fwc_001(profile).ao),
+        TestName::CVAR_001 => points_to_ao_indices(&point_lists::cvar_001(profile).ao),
+        TestName::FPF_001 => points_to_ao_indices(&point_lists::fpf_001(profile).ao),
+        TestName::VV_001 => points_to_ao_indices(&point_lists::vv_001(profile).ao),
+        TestName::WV_001 => points_to_ao_indices(&point_lists::wv_001(profile).ao),
+        TestName::PFC_001 => points_to_ao_indices(&point_lists::pfc_001(profile).ao),
+        TestName::PSIG_001 => points_to_ao_indices(&point_lists::psig_001(profile).ao),
+        TestName::SCHED_001 => points_to_ao_indices(&point_lists::sched_001(profile).ao),
+        TestName::SCHED_002 => points_to_ao_indices(&point_lists::sched_002(profile).ao),
     };
 
     ao_uids
@@ -155,8 +160,8 @@ fn test_has_ao_points_in_profile(test_id: &TestName, ao_indices_in_profile: &Has
         .any(|index| ao_indices_in_profile.contains(index) && !is_multiplex_selector_ao(*index))
 }
 
-fn points_to_ao_indices(ao_uids: &[common::uids::ao_uid::AoUid]) -> Vec<u16> {
-    ao_uids.iter().map(|uid| *uid as u16).collect()
+fn points_to_ao_indices(ao_points: &[AoPoint]) -> Vec<u16> {
+    ao_points.iter().map(|point| point.point_index).collect()
 }
 
 /// Generate the full list of test scenarios with expected outcomes derived from the
@@ -164,6 +169,7 @@ fn points_to_ao_indices(ao_uids: &[common::uids::ao_uid::AoUid]) -> Vec<u16> {
 /// any test whose AO point list intersects the profile's AO points is expected to fail,
 /// since `update_profile` will set those AO writes out of range.
 pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
+    let profile_index = ProfileIndex::from_profile(profile);
     let ao_indices_in_profile: HashSet<u16> = profile
         .ao
         .all_ao_points()
@@ -173,7 +179,8 @@ pub fn generate_scenarios(profile: &Validated<PicsProfile>) -> Vec<Scenario> {
 
     let bounds_expected_tests: Vec<ExpectedTest> = TestName::iter()
         .map(|test_id| {
-            let should_pass = !test_has_ao_points_in_profile(&test_id, &ao_indices_in_profile);
+            let should_pass =
+                !test_has_ao_points_in_profile(&test_id, &ao_indices_in_profile, &profile_index);
             ExpectedTest {
                 test_id,
                 should_pass,
@@ -388,6 +395,7 @@ mod tests {
             assert_eq!(
                 expected_failures,
                 HashSet::from([
+                    TestName::RESIDUAL,
                     TestName::CONN_001,
                     TestName::SERV_001,
                     TestName::VRT_001,
@@ -436,6 +444,12 @@ mod tests {
             .into_iter()
             .filter(|s| matches!(s.id.as_str(), "lower_bounds" | "upper_bounds"))
         {
+            assert!(
+                scenario
+                    .expected_tests
+                    .iter()
+                    .any(|test| test.test_id == TestName::RESIDUAL)
+            );
             assert!(scenario.expected_tests.iter().all(|test| {
                 test.should_pass
                     && test.applicability_note.as_deref()

@@ -1,89 +1,104 @@
 //! Shared UID point lists for conformance tests.
 //!
-//! Each function returns a [`ConformancePoints`] struct containing the static UID slices
+//! Each function returns a [`ConformancePoints`] struct containing the points
 //! required for a given conformance test. Both the reference control station and the
 //! reference outstation call these functions so the point lists stay in one place.
 
 use std::collections::HashSet;
 
-use crate::profile::ProfileIndex;
+use crate::profile::{AiPoint, AoPoint, BiPoint, BoPoint, ProfileIndex};
 use crate::uids::{ai_uid::AiUid, ao_uid::AoUid, bi_uid::BiUid, bo_uid::BoUid};
 
-/// The set of UID slices required for a single conformance test.
+/// The points required for a single conformance test.
+#[derive(Debug, Default, PartialEq)]
 pub struct ConformancePoints {
-    /// Analog input UIDs required for this test.
-    pub ai: &'static [AiUid],
-    /// Binary input UIDs required for this test.
-    pub bi: &'static [BiUid],
-    /// Analog output UIDs required for this test.
-    pub ao: &'static [AoUid],
-    /// Binary output UIDs required for this test.
-    pub bo: &'static [BoUid],
+    pub ai: Vec<AiPoint>,
+    pub bi: Vec<BiPoint>,
+    pub ao: Vec<AoPoint>,
+    pub bo: Vec<BoPoint>,
 }
 
-/// Profile point indices not included in any conformance test point list.
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct ResidualPoints {
-    pub ai: Vec<u16>,
-    pub bi: Vec<u16>,
-    pub ao: Vec<u16>,
-    pub bo: Vec<u16>,
+macro_rules! conformance_points {
+    ($profile:expr; ai: $ai:expr, bi: $bi:expr, ao: $ao:expr, bo: $bo:expr $(,)?) => {{
+        let ai: &[AiUid] = $ai;
+        let bi: &[BiUid] = $bi;
+        let ao: &[AoUid] = $ao;
+        let bo: &[BoUid] = $bo;
+        ConformancePoints {
+            ai: ai
+                .iter()
+                .filter_map(|uid| $profile.ai_points.get(&(*uid as u16)).cloned())
+                .collect(),
+            bi: bi
+                .iter()
+                .filter_map(|uid| $profile.bi_points.get(&(*uid as u16)).cloned())
+                .collect(),
+            ao: ao
+                .iter()
+                .filter_map(|uid| $profile.ao_points.get(&(*uid as u16)).cloned())
+                .collect(),
+            bo: bo
+                .iter()
+                .filter_map(|uid| $profile.bo_points.get(&(*uid as u16)).cloned())
+                .collect(),
+        }
+    }};
 }
 
 /// Calculate the uncovered points in the loaded profile.
-pub fn residual(profile: &ProfileIndex) -> ResidualPoints {
+pub fn residual(profile: &ProfileIndex) -> ConformancePoints {
     let lists = [
-        mon_001(),
-        alarm_001(),
-        conn_001(),
-        serv_001(),
-        op_001(),
-        curve_001(),
-        curve_002(),
-        curve_003(),
-        vrt_001(),
-        frt_001(),
-        fw_001(),
-        drcs_001(),
-        dvw_001(),
-        apl_001(),
-        chg_001(),
-        ccm_001(),
-        apr1_001(),
-        apr2_001(),
-        apr3_001(),
-        agc_001(),
-        aps_001(),
-        vw_001(),
-        fwc_001(),
-        cvar_001(),
-        fpf_001(),
-        vv_001(),
-        wv_001(),
-        pfc_001(),
-        psig_001(),
-        sched_001(),
-        sched_002(),
+        mon_001(profile),
+        alarm_001(profile),
+        conn_001(profile),
+        serv_001(profile),
+        op_001(profile),
+        curve_001(profile),
+        curve_002(profile),
+        curve_003(profile),
+        vrt_001(profile),
+        frt_001(profile),
+        fw_001(profile),
+        drcs_001(profile),
+        dvw_001(profile),
+        apl_001(profile),
+        chg_001(profile),
+        ccm_001(profile),
+        apr1_001(profile),
+        apr2_001(profile),
+        apr3_001(profile),
+        agc_001(profile),
+        aps_001(profile),
+        vw_001(profile),
+        fwc_001(profile),
+        cvar_001(profile),
+        fpf_001(profile),
+        vv_001(profile),
+        wv_001(profile),
+        pfc_001(profile),
+        psig_001(profile),
+        sched_001(profile),
+        sched_002(profile),
     ];
 
     macro_rules! uncovered {
         ($field:ident, $points:ident) => {{
             let covered: HashSet<u16> = lists
                 .iter()
-                .flat_map(|list| list.$field.iter().map(|uid| *uid as u16))
+                .flat_map(|list| list.$field.iter().map(|point| point.point_index))
                 .collect();
-            let mut residual: Vec<u16> = profile
+            let mut residual: Vec<_> = profile
                 .$points
-                .keys()
-                .filter(|index| !covered.contains(index))
-                .copied()
+                .iter()
+                .filter(|(index, _)| !covered.contains(index))
+                .map(|(_, point)| point.clone())
                 .collect();
-            residual.sort_unstable();
+            residual.sort_unstable_by_key(|point| point.point_index);
             residual
         }};
     }
 
-    ResidualPoints {
+    ConformancePoints {
         ai: uncovered!(ai, ai_points),
         bi: uncovered!(bi, bi_points),
         ao: uncovered!(ao, ao_points),
@@ -92,8 +107,9 @@ pub fn residual(profile: &ProfileIndex) -> ResidualPoints {
 }
 
 /// Point list for the MON-001 (Monitoring) conformance test.
-pub fn mon_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn mon_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Monitoring_DECP_EcpConnType,
             AiUid::Monitoring_DECP_PhsConnTyp,
@@ -127,8 +143,9 @@ pub fn mon_001() -> ConformancePoints {
 }
 
 /// Point list for the ALARM-001 conformance test.
-pub fn alarm_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn alarm_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[],
         bi: &[
             BiUid::Alarm_LCCH1_ChLiv,
@@ -160,8 +177,9 @@ pub fn alarm_001() -> ConformancePoints {
 }
 
 /// Point list for the CONN-001 (Connect) conformance test.
-pub fn conn_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn conn_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[AiUid::Connect_DCTE3_WinTms, AiUid::Connect_DCTE3_RvrtTms],
         bi: &[BiUid::Monitoring_CSWI_Pos_1, BiUid::Monitoring_CSWI_Pos_2],
         ao: &[AoUid::Connect_DCTE3_WinTms, AoUid::Connect_DCTE3_RvrtTms],
@@ -170,8 +188,9 @@ pub fn conn_001() -> ConformancePoints {
 }
 
 /// Point list for the SERV-001 (Return to Service / Enter Service) conformance test.
-pub fn serv_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn serv_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Return_to_Service_DCTE1_VHiLim,
             AiUid::Return_to_Service_DCTE1_VLoLim,
@@ -213,8 +232,9 @@ pub fn serv_001() -> ConformancePoints {
 }
 
 /// Point list for the OP-001 (Operational State) conformance test.
-pub fn op_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn op_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[],
         bi: &[
             BiUid::State_DGEN_DEROpSt_disconnectedandinmaintenance,
@@ -237,8 +257,9 @@ pub fn op_001() -> ConformancePoints {
 }
 
 /// Point list for the CURVE-001 conformance test.
-pub fn curve_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn curve_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[AiUid::Curve_DGSMn_InCrv],
         bi: &[BiUid::Curve_MESA_CrvRef],
         ao: &[AoUid::Curve_DGSMn_InCrv],
@@ -247,8 +268,9 @@ pub fn curve_001() -> ConformancePoints {
 }
 
 /// Point list for the CURVE-002 conformance test.
-pub fn curve_002() -> ConformancePoints {
-    ConformancePoints {
+pub fn curve_002(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[AiUid::Curve_DGSMn_InCrv],
         bi: &[BiUid::Curve_MESA_CrvRef],
         ao: &[AoUid::Curve_DGSMn_InCrv],
@@ -257,8 +279,9 @@ pub fn curve_002() -> ConformancePoints {
 }
 
 /// Point list for the CURVE-003 conformance test.
-pub fn curve_003() -> ConformancePoints {
-    ConformancePoints {
+pub fn curve_003(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[AiUid::Curve_DGSMn_InCrv],
         bi: &[BiUid::Curve_MESA_CrvRef],
         ao: &[AoUid::Curve_DGSMn_InCrv],
@@ -267,8 +290,9 @@ pub fn curve_003() -> ConformancePoints {
 }
 
 /// Point list for the VRT-001 (Volt Ride-Through) conformance test.
-pub fn vrt_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn vrt_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Volt_Ride_Through_DHVT_EcpRef,
             AiUid::Volt_Ride_Through_DHVT_MMXN_Vol,
@@ -290,8 +314,9 @@ pub fn vrt_001() -> ConformancePoints {
 }
 
 /// Point list for the FRT-001 (Freq Ride-Through) conformance test.
-pub fn frt_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn frt_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Freq_Ride_Through_DHFT_EcpRef,
             AiUid::Freq_Ride_Through_DHFT_MMXU_Hz,
@@ -313,8 +338,9 @@ pub fn frt_001() -> ConformancePoints {
 }
 
 /// Point list for the FW-001 (Freq-Watt) conformance test.
-pub fn fw_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn fw_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Freq_Watt_DHFW1_ModPrio,
             AiUid::Freq_Watt_DHFW1_WinTms,
@@ -385,8 +411,9 @@ pub fn fw_001() -> ConformancePoints {
 }
 
 /// Point list for the DRCS-001 (Dynamic Reactive Current Support) conformance test.
-pub fn drcs_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn drcs_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Dyn_React_Curr_Supp_DRGS_ModPrio,
             AiUid::Dyn_React_Curr_Supp_DRGS_WinTms,
@@ -436,8 +463,9 @@ pub fn drcs_001() -> ConformancePoints {
 }
 
 /// Point list for the DVW-001 (Dynamic Volt-Watt) conformance test.
-pub fn dvw_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn dvw_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Dyn_Volt_Watt_DVWD_ModPrio,
             AiUid::Dyn_Volt_Watt_DVWD_WinTms,
@@ -470,8 +498,9 @@ pub fn dvw_001() -> ConformancePoints {
 }
 
 /// Point list for the APL-001 (Active Power Limit) conformance test.
-pub fn apl_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn apl_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Active_Power_Limit_DWMX_ModPrio,
             AiUid::Active_Power_Limit_DWMX_WinTms,
@@ -497,8 +526,9 @@ pub fn apl_001() -> ConformancePoints {
 }
 
 /// Point list for the CHG-001 (Set Active Power / Charge-Discharge) conformance test.
-pub fn chg_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn chg_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Set_Active_Power_DWGC_ModPrio,
             AiUid::Set_Active_Power_DWGC_WinTms,
@@ -541,8 +571,9 @@ pub fn chg_001() -> ConformancePoints {
 }
 
 /// Point list for the CCM-001 (Coordinated Charge/Discharge Management) conformance test.
-pub fn ccm_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn ccm_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Coord_Charge_Dischg_DTCD_ModPrio,
             AiUid::Coord_Charge_Dischg_DTCD_WinTms,
@@ -579,8 +610,9 @@ pub fn ccm_001() -> ConformancePoints {
 }
 
 /// Point list for the APR1-001 (Peak Power Limiting) conformance test.
-pub fn apr1_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn apr1_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Peak_Power_Limiting_DWFL1_ModPrio,
             AiUid::Peak_Power_Limiting_DWFL1_WinTms,
@@ -611,8 +643,9 @@ pub fn apr1_001() -> ConformancePoints {
 }
 
 /// Point list for the APR2-001 (Load Following) conformance test.
-pub fn apr2_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn apr2_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Load_Following_DWFL2_ModPrio,
             AiUid::Load_Following_DWFL2_WinTms,
@@ -643,8 +676,9 @@ pub fn apr2_001() -> ConformancePoints {
 }
 
 /// Point list for the APR3-001 (Generation Following) conformance test.
-pub fn apr3_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn apr3_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Generation_Following_DWFL3_ModPrio,
             AiUid::Generation_Following_DWFL3_WinTms,
@@ -675,8 +709,9 @@ pub fn apr3_001() -> ConformancePoints {
 }
 
 /// Point list for the AGC-001 (Automatic Generation Control) conformance test.
-pub fn agc_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn agc_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::AGC_DAGC_ModPrio,
             AiUid::AGC_DAGC_WinTms,
@@ -717,8 +752,9 @@ pub fn agc_001() -> ConformancePoints {
 }
 
 /// Point list for the APS-001 (Active Power Smoothing) conformance test.
-pub fn aps_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn aps_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Active_Power_Smoothing_DWSM_ModPrio,
             AiUid::Active_Power_Smoothing_DWSM_WinTms,
@@ -757,8 +793,9 @@ pub fn aps_001() -> ConformancePoints {
 }
 
 /// Point list for the VW-001 (Volt-Watt curve) conformance test.
-pub fn vw_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn vw_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Volt_Watt_DVWC1_ModPrio,
             AiUid::Volt_Watt_DVWC1_WinTms,
@@ -797,8 +834,9 @@ pub fn vw_001() -> ConformancePoints {
 }
 
 /// Point list for the FWC-001 (Freq-Watt Curve) conformance test.
-pub fn fwc_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn fwc_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Freq_Watt_Curve_DHFW2_ModPrio,
             AiUid::Freq_Watt_Curve_DHFW2_WinTms,
@@ -855,8 +893,9 @@ pub fn fwc_001() -> ConformancePoints {
 }
 
 /// Point list for the CVAR-001 (Constant VAr) conformance test.
-pub fn cvar_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn cvar_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Const_VArs_DVAR_ModPrio,
             AiUid::Const_VArs_DVAR_WinTms,
@@ -881,8 +920,9 @@ pub fn cvar_001() -> ConformancePoints {
 }
 
 /// Point list for the FPF-001 (Constant Power Factor) conformance test.
-pub fn fpf_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn fpf_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Constant_PF_DFPF_ModPrio,
             AiUid::Constant_PF_DFPF_WinTms,
@@ -913,8 +953,9 @@ pub fn fpf_001() -> ConformancePoints {
 }
 
 /// Point list for the VV-001 (Volt-VAr) conformance test.
-pub fn vv_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn vv_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Volt_VAr_DVVR_ModPrio,
             AiUid::Volt_VAr_DVVR_WinTms,
@@ -946,8 +987,9 @@ pub fn vv_001() -> ConformancePoints {
 }
 
 /// Point list for the WV-001 (Watt-VAr) conformance test.
-pub fn wv_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn wv_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Watt_VAr_DWVR_ModPrio,
             AiUid::Watt_VAr_DWVR_WinTms,
@@ -976,8 +1018,9 @@ pub fn wv_001() -> ConformancePoints {
 }
 
 /// Point list for the PFC-001 (PF Correction) conformance test.
-pub fn pfc_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn pfc_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::PF_Correct_DPFC_ModPrio,
             AiUid::PF_Correct_DPFC_WinTms,
@@ -1005,8 +1048,9 @@ pub fn pfc_001() -> ConformancePoints {
 }
 
 /// Point list for the PSIG-001 (Price Signal) conformance test.
-pub fn psig_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn psig_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Price_DPRG_ModPrio,
             AiUid::Price_DPRG_WinTms,
@@ -1031,8 +1075,9 @@ pub fn psig_001() -> ConformancePoints {
 }
 
 /// Point list for the SCHED-001 (Backward-Compatible Scheduling) conformance test.
-pub fn sched_001() -> ConformancePoints {
-    ConformancePoints {
+pub fn sched_001(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[
             AiUid::Config_MESA_NumSchd,
             AiUid::BC_Scheduling_BC_FSCC_ActSchdRef,
@@ -1083,8 +1128,9 @@ pub fn sched_001() -> ConformancePoints {
 }
 
 /// Point list for the SCHED-002 (IEEE 1815.2 Scheduling) conformance test.
-pub fn sched_002() -> ConformancePoints {
-    ConformancePoints {
+pub fn sched_002(profile: &ProfileIndex) -> ConformancePoints {
+    conformance_points! {
+        profile;
         ai: &[],
         bi: &[
             BiUid::Scheduling_FSCHn_SchdSt_2,
@@ -1110,52 +1156,121 @@ mod tests {
     use crate::profile::PicsProfile;
 
     #[test]
+    fn mon_001_only_contains_points_in_the_loaded_profile() {
+        let profile = PicsProfile::load_full_profile();
+        let mut index = ProfileIndex::from_profile(&profile);
+        let removed_index = AiUid::Monitoring_DECP_EcpConnType as u16;
+        let retained_index = AiUid::Monitoring_DECP_PhsConnTyp as u16;
+        index.ai_points.remove(&removed_index);
+        index
+            .ai_points
+            .get_mut(&retained_index)
+            .expect("point in profile")
+            .iec_61850_uid = "loaded-profile-uid".to_owned();
+
+        let points = mon_001(&index);
+        assert!(
+            !points
+                .ai
+                .iter()
+                .any(|point| point.point_index == removed_index)
+        );
+        assert!(points.ai.iter().any(|point| {
+            point.point_index == retained_index && point.iec_61850_uid == "loaded-profile-uid"
+        }));
+    }
+
+    #[test]
     fn residual_contains_only_uncovered_profile_points() {
         let profile = PicsProfile::load_full_profile();
         let mut index = ProfileIndex::from_profile(&profile);
-        let ai_point = index
+        let mut ai_point = index
             .ai_points
             .values()
             .next()
             .expect("full profile has AI points")
             .clone();
-        let bi_point = index
+        let mut bi_point = index
             .bi_points
             .values()
             .next()
             .expect("full profile has BI points")
             .clone();
-        let ao_point = index
+        let mut ao_point = index
             .ao_points
             .values()
             .next()
             .expect("full profile has AO points")
             .clone();
-        let bo_point = index
+        let mut bo_point = index
             .bo_points
             .values()
             .next()
             .expect("full profile has BO points")
             .clone();
+        ai_point.point_index = u16::MAX;
+        bi_point.point_index = u16::MAX;
+        ao_point.point_index = u16::MAX;
+        bo_point.point_index = u16::MAX;
+        let expected_ai_uid = ai_point.iec_61850_uid.clone();
+        let expected_bi_uid = bi_point.iec_61850_uid.clone();
+        let expected_ao_uid = ao_point.iec_61850_uid.clone();
+        let expected_bo_uid = bo_point.iec_61850_uid.clone();
         index.ai_points.insert(u16::MAX, ai_point);
         index.bi_points.insert(u16::MAX, bi_point);
         index.ao_points.insert(u16::MAX, ao_point);
         index.bo_points.insert(u16::MAX, bo_point);
 
         let points = residual(&index);
-        for indices in [&points.ai, &points.bi, &points.ao, &points.bo] {
-            assert!(indices.contains(&u16::MAX));
-            assert!(indices.windows(2).all(|pair| pair[0] < pair[1]));
+        macro_rules! assert_residual {
+            ($points:expr, $uid:expr) => {{
+                let custom_point = $points
+                    .iter()
+                    .find(|point| point.point_index == u16::MAX)
+                    .expect("unknown profile index is included");
+                assert_eq!(custom_point.iec_61850_uid, $uid);
+                assert!(
+                    $points
+                        .windows(2)
+                        .all(|pair| pair[0].point_index < pair[1].point_index)
+                );
+            }};
         }
-        assert!(!points.ai.contains(&(mon_001().ai[0] as u16)));
-        assert!(!points.bi.contains(&(alarm_001().bi[0] as u16)));
-        assert!(!points.ao.contains(&(conn_001().ao[0] as u16)));
-        assert!(!points.bo.contains(&(conn_001().bo[0] as u16)));
+        assert_residual!(points.ai, expected_ai_uid);
+        assert_residual!(points.bi, expected_bi_uid);
+        assert_residual!(points.ao, expected_ao_uid);
+        assert_residual!(points.bo, expected_bo_uid);
+        assert!(points.bi.iter().any(|point| point.point_index == 5001));
+        assert!(points.ao.iter().any(|point| point.point_index == 3005));
+        assert!(
+            !points
+                .ai
+                .iter()
+                .any(|point| point.point_index == AiUid::Monitoring_DECP_EcpConnType as u16)
+        );
+        assert!(
+            !points
+                .bi
+                .iter()
+                .any(|point| point.point_index == BiUid::Alarm_LCCH1_ChLiv as u16)
+        );
+        assert!(
+            !points
+                .ao
+                .iter()
+                .any(|point| point.point_index == AoUid::Connect_DCTE3_WinTms as u16)
+        );
+        assert!(
+            !points
+                .bo
+                .iter()
+                .any(|point| point.point_index == BoUid::Monitoring_CSWI_Pos as u16)
+        );
 
         index.ai_points.clear();
         index.bi_points.clear();
         index.ao_points.clear();
         index.bo_points.clear();
-        assert_eq!(residual(&index), ResidualPoints::default());
+        assert_eq!(residual(&index), ConformancePoints::default());
     }
 }

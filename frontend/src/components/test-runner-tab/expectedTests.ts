@@ -25,6 +25,10 @@ export const testNameToControlModeTest = {
     implemented: ImplementationStatus.Implemented,
     displayName: 'Monitoring',
   },
+  RESIDUAL: {
+    implemented: ImplementationStatus.Implemented,
+    displayName: 'Residual Points',
+  },
   ALARM_001: {
     implemented: ImplementationStatus.Implemented,
     displayName: 'Alarm Reporting',

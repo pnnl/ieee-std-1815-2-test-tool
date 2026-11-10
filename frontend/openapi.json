@@ -2883,6 +2883,7 @@
         "type": "string",
         "enum": [
           "MON_001",
+          "RESIDUAL",
           "SCHED_001",
           "SCHED_002",
           "ALARM_001",
